@@ -60,7 +60,7 @@ jobs:
           pip install pytest-cov matplotlib seaborn pandas scikit-learn
       - name: Run tests
         run: |
-          pytest --cov=archetypax
+          pytest --cov=riemannax
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
         if: ${{ github.repository_owner == 'username' }}
@@ -86,7 +86,7 @@ jobs:
           pip install pytest-cov matplotlib seaborn pandas scikit-learn
       - name: Run tests
         run: |
-          pytest --cov=archetypax
+          pytest --cov=riemannax
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
         if: ${{ github.repository_owner == 'username' }}
