@@ -98,7 +98,7 @@ def main():
     problem = rx.RiemannianProblem(sphere, cost_fn)
 
     # 3. Set a random initial point
-    key = jax.random.PRNGKey(42)
+    key = jax.random.key(42)
     x0 = sphere.random_point(key)
 
     # 4. Solve the problem
