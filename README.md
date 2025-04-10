@@ -51,24 +51,24 @@ pip install -e ".[dev]"
 ```python
 import jax
 import jax.numpy as jnp
-import riemannax as rx
+import riemannax as rieax
 
 # 1. Define a manifold
-sphere = rx.Sphere()
+sphere = rieax.Sphere()
 
 # 2. Define an optimization problem
 def cost_fn(x):
     target = jnp.array([0., 0., 1.])  # North pole
     return -jnp.dot(x, target)  # Find the point closest to the north pole
 
-problem = rx.RiemannianProblem(sphere, cost_fn)
+problem = rieax.RiemannianProblem(sphere, cost_fn)
 
 # 3. Set the initial point
-key = jax.random.PRNGKey(0)
+key = jax.random.key(0)
 x0 = sphere.random_point(key)
 
 # 4. Solve the problem
-result = rx.minimize(
+result = rieax.minimize(
     problem,
     x0,
     method='rsgd',
