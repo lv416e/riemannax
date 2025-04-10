@@ -24,18 +24,18 @@ class OptState:
 
     x: jnp.ndarray  # Current point on the manifold
 
-    def tree_flatten(self) -> tuple[tuple[Any, ...], dict]:
+    def tree_flatten(self) -> tuple[tuple[Any, ...], dict[str, Any]]:
         """Flatten the OptState for JAX.
 
         Returns:
             A tuple containing a tuple of arrays (children) and auxiliary data (None).
         """
         children = (self.x,)
-        aux_data = {}
+        aux_data: dict[str, Any] = {}
         return children, aux_data
 
     @classmethod
-    def tree_unflatten(cls, aux_data: dict, children: tuple[Any, ...]) -> "OptState":
+    def tree_unflatten(cls, aux_data: dict[str, Any], children: tuple[Any, ...]) -> "OptState":
         """Unflatten the OptState for JAX.
 
         Args:
