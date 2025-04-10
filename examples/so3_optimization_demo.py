@@ -74,7 +74,7 @@ def main():
     so3 = rx.SpecialOrthogonal(n=3)
 
     # 2. Create a target rotation matrix
-    key = jax.random.PRNGKey(0)
+    key = jax.random.key(0)
     target_matrix = so3.random_point(key)
 
     # 3. Define the optimization problem - Minimize squared Frobenius norm
@@ -86,7 +86,7 @@ def main():
     problem = rx.RiemannianProblem(so3, cost_fn)
 
     # 4. Set a random initial point
-    key = jax.random.PRNGKey(42)
+    key = jax.random.key(42)
     X0 = so3.random_point(key)
 
     # 5. Solve the problem
