@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-import riemannax as rx
+import riemannax as rieax
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def key():
 def test_integration_sphere_optimization():
     """Test end-to-end optimization on the sphere."""
     # Create a sphere manifold
-    sphere = rx.Sphere()
+    sphere = rieax.Sphere()
 
     # Define a cost function (maximize the dot product with the north pole)
     def cost_fn(x):
@@ -28,14 +28,14 @@ def test_integration_sphere_optimization():
         return -jnp.dot(x, north_pole)  # Negative to convert maximization to minimization
 
     # Create a problem
-    problem = rx.RiemannianProblem(sphere, cost_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn)
 
     # Initialize from the south pole
     x0 = jnp.array([0.0, 0.0, -1.0])
 
     # Run optimization with minimal iterations, without checking convergence
     options = {"max_iterations": 10, "learning_rate": 0.1}
-    result = rx.minimize(problem, x0, options=options)
+    result = rieax.minimize(problem, x0, options=options)
 
     # Only verify that optimization runs and returns valid results
     assert isinstance(result.x, jnp.ndarray)
@@ -45,7 +45,7 @@ def test_integration_sphere_optimization():
 def test_integration_so3_optimization(key):
     """Test end-to-end optimization on SO(3)."""
     # Create an SO(3) manifold
-    so3 = rx.SpecialOrthogonal(n=3)
+    so3 = rieax.SpecialOrthogonal(n=3)
 
     # Create a target rotation matrix
     target = so3.random_point(jax.random.fold_in(key, 0))
@@ -55,14 +55,14 @@ def test_integration_so3_optimization(key):
         return jnp.sum((x - target) ** 2)
 
     # Create a problem
-    problem = rx.RiemannianProblem(so3, cost_fn)
+    problem = rieax.RiemannianProblem(so3, cost_fn)
 
     # Initialize from a random point
     x0 = so3.random_point(jax.random.fold_in(key, 1))
 
     # Solve the problem
     options = {"max_iterations": 200, "learning_rate": 0.05}
-    result = rx.minimize(problem, x0, options=options)
+    result = rieax.minimize(problem, x0, options=options)
 
     # The solution should be close to the target
     assert jnp.allclose(result.x, target, atol=0.1)
@@ -72,7 +72,7 @@ def test_integration_so3_optimization(key):
 def test_integration_custom_gradient():
     """Test optimization with a custom gradient function."""
     # Create a sphere manifold
-    sphere = rx.Sphere()
+    sphere = rieax.Sphere()
 
     # Define a cost function
     def cost_fn(x):
@@ -85,14 +85,14 @@ def test_integration_custom_gradient():
         return -north_pole  # Negative gradient for maximization
 
     # Create a problem with the custom gradient
-    problem = rx.RiemannianProblem(sphere, cost_fn, euclidean_grad_fn=euclidean_grad_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn, euclidean_grad_fn=euclidean_grad_fn)
 
     # Initialize from a random point
     x0 = jnp.array([1.0, 0.0, 0.0])  # East pole
 
     # Solve the problem
     options = {"max_iterations": 100, "learning_rate": 0.1}
-    result = rx.minimize(problem, x0, options=options)
+    result = rieax.minimize(problem, x0, options=options)
 
     # The solution should be close to the north pole
     north_pole = jnp.array([0.0, 0.0, 1.0])
@@ -102,7 +102,7 @@ def test_integration_custom_gradient():
 def test_integration_retraction_vs_exp():
     """Compare optimization with exponential map versus retraction."""
     # Create a sphere manifold
-    sphere = rx.Sphere()
+    sphere = rieax.Sphere()
 
     # Define a cost function
     def cost_fn(x):
@@ -110,18 +110,18 @@ def test_integration_retraction_vs_exp():
         return -jnp.dot(x, north_pole)
 
     # Create a problem
-    problem = rx.RiemannianProblem(sphere, cost_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn)
 
     # Initialize from the south pole
     x0 = jnp.array([0.0, 0.0, -1.0])
 
     # Run optimization using exponential map
     options_exp = {"max_iterations": 10, "learning_rate": 0.1, "use_retraction": False}
-    result_exp = rx.minimize(problem, x0, options=options_exp)
+    result_exp = rieax.minimize(problem, x0, options=options_exp)
 
     # Run optimization using retraction
     options_retr = {"max_iterations": 10, "learning_rate": 0.1, "use_retraction": True}
-    result_retr = rx.minimize(problem, x0, options=options_retr)
+    result_retr = rieax.minimize(problem, x0, options=options_retr)
 
     # Only verify that both methods run and return valid results
     assert isinstance(result_exp.x, jnp.ndarray)

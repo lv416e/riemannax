@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-import riemannax as rx
+import riemannax as rieax
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def key():
 @pytest.fixture
 def so3():
     """Create an SO(3) manifold instance for testing."""
-    return rx.SpecialOrthogonal(n=3)
+    return rieax.SpecialOrthogonal(n=3)
 
 
 @pytest.fixture
@@ -37,11 +37,11 @@ def tangent_vec(so3, point_on_so3, key):
 def test_so3_initialization():
     """Test initialization of the special orthogonal group."""
     # Default initialization should be SO(3)
-    so = rx.SpecialOrthogonal()
+    so = rieax.SpecialOrthogonal()
     assert so.n == 3
 
     # Test explicit dimension
-    so2 = rx.SpecialOrthogonal(n=2)
+    so2 = rieax.SpecialOrthogonal(n=2)
     assert so2.n == 2
 
 
