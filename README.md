@@ -1,12 +1,12 @@
 # RiemannAX
 
-JAX-native Riemannian manifold optimization framework.
+Hardware-accelerated Riemannian Manifold Optimization with JAX
 
 ## Overview
 
-RiemannAX is a library for optimization on Riemannian manifolds using JAX. It provides
-implementations of various Riemannian manifolds and optimization algorithms that leverage
-JAX's automatic differentiation and GPU acceleration capabilities.
+RiemannAX is a library for optimization on Riemannian manifolds using JAX.<br>
+It provides implementations of various Riemannian manifolds and optimization algorithms<br>
+that leverage JAX's automatic differentiation and GPU acceleration capabilities.
 
 ## Features
 
