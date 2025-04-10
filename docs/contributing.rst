@@ -1,7 +1,8 @@
 Contributing
 ============
 
-We welcome contributions to ``riemannax``! This document outlines the process for contributing to the project and provides guidelines to ensure a smooth collaboration experience.
+We welcome contributions to ``riemannax``!
+This document outlines the process for contributing to the project and provides guidelines to ensure a smooth collaboration experience.
 
 Development Environment
 ---------------------
@@ -13,30 +14,30 @@ To set up a development environment:
 
    .. code-block:: bash
 
-       git clone https://github.com/lv416e/riemannax.git
+       git clone https://github.com/your-username/riemannax.git
        cd riemannax
 
 3. Create a virtual environment and install development dependencies:
 
    .. code-block:: bash
 
-       python -m venv .venv
-       source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-       pip install -e ".[dev,docs,examples]"
+       uv sync
+       uv pip install -e ".[dev,docs,examples]
 
 4. Set up pre-commit hooks:
 
    .. code-block:: bash
 
-       pre-commit install
+       uvx pre-commit install
 
 Code Style
 ---------
 
-``riemannax`` follows a consistent code style enforced by ruff and black. The configuration is defined in ``pyproject.toml``. Key style guidelines include:
+``riemannax`` follows a consistent code style enforced by ruff and black.
+The configuration is defined in ``pyproject.toml``. Key style guidelines include:
 
 - Use Google-style docstrings
-- Maximum line length of 100 characters
+- Maximum line length of 120 characters
 - Type annotations for function signatures
 - Comprehensive test coverage
 
@@ -44,15 +45,13 @@ To check your code style:
 
 .. code-block:: bash
 
-    ruff check .
-    black --check .
+    ruff check riemannax
 
 To automatically format your code:
 
 .. code-block:: bash
 
-    ruff check --fix .
-    black .
+    ruff check --fix riemannax
 
 Pull Request Process
 ------------------
