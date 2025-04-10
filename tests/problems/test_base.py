@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-import riemannax as rx
+import riemannax as rieax
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def key():
 @pytest.fixture
 def sphere():
     """Create a sphere manifold instance for testing."""
-    return rx.Sphere()
+    return rieax.Sphere()
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def test_riemannian_problem_initialization(sphere):
         return jnp.sum(x)
 
     # Initialize with just the cost function
-    problem = rx.RiemannianProblem(sphere, cost_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn)
     assert problem.manifold is sphere
     assert problem.cost_fn is cost_fn
     assert problem.grad_fn is None
@@ -46,14 +46,14 @@ def test_riemannian_problem_initialization(sphere):
     def grad_fn(x):
         return sphere.proj(x, jnp.ones_like(x))
 
-    problem = rx.RiemannianProblem(sphere, cost_fn, grad_fn=grad_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn, grad_fn=grad_fn)
     assert problem.grad_fn is grad_fn
 
     # Initialize with Euclidean gradient function
     def euclidean_grad_fn(x):
         return jnp.ones_like(x)
 
-    problem = rx.RiemannianProblem(sphere, cost_fn, euclidean_grad_fn=euclidean_grad_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn, euclidean_grad_fn=euclidean_grad_fn)
     assert problem.euclidean_grad_fn is euclidean_grad_fn
 
 
@@ -65,7 +65,7 @@ def test_riemannian_problem_cost(sphere, point_on_sphere):
         return jnp.sum(x)
 
     # Create a problem
-    problem = rx.RiemannianProblem(sphere, cost_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn)
 
     # Evaluate the cost
     cost = problem.cost(point_on_sphere)
@@ -86,7 +86,7 @@ def test_riemannian_problem_grad_with_grad_fn(sphere, point_on_sphere):
         return sphere.proj(x, jnp.ones_like(x))
 
     # Create a problem with the Riemannian gradient function
-    problem = rx.RiemannianProblem(sphere, cost_fn, grad_fn=grad_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn, grad_fn=grad_fn)
 
     # Compute the gradient
     gradient = problem.grad(point_on_sphere)
@@ -107,7 +107,7 @@ def test_riemannian_problem_grad_with_euclidean_grad_fn(sphere, point_on_sphere)
         return jnp.ones_like(x)
 
     # Create a problem with the Euclidean gradient function
-    problem = rx.RiemannianProblem(sphere, cost_fn, euclidean_grad_fn=euclidean_grad_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn, euclidean_grad_fn=euclidean_grad_fn)
 
     # Compute the gradient
     gradient = problem.grad(point_on_sphere)
@@ -125,7 +125,7 @@ def test_riemannian_problem_grad_with_autodiff(sphere, point_on_sphere):
         return jnp.sum(x)
 
     # Create a problem without gradient functions
-    problem = rx.RiemannianProblem(sphere, cost_fn)
+    problem = rieax.RiemannianProblem(sphere, cost_fn)
 
     # Compute the gradient
     gradient = problem.grad(point_on_sphere)

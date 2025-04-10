@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-import riemannax as rx
+import riemannax as rieax
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def key():
 @pytest.fixture
 def sphere():
     """Create a sphere manifold instance for testing."""
-    return rx.Sphere()
+    return rieax.Sphere()
 
 
 @pytest.fixture
@@ -31,18 +31,18 @@ def point_on_sphere(key, sphere):
 def test_sgd_initialization():
     """Test initialization of the Riemannian gradient descent optimizer."""
     # Default initialization
-    _, _ = rx.riemannian_gradient_descent()
+    _, _ = rieax.riemannian_gradient_descent()
 
     # Explicit learning rate
-    _, _ = rx.riemannian_gradient_descent(learning_rate=0.5)
+    _, _ = rieax.riemannian_gradient_descent(learning_rate=0.5)
 
     # Use retraction
-    _, _ = rx.riemannian_gradient_descent(use_retraction=True)
+    _, _ = rieax.riemannian_gradient_descent(use_retraction=True)
 
 
 def test_sgd_init_fn(point_on_sphere):
     """Test the init function of the optimizer."""
-    init_fn, _ = rx.riemannian_gradient_descent()
+    init_fn, _ = rieax.riemannian_gradient_descent()
 
     # Initialize state with a point
     state = init_fn(point_on_sphere)
@@ -54,14 +54,14 @@ def test_sgd_init_fn(point_on_sphere):
 def test_sgd_update_fn_with_exp(sphere, point_on_sphere):
     """Test the update function of the optimizer using exponential map."""
     learning_rate = 0.1
-    _, update_fn = rx.riemannian_gradient_descent(learning_rate=learning_rate, use_retraction=False)
+    _, update_fn = rieax.riemannian_gradient_descent(learning_rate=learning_rate, use_retraction=False)
 
     # Create a gradient (tangent vector)
     gradient = jnp.array([0.1, 0.2, 0.0])
     gradient = sphere.proj(point_on_sphere, gradient)
 
     # Create state
-    state = rx.optimizers.OptState(x=point_on_sphere)
+    state = rieax.optimizers.OptState(x=point_on_sphere)
 
     # Update state
     new_state = update_fn(gradient, state, sphere)
@@ -77,14 +77,14 @@ def test_sgd_update_fn_with_exp(sphere, point_on_sphere):
 def test_sgd_update_fn_with_retr(sphere, point_on_sphere):
     """Test the update function of the optimizer using retraction."""
     learning_rate = 0.1
-    _, update_fn = rx.riemannian_gradient_descent(learning_rate=learning_rate, use_retraction=True)
+    _, update_fn = rieax.riemannian_gradient_descent(learning_rate=learning_rate, use_retraction=True)
 
     # Create a gradient (tangent vector)
     gradient = jnp.array([0.1, 0.2, 0.0])
     gradient = sphere.proj(point_on_sphere, gradient)
 
     # Create state
-    state = rx.optimizers.OptState(x=point_on_sphere)
+    state = rieax.optimizers.OptState(x=point_on_sphere)
 
     # Update state
     new_state = update_fn(gradient, state, sphere)

@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-import riemannax as rx
+import riemannax as rieax
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def key():
 @pytest.fixture
 def sphere():
     """Create a sphere manifold instance for testing."""
-    return rx.Sphere()
+    return rieax.Sphere()
 
 
 @pytest.fixture
