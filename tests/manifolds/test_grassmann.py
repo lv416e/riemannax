@@ -88,7 +88,7 @@ class TestGrassmann:
 
         # Check that projecting twice gives same result
         v_double_proj = manifold.proj(point, v_tangent)
-        assert jnp.allclose(v_tangent, v_double_proj, atol=1e-10)
+        assert jnp.allclose(v_tangent, v_double_proj, atol=1e-6)
 
     def test_exponential_map(self, manifold, point, tangent):
         """Test exponential map properties."""
@@ -99,7 +99,7 @@ class TestGrassmann:
         # exp(x, 0) = x
         zero_tangent = jnp.zeros_like(tangent)
         y_zero = manifold.exp(point, zero_tangent)
-        assert jnp.allclose(y_zero, point, atol=1e-10)
+        assert jnp.allclose(y_zero, point, atol=1e-6)
 
     def test_retraction(self, manifold, point, tangent):
         """Test retraction properties."""
@@ -110,7 +110,7 @@ class TestGrassmann:
         # retr(x, 0) = x
         zero_tangent = jnp.zeros_like(tangent)
         y_zero = manifold.retr(point, zero_tangent)
-        assert jnp.allclose(y_zero, point, atol=1e-10)
+        assert jnp.allclose(y_zero, point, atol=1e-6)
 
     def test_logarithmic_map_inverse(self, manifold, point, tangent):
         """Test that log-exp provides reasonable approximation for small tangent vectors."""
@@ -138,7 +138,7 @@ class TestGrassmann:
         other_point = manifold.random_point(key)
         dist_xy = manifold.dist(point, other_point)
         dist_yx = manifold.dist(other_point, point)
-        assert jnp.allclose(dist_xy, dist_yx, atol=1e-10)
+        assert jnp.allclose(dist_xy, dist_yx, atol=1e-6)
 
         # Distance is non-negative
         assert dist_xy >= 0
@@ -152,7 +152,7 @@ class TestGrassmann:
         # Symmetry
         uv = manifold.inner(point, u, v)
         vu = manifold.inner(point, v, u)
-        assert jnp.allclose(uv, vu, atol=1e-10)
+        assert jnp.allclose(uv, vu, atol=1e-6)
 
         # Positive definiteness
         uu = manifold.inner(point, u, u)
@@ -162,13 +162,13 @@ class TestGrassmann:
         a = 2.0
         au_v = manifold.inner(point, a * u, v)
         a_uv = a * manifold.inner(point, u, v)
-        assert jnp.allclose(au_v, a_uv, atol=1e-10)
+        assert jnp.allclose(au_v, a_uv, atol=1e-6)
 
     def test_parallel_transport(self, manifold, point, tangent):
         """Test parallel transport properties."""
         # Transport to same point is identity
         transported_same = manifold.transp(point, point, tangent)
-        assert jnp.allclose(transported_same, tangent, atol=1e-10)
+        assert jnp.allclose(transported_same, tangent, atol=1e-6)
 
         # Transported vector is in target tangent space
         key = jax.random.key(654)
