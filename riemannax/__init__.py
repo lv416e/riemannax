@@ -4,7 +4,7 @@ This package implements optimization algorithms for Riemannian manifolds using J
 enabling GPU-accelerated gradient-based optimization on non-Euclidean domains.
 """
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 from .manifolds import Grassmann, SpecialOrthogonal, Sphere, Stiefel
 from .optimizers import riemannian_gradient_descent
