@@ -101,10 +101,16 @@ class Stiefel(Manifold):
 
     def dist(self, x: Array, y: Array) -> Array:
         """Geodesic distance using principal angles."""
+        # Handle the case when x and y are the same point
+        if jnp.allclose(x, y, atol=1e-10):
+            return 0.0
+
         # Compute principal angles
         u, s, _ = jnp.linalg.svd(x.T @ y, full_matrices=False)
         cos_theta = jnp.clip(s, -1.0, 1.0)
-        theta = jnp.arccos(cos_theta)
+
+        # Avoid numerical issues with arccos near 1
+        theta = jnp.where(jnp.abs(cos_theta) > 1.0 - 1e-10, 0.0, jnp.arccos(jnp.abs(cos_theta)))
         return jnp.linalg.norm(theta)
 
     def random_point(self, key: Array, *shape: int) -> Array:
