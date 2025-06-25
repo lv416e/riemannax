@@ -1,6 +1,8 @@
 **/output/*
 !**/output/.gitkeep
 
+design/*_jp.md
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

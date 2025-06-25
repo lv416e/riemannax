@@ -1,21 +1,28 @@
 """
-Special Orthogonal Group SO(3) Optimization Demo - RiemannAX
+Special Orthogonal Group SO(3) Optimization Demo - RiemannAX.
 
 This script solves an optimization problem on the SO(3) special orthogonal group (3D rotation matrices)
 to find the rotation matrix closest to a target rotation matrix.
 """
 
+import os
+import sys
+
+# Ensure riemannax can be imported in uv environment
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
 
 import riemannax as rx
 
 
 def plot_rotation_matrices(matrices, titles=None, colors=None, alpha=0.8):
-    """Function to visualize 3D rotation matrices as transformations of basis vectors"""
+    """Function to visualize 3D rotation matrices as transformations of basis vectors."""
     n = len(matrices)
     fig = plt.figure(figsize=(5 * n, 5))
 
@@ -105,11 +112,12 @@ def main():
     print(f"Distance between optimal solution and target: {final_distance}")
 
     # 7. Visualization
-    fig = plot_rotation_matrices(
+    plot_rotation_matrices(
         [X0, result.x, target_matrix],
         titles=["Initial Rotation Matrix", "Optimal Rotation Matrix", "Target Rotation Matrix"],
     )
-    plt.savefig("output/so3_optimization.png")
+    output_path = os.path.join(os.path.dirname(__file__), "output", "so3_optimization.png")
+    plt.savefig(output_path)
     plt.show()
 
 

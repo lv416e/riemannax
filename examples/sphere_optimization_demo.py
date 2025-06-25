@@ -1,23 +1,29 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
-Sphere Optimization Demo - RiemannAX
+Sphere Optimization Demo - RiemannAX.
 
 This script solves an optimization problem on the S² sphere to find the point closest to the North Pole.
 """
+
+import os
+import sys
+
+# Ensure riemannax can be imported in uv environment
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
 
 import riemannax as rx
 
 
 def plot_sphere_with_points(points, colors=None, labels=None):
-    """Function to plot a 3D sphere with points on its surface from multiple viewpoints"""
+    """Function to plot a 3D sphere with points on its surface from multiple viewpoints."""
     fig = plt.figure(figsize=(15, 10))
 
     # Create viewpoints - different angles to view the sphere
@@ -113,10 +119,11 @@ def main():
     print(f"Number of iterations until convergence: {result.niter}")
 
     # 6. Visualization
-    fig = plot_sphere_with_points(
+    plot_sphere_with_points(
         [x0, result.x], colors=["green", "blue"], labels=["Initial point", "Optimal solution"]
     )
-    plt.savefig("output/sphere_optimization.png")
+    output_path = os.path.join(os.path.dirname(__file__), "output", "sphere_optimization.png")
+    plt.savefig(output_path)
     plt.show()
 
 

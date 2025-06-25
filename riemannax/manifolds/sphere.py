@@ -7,6 +7,7 @@ rotation representations, and constrained optimization.
 
 import jax.numpy as jnp
 import jax.random as jr
+from jax import Array
 
 from .base import Manifold
 
@@ -208,3 +209,27 @@ class Sphere(Manifold):
         tangent_vectors = self.proj(x, ambient_vectors)
 
         return tangent_vectors
+
+    def validate_point(self, x, atol: float = 1e-6) -> Array:
+        """Validate that x is a valid point on the sphere."""
+        # Check that x is a unit vector
+        norm = jnp.linalg.norm(x)
+        return jnp.allclose(norm, 1.0, atol=atol)
+
+    def validate_tangent(self, x, v, atol: float = 1e-6) -> Array:
+        """Validate that v is in the tangent space at x."""
+        if not self.validate_point(x, atol):
+            return False
+        # Check that v is orthogonal to x
+        dot_product = jnp.dot(x, v)
+        return jnp.allclose(dot_product, 0.0, atol=atol)
+
+    @property
+    def dimension(self) -> int:
+        """Dimension of the sphere (n for S^n)."""
+        return 2  # Default to S^2 (dimension 2)
+
+    @property
+    def ambient_dimension(self) -> int:
+        """Ambient space dimension (n+1 for S^n)."""
+        return 3  # Default to R^3 for S^2
