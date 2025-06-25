@@ -231,7 +231,7 @@ class SpecialOrthogonal(Manifold):
 
         if len(shape) > 2:
             skews = jax.vmap(create_skew)(random_vals)
-            skews = skews.reshape(shape[:-2] + (self.n, self.n))
+            skews = skews.reshape((*shape[:-2], self.n, self.n))
         else:
             skews = create_skew(random_vals)
 
@@ -349,9 +349,7 @@ class SpecialOrthogonal(Manifold):
         small_angle = angle < 1e-8
         pi_angle = jnp.abs(angle - jnp.pi) < 1e-8
 
-        result = lax.cond(
-            small_angle, small_angle_case, lambda: lax.cond(pi_angle, pi_angle_case, normal_case)
-        )
+        result = lax.cond(small_angle, small_angle_case, lambda: lax.cond(pi_angle, pi_angle_case, normal_case))
 
         return result
 

@@ -1,13 +1,17 @@
-"""Riemannian manifold implementations with differential geometric operations.
+"""Riemannian manifold implementations for optimization."""
 
-This module provides concrete implementations of various Riemannian manifolds
-with their associated differential geometric operations optimized for JAX.
-"""
-
+from .base import DimensionError, Manifold, ManifoldError
+from .grassmann import Grassmann
 from .so import SpecialOrthogonal
 from .sphere import Sphere
+from .stiefel import Stiefel
 
 __all__ = [
+    "DimensionError",
+    "Grassmann",
+    "Manifold",
+    "ManifoldError",
     "SpecialOrthogonal",
     "Sphere",
+    "Stiefel",
 ]

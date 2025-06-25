@@ -60,9 +60,7 @@ def minimize(problem, x0, method="rsgd", options=None):
 
     # Initialize the optimizer
     if method == "rsgd":
-        init_fn, update_fn = riemannian_gradient_descent(
-            learning_rate=learning_rate, use_retraction=use_retraction
-        )
+        init_fn, update_fn = riemannian_gradient_descent(learning_rate=learning_rate, use_retraction=use_retraction)
     else:
         raise ValueError(f"Unsupported optimization method: {method}")
 
