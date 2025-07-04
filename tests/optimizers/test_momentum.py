@@ -127,8 +127,6 @@ def test_momentum_convergence(sphere):
     init_fn, update_fn = rieax.riemannian_momentum(learning_rate=0.001, momentum=0.9)
     state = init_fn(x0)
 
-    initial_cost = cost_fn(x0)
-
     # Run optimization steps
     for _ in range(20):
         # Compute gradient

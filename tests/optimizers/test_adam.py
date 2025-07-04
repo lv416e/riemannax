@@ -163,7 +163,7 @@ def test_adam_bias_correction():
 
     # Perform several updates
     states = [state]
-    for i in range(3):  # Fewer iterations
+    for _i in range(3):  # Fewer iterations
         new_state = update_fn(gradient, states[-1], spd)
         states.append(new_state)
 
