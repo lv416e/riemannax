@@ -7,7 +7,7 @@ rotation representations, and constrained optimization.
 
 import jax.numpy as jnp
 import jax.random as jr
-from jax import Array
+from jax import Array, lax
 
 from .base import Manifold
 
@@ -115,17 +115,16 @@ class Sphere(Manifold):
         # Handle the case when x and y are very close or antipodal
         is_small = log_xy_norm < 1e-10
 
-        # If x and y are close, approximate with projection
-        result_small = self.proj(y, v)
+        def small_case():
+            # If x and y are close, approximate with projection
+            return self.proj(y, v)
 
-        # Otherwise, do parallel transport along the geodesic
-        # Using the double reflection method
-        if is_small:
-            return result_small
+        def normal_case():
+            # Normal case: compute parallel transport
+            u = log_xy / log_xy_norm
+            return v - (jnp.dot(v, u) / (1 + jnp.dot(x, y))) * (u + y)
 
-        # Normal case: compute parallel transport
-        u = log_xy / log_xy_norm
-        return v - (jnp.dot(v, u) / (1 + jnp.dot(x, y))) * (u + y)
+        return lax.cond(is_small, small_case, normal_case)
 
     def inner(self, x, u, v):
         """Compute the Riemannian inner product on the sphere.
