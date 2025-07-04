@@ -286,11 +286,12 @@ class SpecialOrthogonal(Manifold):
         Returns:
             The matrix exponential exp(skew).
         """
-        # For now, use JAX's implementation via scipy
-        # In the future, implement a more efficient version specific to skew-symmetric matrices
-        from jax.scipy.linalg import expm
-
-        return expm(skew)
+        if self.n == 3:
+            return self._expm_so3(skew)
+        else:
+            # For general case, use JAX's implementation via scipy
+            from jax.scipy.linalg import expm
+            return expm(skew)
 
     def _logm_so3(self, rot):
         """Compute the matrix logarithm for a 3x3 rotation matrix.
@@ -362,11 +363,12 @@ class SpecialOrthogonal(Manifold):
         Returns:
             The skew-symmetric matrix log(rot).
         """
-        # For now, use JAX's implementation via scipy
-        # In the future, implement a more efficient version specific to rotation matrices
-        from jax.scipy.linalg import logm
-
-        return logm(rot)
+        if self.n == 3:
+            return self._logm_so3(rot)
+        else:
+            # For general case, use JAX's implementation via scipy
+            from jax.scipy.linalg import logm
+            return logm(rot)
 
     def _geodesic_distance_so3(self, rel_rot):
         """Compute the geodesic distance for SO(3) using the rotation angle.

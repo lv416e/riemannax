@@ -7,7 +7,7 @@ rotation representations, and constrained optimization.
 
 import jax.numpy as jnp
 import jax.random as jr
-from jax import Array
+from jax import Array, lax
 
 from .base import Manifold
 
@@ -25,15 +25,30 @@ class Sphere(Manifold):
         The tangent space at x consists of all vectors orthogonal to x.
         The projection removes the component of v parallel to x.
 
+        Special case: if v is all zeros, this projects x onto the sphere (normalization).
+
         Args:
             x: Point on the sphere (unit vector).
             v: Vector in the ambient space R^(n+1).
 
         Returns:
-            The orthogonal projection of v onto the tangent space at x.
+            The orthogonal projection of v onto the tangent space at x,
+            or the normalized x if v is zero (for manifold projection).
         """
-        # Remove the component of v parallel to x
-        return v - jnp.sum(x * v) * x
+        # Special case: if v is zero, project x onto sphere (normalization)
+        v_norm = jnp.linalg.norm(v)
+        is_zero_v = v_norm < 1e-10
+
+        def normalize_x():
+            # Project x onto the sphere by normalization
+            x_norm = jnp.linalg.norm(x)
+            return x / jnp.maximum(x_norm, 1e-10)
+
+        def project_tangent():
+            # Remove the component of v parallel to x
+            return v - jnp.sum(x * v) * x
+
+        return lax.cond(is_zero_v, normalize_x, project_tangent)
 
     def exp(self, x, v):
         """Compute the exponential map on the sphere.
@@ -115,17 +130,16 @@ class Sphere(Manifold):
         # Handle the case when x and y are very close or antipodal
         is_small = log_xy_norm < 1e-10
 
-        # If x and y are close, approximate with projection
-        result_small = self.proj(y, v)
+        def small_case():
+            # If x and y are close, approximate with projection
+            return self.proj(y, v)
 
-        # Otherwise, do parallel transport along the geodesic
-        # Using the double reflection method
-        if is_small:
-            return result_small
+        def normal_case():
+            # Normal case: compute parallel transport
+            u = log_xy / log_xy_norm
+            return v - (jnp.dot(v, u) / (1 + jnp.dot(x, y))) * (u + y)
 
-        # Normal case: compute parallel transport
-        u = log_xy / log_xy_norm
-        return v - (jnp.dot(v, u) / (1 + jnp.dot(x, y))) * (u + y)
+        return lax.cond(is_small, small_case, normal_case)
 
     def inner(self, x, u, v):
         """Compute the Riemannian inner product on the sphere.

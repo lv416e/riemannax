@@ -9,7 +9,7 @@ import dataclasses
 import jax.numpy as jnp
 from jax import lax
 
-from ..optimizers import riemannian_gradient_descent
+from ..optimizers import riemannian_adam, riemannian_gradient_descent, riemannian_momentum
 
 
 @dataclasses.dataclass
@@ -39,8 +39,8 @@ def minimize(problem, x0, method="rsgd", options=None):
         x0: Initial point on the manifold.
         method: Optimization method to use.
             - 'rsgd': Riemannian gradient descent
-            - 'rcg': Riemannian conjugate gradient
-            - 'lbfgs': Riemannian L-BFGS
+            - 'radam': Riemannian Adam
+            - 'rmom': Riemannian momentum
         options: Dictionary of solver options, including:
             - max_iterations: Maximum number of iterations.
             - tolerance: Stopping tolerance for optimality.
@@ -61,6 +61,24 @@ def minimize(problem, x0, method="rsgd", options=None):
     # Initialize the optimizer
     if method == "rsgd":
         init_fn, update_fn = riemannian_gradient_descent(learning_rate=learning_rate, use_retraction=use_retraction)
+    elif method == "radam":
+        beta1 = options.get("beta1", 0.9)
+        beta2 = options.get("beta2", 0.999)
+        eps = options.get("eps", 1e-8)
+        init_fn, update_fn = riemannian_adam(
+            learning_rate=learning_rate,
+            beta1=beta1,
+            beta2=beta2,
+            eps=eps,
+            use_retraction=use_retraction
+        )
+    elif method == "rmom":
+        momentum = options.get("momentum", 0.9)
+        init_fn, update_fn = riemannian_momentum(
+            learning_rate=learning_rate,
+            momentum=momentum,
+            use_retraction=use_retraction
+        )
     else:
         raise ValueError(f"Unsupported optimization method: {method}")
 
