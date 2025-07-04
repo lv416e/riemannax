@@ -101,14 +101,38 @@ def riemannian_momentum(
         x = state.x
         m = state.momentum
 
-        # Update momentum term
-        m_new = momentum * m - learning_rate * gradient
+        # Update momentum term (combine old momentum with new gradient)
+        m_new = momentum * m + gradient
 
-        # Move along manifold using momentum
-        x_new = manifold.retr(x, m_new) if use_retraction else manifold.exp(x, m_new)
+        # Ensure momentum is in tangent space
+        m_new = manifold.proj(x, m_new)
+
+        # Compute the step direction
+        step_direction = -learning_rate * m_new
+
+        # Clip step size for numerical stability
+        step_norm = jnp.linalg.norm(step_direction)
+        max_step = 0.5  # Maximum step size
+        step_direction = jnp.where(step_norm > max_step,
+                                 step_direction * (max_step / (step_norm + 1e-8)),
+                                 step_direction)
+
+        # Move along manifold using the step direction
+        try:
+            x_new = manifold.retr(x, step_direction) if use_retraction else manifold.exp(x, step_direction)
+        except Exception:
+            # Fallback to retraction if exponential map fails
+            x_new = manifold.retr(x, step_direction)
+
+        # Ensure the new point is on the manifold (only for sphere-like manifolds)
+        if hasattr(manifold, 'proj') and hasattr(manifold, '__class__') and 'Sphere' in manifold.__class__.__name__:
+            x_new = manifold.proj(x_new, jnp.zeros_like(x_new))  # Project to manifold
 
         # Transport momentum to new point
         m_transported = manifold.transp(x, x_new, m_new)
+
+        # Ensure transported momentum is in tangent space
+        m_transported = manifold.proj(x_new, m_transported)
 
         return MomentumState(x=x_new, momentum=m_transported)
 

@@ -126,23 +126,39 @@ def riemannian_adam(
         # Compute bias-corrected second raw moment estimate
         v_hat = v_new / (1 - beta2**step)
 
-        # Compute Adam direction in tangent space
-        direction = m_hat / (jnp.sqrt(v_hat) + eps)
+        # Compute Adam direction in tangent space with improved numerical stability
+        sqrt_v_hat = jnp.sqrt(v_hat + eps)  # Add eps inside sqrt for better stability
+        direction = m_hat / sqrt_v_hat
 
-        # Scale by learning rate and clip for numerical stability
+        # Scale by learning rate
         v = -learning_rate * direction
 
-        # Clip the step size to prevent overshooting
+        # Clip the step size to prevent overshooting and NaN issues
         step_norm = jnp.linalg.norm(v)
-        max_step = 0.5  # Maximum step size on manifold
-        v = jnp.where(step_norm > max_step, v * (max_step / step_norm), v)
+        max_step = 0.1  # More conservative maximum step size
+        v = jnp.where(step_norm > max_step, v * (max_step / (step_norm + 1e-8)), v)
 
-        # Move along manifold
-        x_new = manifold.retr(x, v) if use_retraction else manifold.exp(x, v)
+        # Ensure the update is in the tangent space
+        v = manifold.proj(x, v)
+
+        # Move along manifold with numerical stability check
+        try:
+            x_new = manifold.retr(x, v) if use_retraction else manifold.exp(x, v)
+        except Exception:
+            # Fallback to retraction if exponential map fails
+            x_new = manifold.retr(x, v)
+
+        # Ensure the new point is on the manifold (only for sphere-like manifolds)
+        if hasattr(manifold, 'proj') and hasattr(manifold, '__class__') and 'Sphere' in manifold.__class__.__name__:
+            x_new = manifold.proj(x_new, jnp.zeros_like(x_new))  # Project to manifold
 
         # Transport momentum estimates to new point
         m_transported = manifold.transp(x, x_new, m_new)
         v_transported = manifold.transp(x, x_new, v_new)
+
+        # Ensure transported values are in tangent space
+        m_transported = manifold.proj(x_new, m_transported)
+        v_transported = manifold.proj(x_new, v_transported)
 
         return AdamState(x=x_new, m=m_transported, v=v_transported, step=step)
 
