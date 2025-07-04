@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Symmetric Positive Definite (SPD) Manifold Implementation**
+  - `SymmetricPositiveDefinite` manifold for optimization over covariance matrices and kernel learning
+  - Complete Riemannian structure with bi-invariant Log-Euclidean metric
+  - Matrix logarithmic and exponential maps using eigenvalue decomposition
+  - Geometric mean computation via manifold interpolation
+  - Robust numerical validation for positive definiteness and symmetry constraints
+  - Comprehensive test suite with edge case handling for small eigenvalues
+
+- **Advanced Riemannian Optimization Algorithms**
+  - `riemannian_adam`: Adaptive moment estimation with Riemannian transport
+    - First and second moment estimates with parallel transport
+    - Bias correction mechanism adapted for manifold constraints
+    - Numerically stable epsilon handling and step size clipping
+  - `riemannian_momentum`: Momentum-accelerated gradient descent
+    - Momentum accumulation with proper tangent space transport
+    - Configurable momentum coefficient and learning rate scheduling
+    - Enhanced convergence properties for non-convex manifold optimization
+
+- **Optimization Framework Enhancements**
+  - Extended `minimize` solver with new optimization methods (`radam`, `rmom`)
+  - Improved numerical stability across all optimizers with conservative step size limits
+  - Enhanced manifold projection utilities for sphere-like manifolds
+  - Comprehensive parameter validation and error handling
+
+### Enhanced
+
+- **Special Orthogonal Group (SO) Optimizations**
+  - Specialized matrix exponential and logarithmic implementations for SO(3)
+  - Improved numerical stability for small rotation angles and near-identity matrices
+  - Enhanced parallel transport with proper geodesic distance computations
+
+- **Sphere Manifold Improvements**
+  - Conditional parallel transport implementation using JAX control flow
+  - Enhanced projection operator supporting both tangent space and manifold normalization
+  - Improved numerical handling of antipodal points and near-zero tangent vectors
+
+- **Development and Testing Infrastructure**
+  - Updated linting configuration with expanded rule set (E741 ambiguous variables)
+  - Enhanced type annotations with proper `Dict` and `Any` imports
+  - Comprehensive test coverage for new optimizers with numerical stability checks
+  - Improved CI/CD pipeline with robust pre-commit hooks
+
+### Fixed
+
+- Numerical instability issues in Adam optimizer with conservative epsilon placement
+- Momentum update logic corrected for proper gradient accumulation
+- Bare exception handling replaced with specific `Exception` types for linting compliance
+- Test suite stability with appropriately scaled learning rates and iteration counts
+- Type annotation consistency across optimizer state management classes
+
 ## [0.0.2] - 2025/06/26
 
 ### Added
