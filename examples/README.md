@@ -142,13 +142,117 @@ The output files include:
 - `sphere_optimization.png` - Sphere optimization visualization
 - `so3_optimization.png` - SO(3) rotation matrix visualization
 
+## New Applications and Advanced Examples
+
+### SPD Manifold Applications
+**File:** `spd_covariance_estimation.py`
+
+Demonstrates robust covariance matrix estimation on the SPD manifold with applications in:
+- Computer vision: Robust covariance descriptors
+- Finance: Portfolio optimization with heavy-tailed distributions
+- Signal processing: Noise-robust covariance estimation
+
+**Key Features:**
+- Comparison with standard maximum likelihood estimation
+- Outlier-robust estimation using Huber loss
+- Performance evaluation across different optimizers
+- Comprehensive visualization of results
+
+### Optimizer Comparison and Analysis
+**File:** `optimizer_comparison_demo.py`
+
+Comprehensive comparison of all RiemannAX optimizers (SGD, Adam, Momentum) across multiple manifolds:
+- Convergence speed and stability analysis
+- Parameter sensitivity studies
+- Performance across different problem structures
+- Detailed timing and efficiency metrics
+
+**Key Features:**
+- Cross-manifold optimization comparison
+- Convergence profile analysis
+- Step size and gradient norm evolution
+- Performance recommendations for different scenarios
+
+### Machine Learning Applications Showcase
+**File:** `ml_applications_showcase.py`
+
+Practical machine learning applications demonstrating RiemannAX in real-world scenarios:
+
+1. **Geometric PCA**: Principal component analysis on Grassmann manifolds
+2. **Robust Anomaly Detection**: Outlier detection using SPD manifold optimization
+3. **Rotation-Invariant Features**: Feature learning on SO(3) for 3D data
+
+**Key Features:**
+- Comparison with standard Euclidean methods
+- Performance improvements quantification
+- Comprehensive visualization and analysis
+- Production-ready implementation examples
+
+## Advanced Tutorials
+
+### Interactive Jupyter Notebooks
+**Directory:** `notebooks/`
+
+Enhanced notebook collection including:
+- `advanced_riemannian_optimization.ipynb`: Comprehensive tutorial covering mathematical foundations, numerical considerations, and best practices
+- `so3_optimization_demo.ipynb`: Interactive SO(3) rotation optimization
+- `sphere_optimization_demo.ipynb`: Sphere manifold exploration
+
+**Advanced Tutorial Features:**
+- Mathematical theory with practical implementation
+- Numerical stability analysis
+- Performance optimization techniques
+- Multi-manifold optimization examples
+- Best practices and troubleshooting guide
+
+## Running the New Examples
+
+All new demos can be run independently:
+
+```bash
+# SPD manifold applications
+python spd_covariance_estimation.py
+
+# Optimizer comparison and analysis
+python optimizer_comparison_demo.py
+
+# Machine learning applications
+python ml_applications_showcase.py
+
+# Advanced Jupyter tutorial
+jupyter notebook notebooks/advanced_riemannian_optimization.ipynb
+```
+
+## Extended Output Files
+
+The new examples generate additional visualization files:
+- `spd_covariance_estimation.png` - Robust covariance estimation analysis
+- `optimizer_comparison_comprehensive.png` - Complete optimizer comparison
+- `ml_applications_showcase.png` - Machine learning applications results
+- `advanced_optimizer_analysis.png` - Detailed optimizer behavior analysis
+
 ## Requirements
 
 - JAX and JAX[CPU] or JAX[GPU]
 - matplotlib for visualization
 - numpy for numerical computations
 - RiemannAX library (properly installed)
+- sklearn (for ML comparison baselines)
+- jupyter (for interactive notebooks)
+
+## Additional Dependencies for New Examples
+
+```bash
+# For ML applications
+pip install scikit-learn
+
+# For advanced visualizations
+pip install seaborn
+
+# For interactive notebooks
+pip install jupyter ipykernel
+```
 
 ## Jupyter Notebooks
 
-Interactive Jupyter notebook versions are available in the `notebooks/` subdirectory for experimentation and educational purposes.
+Interactive Jupyter notebook versions are available in the `notebooks/` subdirectory for experimentation and educational purposes. The advanced tutorial notebook provides comprehensive coverage of Riemannian optimization theory and practice.
