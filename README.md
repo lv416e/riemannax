@@ -271,6 +271,8 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 - Enhanced visualization and debugging tools
 - Performance optimizations and benchmarking
 
+For comprehensive development plans and strategic vision, see our [Strategic Roadmap](design/strategic_roadmap.md).
+
 ## Citation
 
 If you use RiemannAX in your research, please cite:

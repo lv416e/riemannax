@@ -12,6 +12,7 @@ RiemannAX is a JAX-based library for optimization and geometric operations on Ri
    api
    examples
    contributing
+   strategic_roadmap
 
 Indices and Tables
 ==================

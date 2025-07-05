@@ -4,6 +4,8 @@
 
 RiemannAX is currently in pre-alpha stage (v0.0.1), providing basic Riemannian manifold optimization capabilities. This document outlines the planned feature expansions for future versions.
 
+> **Note**: For the comprehensive strategic roadmap including market analysis, competitive landscape, and detailed KPIs, see [Strategic Roadmap](strategic_roadmap.md).
+
 ## Current State Analysis
 
 ### Implemented Features
