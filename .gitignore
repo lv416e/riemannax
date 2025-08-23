@@ -1,3 +1,10 @@
+.kiro/specs/**
+
+# Serena MCP
+.serena/**
+!.serena/project.yml
+
+# Output
 **/output/*
 !**/output/.gitkeep
 
