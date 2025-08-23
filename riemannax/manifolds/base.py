@@ -4,8 +4,19 @@ This module defines the core interfaces for Riemannian manifolds, establishing
 the contract that concrete manifold implementations must satisfy.
 """
 
+import logging
+from collections.abc import Callable
+from typing import Any
+
 import jax.numpy as jnp
 from jax import Array
+
+from ..core.performance import PerformanceMonitor
+
+# JIT最適化関連のインポート
+from ..core.safe_jit import SafeJITWrapper
+
+logger = logging.getLogger(__name__)
 
 
 class ManifoldError(Exception):
@@ -25,7 +36,134 @@ class Manifold:
 
     This class defines the essential operations required for optimization on
     Riemannian manifolds, including tangent space projections and exponential/logarithmic maps.
+
+    Enhanced with JIT optimization support for high-performance computing.
     """
+
+    def __init__(self):
+        """Initialize manifold with JIT optimization support."""
+        # JIT最適化関連の初期化
+        self._jit_compiled_methods: dict[str, Callable] = {}
+        self._safe_jit_wrapper = SafeJITWrapper(fallback_enabled=True)
+        self._jit_enabled = True
+
+        # JIT最適化の遅延初期化(最初のメソッド呼び出し時)
+        self._jit_initialized = False
+
+        # パフォーマンス監視
+        self._performance_tracking = False
+
+    def _compile_core_methods(self) -> None:
+        """JITコアメソッドのコンパイル.
+
+        各多様体の主要操作をJIT最適化してキャッシュに保存します。
+        """
+        try:
+            # コンパイル対象メソッドのリスト
+            core_methods = ["proj", "exp", "log", "transp", "inner", "dist"]
+
+            for method_name in core_methods:
+                impl_method_name = f"_{method_name}_impl"
+
+                # 実装メソッドが存在する場合のみJITコンパイル
+                if hasattr(self, impl_method_name):
+                    impl_method = getattr(self, impl_method_name)
+                    static_args = self._get_static_args(method_name)
+
+                    # SafeJITWrapperを使用してJIT最適化
+                    jit_method = self._safe_jit_wrapper.safe_jit(
+                        impl_method, static_argnums=static_args if static_args else None
+                    )
+
+                    self._jit_compiled_methods[method_name] = jit_method
+                    logger.debug(f"Compiled JIT method: {method_name}")
+
+            self._jit_initialized = True
+            logger.info(f"Compiled {len(self._jit_compiled_methods)} JIT methods for {self.__class__.__name__}")
+
+        except Exception as e:
+            logger.warning(f"JIT compilation failed: {e}")
+            # JITコンパイル失敗時はフォールバックを使用
+            self._jit_enabled = False
+
+    def _call_jit_method(self, method_name: str, *args, **kwargs) -> Array:
+        """JIT最適化メソッドの統一呼び出し.
+
+        Args:
+            method_name: 呼び出すメソッド名
+            *args: メソッド引数
+            **kwargs: キーワード引数
+
+        Returns:
+            JIT最適化された結果
+        """
+        # JIT初期化の遅延実行
+        if not self._jit_initialized:
+            try:
+                self._compile_core_methods()
+            except Exception as e:
+                logger.warning(f"JIT compilation failed: {e}")
+                self._jit_enabled = False
+
+        # JIT最適化版が利用可能な場合
+        if self._jit_enabled and method_name in self._jit_compiled_methods:
+            try:
+                if self._performance_tracking:
+                    with PerformanceMonitor.measure(f"{self.__class__.__name__}.{method_name}"):
+                        return self._jit_compiled_methods[method_name](*args, **kwargs)
+                else:
+                    return self._jit_compiled_methods[method_name](*args, **kwargs)
+
+            except Exception as e:
+                logger.warning(f"JIT execution failed for {method_name}: {e}")
+                # フォールバック実行
+
+        # フォールバック: 実装メソッドの直接呼び出し
+        impl_method_name = f"_{method_name}_impl"
+        if hasattr(self, impl_method_name):
+            impl_method = getattr(self, impl_method_name)
+            return impl_method(*args, **kwargs)
+        else:
+            raise NotImplementedError(f"Neither JIT nor implementation method found for {method_name}")
+
+    def _get_static_args(self, method_name: str) -> tuple[int, ...]:
+        """静的引数インデックスの取得.
+
+        Args:
+            method_name: メソッド名
+
+        Returns:
+            静的引数のインデックスタプル
+        """
+        # デフォルト実装では静的引数なし
+        # サブクラスでオーバーライドして次元数等を静的引数に設定
+        return ()
+
+    def clear_jit_cache(self) -> None:
+        """JITキャッシュのクリア."""
+        self._jit_compiled_methods.clear()
+        self._jit_initialized = False
+        logger.debug(f"Cleared JIT cache for {self.__class__.__name__}")
+
+    def enable_performance_tracking(self, enabled: bool = True) -> None:
+        """パフォーマンス追跡の有効化/無効化.
+
+        Args:
+            enabled: 追跡の有効化フラグ
+        """
+        self._performance_tracking = enabled
+
+    def get_performance_report(self) -> dict[str, Any]:
+        """パフォーマンスレポートの取得.
+
+        Returns:
+            パフォーマンス統計辞書
+        """
+        return PerformanceMonitor.get_speedup_report()
+
+    def _reset_jit_cache(self) -> None:
+        """JITキャッシュのリセット(テスト用)."""
+        self.clear_jit_cache()
 
     def proj(self, x: Array, v: Array) -> Array:
         """Project a vector from ambient space to the tangent space at point x.
@@ -37,7 +175,10 @@ class Manifold:
         Returns:
             The projection of v onto the tangent space at x.
         """
-        raise NotImplementedError("Subclasses must implement projection operation")
+        try:
+            return self._call_jit_method("proj", x, v)
+        except NotImplementedError:
+            raise NotImplementedError("Subclasses must implement projection operation") from None
 
     def exp(self, x: Array, v: Array) -> Array:
         """Apply the exponential map to move from point x along tangent vector v.
@@ -53,7 +194,10 @@ class Manifold:
         Returns:
             The point reached by following the geodesic from x in direction v.
         """
-        raise NotImplementedError("Subclasses must implement exponential map")
+        try:
+            return self._call_jit_method("exp", x, v)
+        except NotImplementedError:
+            raise NotImplementedError("Subclasses must implement exponential map") from None
 
     def log(self, x: Array, y: Array) -> Array:
         """Apply the logarithmic map to find the tangent vector that maps x to y.
@@ -69,7 +213,10 @@ class Manifold:
         Returns:
             The tangent vector v at x such that exp(x, v) = y.
         """
-        raise NotImplementedError("Subclasses must implement logarithmic map")
+        try:
+            return self._call_jit_method("log", x, y)
+        except NotImplementedError:
+            raise NotImplementedError("Subclasses must implement logarithmic map") from None
 
     def retr(self, x: Array, v: Array) -> Array:
         """Apply retraction to move from point x along tangent vector v.
@@ -100,7 +247,10 @@ class Manifold:
         Returns:
             The transported vector in the tangent space at y.
         """
-        raise NotImplementedError("Subclasses must implement parallel transport")
+        try:
+            return self._call_jit_method("transp", x, y, v)
+        except NotImplementedError:
+            raise NotImplementedError("Subclasses must implement parallel transport") from None
 
     def inner(self, x: Array, u: Array, v: Array) -> Array:
         """Compute the Riemannian inner product between tangent vectors u and v at point x.
@@ -113,7 +263,10 @@ class Manifold:
         Returns:
             The inner product <u, v>_x in the Riemannian metric.
         """
-        raise NotImplementedError("Subclasses must implement Riemannian inner product")
+        try:
+            return self._call_jit_method("inner", x, u, v)
+        except NotImplementedError:
+            raise NotImplementedError("Subclasses must implement Riemannian inner product") from None
 
     def dist(self, x: Array, y: Array) -> Array:
         """Compute the Riemannian distance between points x and y on the manifold.

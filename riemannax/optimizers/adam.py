@@ -56,13 +56,7 @@ class AdamState(OptState):
 tree_util.register_pytree_node_class(AdamState)
 
 
-def riemannian_adam(
-    learning_rate=0.001,
-    beta1=0.9,
-    beta2=0.999,
-    eps=1e-8,
-    use_retraction=False
-):
+def riemannian_adam(learning_rate=0.001, beta1=0.9, beta2=0.999, eps=1e-8, use_retraction=False):
     """Riemannian Adam optimizer.
 
     Implements the Riemannian Adam algorithm, which adapts the Adam optimizer
@@ -149,7 +143,7 @@ def riemannian_adam(
             x_new = manifold.retr(x, v)
 
         # Ensure the new point is on the manifold (only for sphere-like manifolds)
-        if hasattr(manifold, 'proj') and hasattr(manifold, '__class__') and 'Sphere' in manifold.__class__.__name__:
+        if hasattr(manifold, "proj") and hasattr(manifold, "__class__") and "Sphere" in manifold.__class__.__name__:
             x_new = manifold.proj(x_new, jnp.zeros_like(x_new))  # Project to manifold
 
         # Transport momentum estimates to new point

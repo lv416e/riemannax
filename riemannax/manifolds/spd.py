@@ -55,6 +55,7 @@ class SymmetricPositiveDefinite(Manifold):
         Args:
             n: Size of the matrices (nxn).
         """
+        super().__init__()  # JIT関連の初期化
         self.n = n
 
     def proj(self, x, v):
@@ -89,7 +90,7 @@ class SymmetricPositiveDefinite(Manifold):
         """
         # Compute x^(-1/2) using eigendecomposition
         x_sqrt = _matrix_sqrt(x)
-        x_inv_sqrt = solve(x_sqrt, jnp.eye(self.n), assume_a='pos')
+        x_inv_sqrt = solve(x_sqrt, jnp.eye(self.n), assume_a="pos")
 
         # Transform tangent vector to matrix exponential form
         v_transformed = x_inv_sqrt @ v @ x_inv_sqrt
@@ -115,7 +116,7 @@ class SymmetricPositiveDefinite(Manifold):
         """
         # Compute x^(-1/2) and x^(1/2)
         x_sqrt = _matrix_sqrt(x)
-        x_inv_sqrt = solve(x_sqrt, jnp.eye(self.n), assume_a='pos')
+        x_inv_sqrt = solve(x_sqrt, jnp.eye(self.n), assume_a="pos")
 
         # Transform to matrix logarithm form
         y_transformed = x_inv_sqrt @ y @ x_inv_sqrt
@@ -140,7 +141,7 @@ class SymmetricPositiveDefinite(Manifold):
         Returns:
             The inner product <u, v>_x.
         """
-        x_inv = solve(x, jnp.eye(self.n), assume_a='pos')
+        x_inv = solve(x, jnp.eye(self.n), assume_a="pos")
         return jnp.trace(x_inv @ u @ x_inv @ v)
 
     def transp(self, x, y, v):
@@ -159,7 +160,7 @@ class SymmetricPositiveDefinite(Manifold):
             The transported vector in the tangent space at y.
         """
         # Simplified parallel transport using square root scaling
-        x_inv = solve(x, jnp.eye(self.n), assume_a='pos')
+        x_inv = solve(x, jnp.eye(self.n), assume_a="pos")
         scaling = _matrix_sqrt(y @ x_inv)
         return scaling @ v @ scaling.T
 
@@ -204,7 +205,7 @@ class SymmetricPositiveDefinite(Manifold):
             full_shape = (*shape, self.n, self.n)
             A = jr.normal(key, full_shape)
             # Use einsum for batched matrix multiplication
-            AAt = jnp.einsum('...ij,...kj->...ik', A, A)
+            AAt = jnp.einsum("...ij,...kj->...ik", A, A)
             return AAt + 1e-6 * jnp.eye(self.n)
 
     def random_tangent(self, key, x, *shape):
@@ -253,3 +254,136 @@ class SymmetricPositiveDefinite(Manifold):
         is_positive_definite = jnp.all(eigenvals > tolerance)
 
         return is_symmetric and is_positive_definite
+
+    # JIT-optimized implementation methods
+
+    def _proj_impl(self, x, v):
+        """JIT最適化版プロジェクション実装.
+
+        数値安定性向上:
+        - 対称性の効率的保証
+        """
+        # For SPD manifolds, tangent space consists of symmetric matrices
+        return 0.5 * (v + v.T)
+
+    def _exp_impl(self, x, v):
+        """JIT最適化版指数写像実装.
+
+        数値安定性向上:
+        - 固有値分解による安定な実装
+        - 条件数制御による数値安定性確保
+        """
+        # Use eigendecomposition for better JAX compatibility
+        return self._exp_impl_eigen(x, v)
+
+    def _exp_impl_eigen(self, x, v):
+        """Eigendecomposition-based exponential map fallback with batch support."""
+        # Compute matrix square root via eigendecomposition (batch-aware)
+        eigenvals_x, eigenvecs_x = jnp.linalg.eigh(x)
+        # Ensure positive eigenvalues for numerical stability
+        eigenvals_x = jnp.maximum(eigenvals_x, 1e-12)
+        sqrt_eigenvals_x = jnp.sqrt(eigenvals_x)
+
+        # x^(1/2) and x^(-1/2) (batch-aware diagonal operations)
+        sqrt_diag = (
+            jnp.apply_along_axis(jnp.diag, -1, sqrt_eigenvals_x)
+            if len(sqrt_eigenvals_x.shape) > 1
+            else jnp.diag(sqrt_eigenvals_x)
+        )
+        x_sqrt = eigenvecs_x @ sqrt_diag @ jnp.swapaxes(eigenvecs_x, -2, -1)
+
+        inv_sqrt_eigenvals_x = 1.0 / sqrt_eigenvals_x
+        inv_sqrt_diag = (
+            jnp.apply_along_axis(jnp.diag, -1, inv_sqrt_eigenvals_x)
+            if len(inv_sqrt_eigenvals_x.shape) > 1
+            else jnp.diag(inv_sqrt_eigenvals_x)
+        )
+        x_inv_sqrt = eigenvecs_x @ inv_sqrt_diag @ jnp.swapaxes(eigenvecs_x, -2, -1)
+
+        # Transform tangent vector (batch-aware)
+        v_transformed = x_inv_sqrt @ v @ x_inv_sqrt
+
+        # Apply matrix exponential
+        exp_v = expm(v_transformed)
+
+        # Transform back (batch-aware)
+        return x_sqrt @ exp_v @ x_sqrt
+
+    def _log_impl(self, x, y):
+        """JIT最適化版対数写像実装.
+
+        数値安定性向上:
+        - 固有値分解による安定な実装
+        - 条件数制御による安定性確保
+        """
+        # Use eigendecomposition for better JAX compatibility
+        return self._log_impl_eigen(x, y)
+
+    def _log_impl_eigen(self, x, y):
+        """Eigendecomposition-based logarithmic map fallback."""
+        # Compute matrix square root via eigendecomposition
+        eigenvals_x, eigenvecs_x = jnp.linalg.eigh(x)
+        eigenvals_x = jnp.maximum(eigenvals_x, 1e-12)
+        sqrt_eigenvals_x = jnp.sqrt(eigenvals_x)
+
+        # x^(1/2) and x^(-1/2)
+        x_sqrt = eigenvecs_x @ jnp.diag(sqrt_eigenvals_x) @ eigenvecs_x.T
+        inv_sqrt_eigenvals_x = 1.0 / sqrt_eigenvals_x
+        x_inv_sqrt = eigenvecs_x @ jnp.diag(inv_sqrt_eigenvals_x) @ eigenvecs_x.T
+
+        # Transform y
+        y_transformed = x_inv_sqrt @ y @ x_inv_sqrt
+
+        # Apply matrix logarithm
+        eigenvals_y, eigenvecs_y = jnp.linalg.eigh(y_transformed)
+        eigenvals_y = jnp.maximum(eigenvals_y, 1e-12)
+        log_eigenvals_y = jnp.log(eigenvals_y)
+        log_y = eigenvecs_y @ jnp.diag(log_eigenvals_y) @ eigenvecs_y.T
+
+        # Transform back
+        return x_sqrt @ log_y @ x_sqrt
+
+    def _inner_impl(self, x, u, v):
+        """JIT最適化版内積実装.
+
+        SPD多様体上のaffine-invariant内積
+        バッチ処理対応
+        """
+        # Compute x^(-1) using direct solve for JAX compatibility (batch-aware)
+        # Create identity matrix with correct batch shape
+        batch_shape = x.shape[:-2] if x.ndim > 2 else ()
+        eye_shape = (*batch_shape, self.n, self.n)
+        identity = jnp.broadcast_to(jnp.eye(self.n), eye_shape)
+
+        x_inv = solve(x, identity, assume_a="pos")
+
+        # Compute <u, v>_x = tr(x^(-1) @ u @ x^(-1) @ v) (batch-aware)
+        temp = x_inv @ u @ x_inv @ v
+        # Use jnp.trace with axis specification for batch processing
+        inner_product = jnp.trace(temp, axis1=-2, axis2=-1)
+        return jnp.clip(inner_product, -1e15, 1e15)  # Numerical stability  # Numerical stability
+
+    def _dist_impl(self, x, y):
+        """JIT最適化版距離計算実装.
+
+        数値安定性向上:
+        - Cholesky分解による効率的計算
+        """
+        # Use the logarithmic map and inner product
+        log_xy = self._log_impl(x, y)
+
+        # Compute Riemannian distance: sqrt(<log_x(y), log_x(y)>_x)
+        inner_product = self._inner_impl(x, log_xy, log_xy)
+
+        # Ensure non-negative for numerical stability
+        inner_product = jnp.maximum(inner_product, 0.0)
+
+        distance = jnp.sqrt(inner_product)
+        return jnp.where(distance < 1e-12, 0.0, distance)
+
+    def _get_static_args(self, method_name: str) -> tuple:
+        """JITコンパイル用の静的引数設定.
+
+        SPD多様体では行列サイズ n を静的引数として指定
+        """
+        return (self.n,)

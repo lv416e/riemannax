@@ -1,0 +1,126 @@
+================================================================================
+JIT COMPATIBILITY VERIFICATION REPORT
+================================================================================
+
+OVERALL SUMMARY
+----------------------------------------
+Total tests: 44
+Passed tests: 28
+Failed tests: 16
+Pass rate: 63.6%
+Numerical instabilities: 0
+
+RESULTS BY MANIFOLD
+----------------------------------------
+sphere_3d: 5/8 (62.5%)
+sphere_5d: 5/8 (62.5%)
+grassmann_5_3: 6/8 (75.0%)
+stiefel_5_3: 4/6 (66.7%)
+so_3: 5/8 (62.5%)
+spd_3: 3/6 (50.0%)
+
+RESULTS BY OPERATION
+----------------------------------------
+exp: 9/12 (75.0%)
+log: 4/8 (50.0%)
+proj: 6/12 (50.0%)
+inner: 9/12 (75.0%)
+
+FAILED TESTS DETAIL
+----------------------------------------
+sphere_3d.log (batch=5)
+  Error: TypeError - dot_general requires contracting dimensions to have the same shape, got (3,) and (5,).
+
+sphere_3d.proj (batch=5)
+  Error: ToleranceError -
+Not equal to tolerance rtol=1e-05, atol=1e-07
+
+Mismatched elements: 15 / 15 (100%)
+Max absolute difference: 0.27894968
+Max relative difference: 1.6966561
+ x: array([[ 0.003774, -0.011687,  0.018823],
+       [ 0.012219, -0.06073 , -0.043373],
+       [ 0.028066,  0.043275,  0.014824],...
+ y: array([[ 0.020019, -0.279788, -0.15089 ],
+       [-0.170876,  0.087173, -0.302043],
+       [ 0.307016, -0.103057, -0.086119],...
+  Max abs diff: 2.79e-01
+  Max rel diff: 1.70e+00
+
+sphere_3d.inner (batch=5)
+  Error: TypeError - dot_general requires contracting dimensions to have the same shape, got (3,) and (5,).
+
+sphere_5d.log (batch=5)
+  Error: ToleranceError -
+Not equal to tolerance rtol=0.0001, atol=1e-06
+
+Mismatched elements: 25 / 25 (100%)
+Max absolute difference: 1.4045646
+Max relative difference: 181.21333
+ x: array([[ 0.606785,  0.161602, -0.42059 , -0.568094, -1.235824],
+       [ 0.886132,  0.028329, -1.018336, -0.325349,  0.865714],
+       [-0.429543, -0.553136,  0.00169 ,  0.500968,  1.396814],...
+ y: array([[-0.027541,  0.577591,  0.378912,  0.182934, -0.159862],
+       [ 0.085179, -0.533219,  0.25481 ,  0.1807  ,  0.331797],
+       [-0.125689,  0.376079,  0.493036,  0.351238, -0.007751],...
+  Max abs diff: 1.40e+00
+  Max rel diff: 1.81e+02
+
+sphere_5d.proj (batch=5)
+  Error: ToleranceError -
+Not equal to tolerance rtol=1e-05, atol=1e-07
+
+Mismatched elements: 25 / 25 (100%)
+Max absolute difference: 0.26145238
+Max relative difference: 3.7909207
+ x: array([[ 0.003054, -0.00534 ,  0.019969, -0.022171, -0.000646],
+       [-0.064069,  0.015573,  0.03151 ,  0.011455,  0.007194],
+       [-0.021103, -0.001781, -0.022833,  0.027266,  0.045208],...
+ y: array([[ 0.017074, -0.236725, -0.126501, -0.098227,  0.060791],
+       [-0.099642,  0.251859, -0.092442, -0.07405 , -0.142062],
+       [ 0.033355, -0.16322 , -0.227607, -0.125828,  0.053181],...
+  Max abs diff: 2.61e-01
+  Max rel diff: 3.79e+00
+
+sphere_5d.inner (batch=5)
+  Error: ToleranceError -
+Not equal to tolerance rtol=1e-05, atol=1e-07
+
+(shapes (5,), (5, 5) mismatch)
+ x: array([ 0.001788, -0.008354, -0.001757, -0.007696, -0.008752],
+      dtype=float32)
+ y: array([[ 0.001497, -0.002169, -0.009831, -0.003336,  0.004765],
+       [-0.002179, -0.006005,  0.002262,  0.004253,  0.007927],
+       [ 0.002203, -0.002449, -0.003574,  0.003437,  0.004673],...
+  Max abs diff: 1.67e-02
+  Max rel diff: 2.54e+01
+
+grassmann_5_3.log (batch=5)
+  Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
+
+grassmann_5_3.proj (batch=5)
+  Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
+
+stiefel_5_3.exp (batch=5)
+  Error: ValueError - diag input must be 1d or 2d
+
+stiefel_5_3.proj (batch=5)
+  Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
+
+so_3.exp (batch=5)
+  Error: ValueError - Incompatible shapes for matmul arguments: (3, 3, 5) and (5, 3, 3)
+
+so_3.log (batch=5)
+  Error: TypeError - Pred must be a scalar, got [False False False] of shape (3,).
+
+so_3.proj (batch=5)
+  Error: ValueError - Incompatible shapes for matmul arguments: (3, 3, 5) and (5, 3, 3)
+
+spd_3.exp (batch=5)
+  Error: ValueError - The arguments to solve must have shapes a=[..., m, m] and b=[..., m, k] or b=[..., m]; got a=(3, 5, 5) and b=(3, 3)
+
+spd_3.proj (batch=5)
+  Error: TypeError - add got incompatible shapes for broadcasting: (5, 3, 3), (3, 3, 5).
+
+spd_3.inner (batch=5)
+  Error: ValueError - Incompatible shapes for broadcasting: shapes=[(5,), (3,)]

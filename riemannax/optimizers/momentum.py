@@ -50,11 +50,7 @@ class MomentumState(OptState):
 tree_util.register_pytree_node_class(MomentumState)
 
 
-def riemannian_momentum(
-    learning_rate=0.1,
-    momentum=0.9,
-    use_retraction=False
-):
+def riemannian_momentum(learning_rate=0.1, momentum=0.9, use_retraction=False):
     """Riemannian gradient descent with momentum.
 
     Implements Riemannian gradient descent with momentum, where the momentum
@@ -113,9 +109,9 @@ def riemannian_momentum(
         # Clip step size for numerical stability
         step_norm = jnp.linalg.norm(step_direction)
         max_step = 0.5  # Maximum step size
-        step_direction = jnp.where(step_norm > max_step,
-                                 step_direction * (max_step / (step_norm + 1e-8)),
-                                 step_direction)
+        step_direction = jnp.where(
+            step_norm > max_step, step_direction * (max_step / (step_norm + 1e-8)), step_direction
+        )
 
         # Move along manifold using the step direction
         try:
@@ -125,7 +121,7 @@ def riemannian_momentum(
             x_new = manifold.retr(x, step_direction)
 
         # Ensure the new point is on the manifold (only for sphere-like manifolds)
-        if hasattr(manifold, 'proj') and hasattr(manifold, '__class__') and 'Sphere' in manifold.__class__.__name__:
+        if hasattr(manifold, "proj") and hasattr(manifold, "__class__") and "Sphere" in manifold.__class__.__name__:
             x_new = manifold.proj(x_new, jnp.zeros_like(x_new))  # Project to manifold
 
         # Transport momentum to new point

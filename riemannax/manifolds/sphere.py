@@ -224,16 +224,16 @@ class Sphere(Manifold):
 
         return tangent_vectors
 
-    def validate_point(self, x, atol: float = 1e-6) -> Array:
+    def validate_point(self, x, atol: float = 1e-6) -> bool:
         """Validate that x is a valid point on the sphere."""
         # Check that x is a unit vector
         norm = jnp.linalg.norm(x)
-        return jnp.allclose(norm, 1.0, atol=atol)
+        return bool(jnp.allclose(norm, 1.0, atol=atol))
 
-    def validate_tangent(self, x, v, atol: float = 1e-6) -> Array:
+    def validate_tangent(self, x, v, atol: float = 1e-6) -> jnp.ndarray:
         """Validate that v is in the tangent space at x."""
         if not self.validate_point(x, atol):
-            return False
+            return jnp.array(False)
         # Check that v is orthogonal to x
         dot_product = jnp.dot(x, v)
         return jnp.allclose(dot_product, 0.0, atol=atol)
@@ -247,3 +247,137 @@ class Sphere(Manifold):
     def ambient_dimension(self) -> int:
         """Ambient space dimension (n+1 for S^n)."""
         return 3  # Default to R^3 for S^2
+
+    # JIT-optimized implementation methods
+
+    def _proj_impl(self, x: Array, v: Array) -> Array:
+        """JIT最適化版プロジェクション実装.
+
+        数値安定性向上:
+        - ゼロ除算防止のための安全な正規化
+        - 小さなノルムに対する適切な処理
+        - バッチ処理対応
+        """
+        # Special case: if v is zero, project x onto sphere (normalization)
+        v_norm = jnp.linalg.norm(v, axis=-1)
+        is_zero_v = v_norm < 1e-10
+
+        # Normalize x onto sphere (batch-aware)
+        x_norm = jnp.linalg.norm(x, axis=-1, keepdims=True)
+        safe_x_norm = jnp.maximum(x_norm, 1e-10)  # ゼロ除算防止
+        normalized_x = x / safe_x_norm
+
+        # Project tangent (batch-aware)
+        dot_product = jnp.sum(x * v, axis=-1, keepdims=True)
+        # クリッピングによる数値安定化
+        clipped_dot = jnp.clip(dot_product, -1e10, 1e10)
+        tangent_projection = v - clipped_dot * x
+
+        # Use jnp.where for batch-compatible conditional processing
+        is_zero_v = jnp.expand_dims(is_zero_v, axis=-1)
+        return jnp.where(is_zero_v, normalized_x, tangent_projection)
+
+    def _exp_impl(self, x: Array, v: Array) -> Array:
+        """JIT最適化版指数写像実装.
+
+        数値安定性向上:
+        - 小さなベクトルに対する安全な処理
+        - 三角関数の数値安定性確保
+        """
+        # Compute the norm of the tangent vector with enhanced stability
+        v_norm = jnp.linalg.norm(v)
+
+        # ゼロ除算防止のための安全なノルム
+        safe_norm = jnp.maximum(v_norm, 1e-10)
+
+        # 小さなベクトルの場合の特別処理
+        is_small = v_norm < 1e-8
+
+        def small_vector_case():
+            # 小さなベクトルの場合は1次近似を使用し、球面制約を保持
+            result = x + v
+            # 球面制約を保持するため正規化
+            result_norm = jnp.linalg.norm(result)
+            safe_result_norm = jnp.maximum(result_norm, 1e-10)
+            return result / safe_result_norm
+
+        def normal_case():
+            # 通常の指数写像計算
+            cos_norm = jnp.cos(v_norm)
+            sin_norm = jnp.sin(v_norm)
+            return cos_norm * x + sin_norm * v / safe_norm
+
+        return lax.cond(is_small, small_vector_case, normal_case)
+
+    def _log_impl(self, x: Array, y: Array) -> Array:
+        """JIT最適化版対数写像実装.
+
+        数値安定性向上:
+        - 内積のクリッピング
+        - 対極点での安定な処理
+        - バッチ処理対応
+        """
+        # Project y-x onto the tangent space at x
+        diff = y - x
+        v = self._proj_impl(x, diff)
+
+        # Compute the norm of the projected vector with stability (batch-aware)
+        v_norm = jnp.linalg.norm(v, axis=-1, keepdims=True)
+        safe_norm = jnp.maximum(v_norm, 1e-10)
+
+        # Compute the angle between x and y with clipping for stability (batch-aware)
+        dot_product = jnp.sum(x * y, axis=-1)  # Use sum for batch processing
+        clipped_dot = jnp.clip(dot_product, -1.0 + 1e-10, 1.0 - 1e-10)
+        theta = jnp.arccos(clipped_dot)
+
+        # 対極点近傍での特別処理 (batch-aware)
+        is_antipodal = jnp.abs(dot_product + 1.0) < 1e-8
+
+        # Expand theta and is_antipodal for broadcasting
+        theta = jnp.expand_dims(theta, axis=-1)
+        is_antipodal = jnp.expand_dims(is_antipodal, axis=-1)
+
+        # Use jnp.where for batch-compatible conditional processing
+        antipodal_result = jnp.pi * v / safe_norm
+        normal_result = theta * v / safe_norm
+
+        return jnp.where(is_antipodal, antipodal_result, normal_result)
+
+    def _inner_impl(self, x: Array, u: Array, v: Array) -> Array:
+        """JIT最適化版内積実装.
+
+        球面上では単純なユークリッド内積だが、
+        数値安定性のためクリッピングを追加
+        バッチ処理対応
+        """
+        # Use batch-aware dot product
+        dot_product = jnp.sum(u * v, axis=-1)
+        # 極値でのクリッピング(必要に応じて)
+        return jnp.clip(dot_product, -1e10, 1e10)
+
+    def _dist_impl(self, x: Array, y: Array) -> Array:
+        """JIT最適化版距離計算実装.
+
+        数値安定性向上:
+        - 内積のクリッピング
+        - arccos の定義域での安全な計算
+        """
+        # The geodesic distance is the arc length (angle between x and y)
+        dot_product = jnp.dot(x, y)
+
+        # クリッピングによる数値安定化 - arccos の定義域 [-1, 1] を確保
+        clipped_dot = jnp.clip(dot_product, -1.0 + 1e-15, 1.0 - 1e-15)
+
+        return jnp.arccos(clipped_dot)
+
+    def _get_static_args(self, method_name: str) -> tuple:
+        """JITコンパイル用の静的引数設定.
+
+        Sphere多様体では次元が動的に変わる可能性があるため、
+        現時点では静的引数は使用しない。
+
+        将来的には次元数を静的引数として指定可能
+        """
+        # 現在の実装では静的引数なし
+        # 将来的には dimension を静的引数として使用可能
+        return ()

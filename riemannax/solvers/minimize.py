@@ -66,18 +66,12 @@ def minimize(problem, x0, method="rsgd", options=None):
         beta2 = options.get("beta2", 0.999)
         eps = options.get("eps", 1e-8)
         init_fn, update_fn = riemannian_adam(
-            learning_rate=learning_rate,
-            beta1=beta1,
-            beta2=beta2,
-            eps=eps,
-            use_retraction=use_retraction
+            learning_rate=learning_rate, beta1=beta1, beta2=beta2, eps=eps, use_retraction=use_retraction
         )
     elif method == "rmom":
         momentum = options.get("momentum", 0.9)
         init_fn, update_fn = riemannian_momentum(
-            learning_rate=learning_rate,
-            momentum=momentum,
-            use_retraction=use_retraction
+            learning_rate=learning_rate, momentum=momentum, use_retraction=use_retraction
         )
     else:
         raise ValueError(f"Unsupported optimization method: {method}")

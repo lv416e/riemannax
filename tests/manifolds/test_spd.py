@@ -47,9 +47,7 @@ def test_spd_initialization():
 def test_spd_proj(spd3, point_on_spd3):
     """Test the projection operation on SPD(3)."""
     # Create a random matrix in the ambient space
-    random_matrix = jnp.array([[1.0, 2.0, 3.0],
-                              [4.0, 5.0, 6.0],
-                              [7.0, 8.0, 9.0]])
+    random_matrix = jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
 
     # Project onto the tangent space
     proj_v = spd3.proj(point_on_spd3, random_matrix)
@@ -191,21 +189,15 @@ def test_spd_random_tangent(spd3, key, point_on_spd3):
 def test_spd_is_in_manifold(spd3):
     """Test the manifold membership check."""
     # Create a valid SPD matrix
-    A = jnp.array([[2.0, 1.0, 0.5],
-                   [1.0, 3.0, 1.5],
-                   [0.5, 1.5, 2.5]])
+    A = jnp.array([[2.0, 1.0, 0.5], [1.0, 3.0, 1.5], [0.5, 1.5, 2.5]])
     assert spd3._is_in_manifold(A)
 
     # Create a non-symmetric matrix
-    B = jnp.array([[2.0, 1.0, 0.5],
-                   [0.0, 3.0, 1.5],
-                   [0.5, 1.5, 2.5]])
+    B = jnp.array([[2.0, 1.0, 0.5], [0.0, 3.0, 1.5], [0.5, 1.5, 2.5]])
     assert not spd3._is_in_manifold(B)
 
     # Create a symmetric but not positive definite matrix
-    C = jnp.array([[1.0, 2.0, 3.0],
-                   [2.0, 1.0, 4.0],
-                   [3.0, 4.0, 1.0]])
+    C = jnp.array([[1.0, 2.0, 3.0], [2.0, 1.0, 4.0], [3.0, 4.0, 1.0]])
     # This matrix has negative eigenvalues
     assert not spd3._is_in_manifold(C)
 
@@ -275,12 +267,7 @@ def test_spd_integration_with_optimization():
     x0 = spd2.random_point(key)
 
     # Solve the problem (should converge towards identity)
-    result = rieax.minimize(
-        problem,
-        x0,
-        method='rsgd',
-        options={'learning_rate': 0.1, 'max_iterations': 20}
-    )
+    result = rieax.minimize(problem, x0, method="rsgd", options={"learning_rate": 0.1, "max_iterations": 20})
 
     # Check that optimization succeeded
     assert result.success
