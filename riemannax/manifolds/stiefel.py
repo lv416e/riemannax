@@ -115,7 +115,7 @@ class Stiefel(Manifold):
 
             return Q_result @ jnp.diag(d)
 
-        return jax.lax.cond(v_norm < NumericalConstants.EPSILON, near_zero_case, normal_case)
+        return jnp.asarray(jax.lax.cond(v_norm < NumericalConstants.EPSILON, near_zero_case, normal_case))
 
     def _exp_qr(self, x: Array, v: Array) -> Array:
         """QR-based true exponential map implementation.
@@ -169,12 +169,12 @@ class Stiefel(Manifold):
     def log(self, x: Array, y: Array) -> Array:
         """Logarithmic map from X to Y (simplified implementation)."""
         # Simple implementation: project difference to tangent space
-        return self.proj(x, y - x)
+        return jnp.asarray(self.proj(x, y - x))
 
     @jit_optimized(static_args=(0,))
     def transp(self, x: Array, y: Array, v: Array) -> Array:
         """Parallel transport from T_X to T_Y."""
-        return self.proj(y, v)
+        return jnp.asarray(self.proj(y, v))
 
     @jit_optimized(static_args=(0,))
     def inner(self, x: Array, u: Array, v: Array) -> Array:
@@ -197,11 +197,11 @@ class Stiefel(Manifold):
             theta = jnp.where(
                 jnp.abs(cos_theta) > 1.0 - NumericalConstants.EPSILON, 0.0, jnp.arccos(jnp.abs(cos_theta))
             )
-            return jnp.linalg.norm(theta)
+            return jnp.asarray(jnp.linalg.norm(theta))
 
         # Handle the case when x and y are the same point using jax.lax.cond for JIT compatibility
         are_close = jnp.allclose(x, y, atol=NumericalConstants.EPSILON)
-        return jax.lax.cond(are_close, same_points_case, different_points_case)
+        return jnp.asarray(jax.lax.cond(are_close, same_points_case, different_points_case))
 
     def random_point(self, key: Array, *shape: int) -> Array:
         """Generate random point via QR decomposition of Gaussian matrix."""
@@ -228,7 +228,7 @@ class Stiefel(Manifold):
 
                 return q @ jnp.diag(d)
 
-            return jnp.vectorize(qr_fn, signature="(n,p)->(n,p)")(gaussian)
+            return jnp.asarray(jnp.vectorize(qr_fn, signature="(n,p)->(n,p)")(gaussian))
         else:
             q, r = jnp.linalg.qr(gaussian, mode="reduced")
             d = jnp.sign(jnp.diag(r))
@@ -251,11 +251,11 @@ class Stiefel(Manifold):
         if shape:
             # Handle batched case
             def proj_fn(vi: Array) -> Array:
-                return self.proj(x, vi)
+                return jnp.asarray(self.proj(x, vi))
 
-            return jnp.vectorize(proj_fn, signature="(n,p)->(n,p)")(v)
+            return jnp.asarray(jnp.vectorize(proj_fn, signature="(n,p)->(n,p)")(v))
         else:
-            return self.proj(x, v)
+            return jnp.asarray(self.proj(x, v))
 
     def validate_point(self, x: Array, atol: float = 1e-6) -> bool:
         """Validate that X has orthonormal columns."""
@@ -394,7 +394,7 @@ class Stiefel(Manifold):
 
         # Handle near-zero angles (identical frames)
         distance = jnp.linalg.norm(theta)
-        return jnp.where(distance < NumericalConstants.HIGH_PRECISION_EPSILON, 0.0, distance)
+        return jnp.asarray(jnp.where(distance < NumericalConstants.HIGH_PRECISION_EPSILON, 0.0, distance))
 
     def _get_static_args(self, method_name: str) -> tuple[Any, ...]:
         """Static argument configuration for JIT compilation.

@@ -9,7 +9,7 @@ import hashlib
 import time
 from collections import defaultdict
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import jax
 
@@ -105,6 +105,7 @@ class BatchJITOptimizer:
         vmapped_op = jax.vmap(vectorized_op, in_axes=in_axes) if in_axes is not None else vectorized_op
 
         # Apply JIT compilation
+        jitted_op: Any  # Can be jitted function or fallback callable
         try:
             # Determine static argument positions for JIT
             static_arg_names = list(static_args.keys()) if static_args else None
@@ -178,7 +179,7 @@ class BatchJITOptimizer:
 
         # Cache and return
         self._cache_compiled_function(shape_key, jitted_op)
-        return jitted_op  # type: ignore[no-any-return]
+        return cast(Callable[..., Any], jitted_op)
 
     def enable_performance_monitoring(self, enable: bool = True) -> None:
         """Enable or disable performance monitoring.

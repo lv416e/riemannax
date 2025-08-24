@@ -101,7 +101,7 @@ class Sphere(Manifold):
         # Compute the angle between x and y (geodesic distance)
         theta = jnp.arccos(jnp.clip(jnp.dot(x, y), -1.0, 1.0))
         # Scale the direction vector by the geodesic distance
-        return theta * v / safe_norm
+        return jnp.asarray(theta * v / safe_norm)
 
     @jit_optimized(static_args=(0,))
     def retr(self, x: Array, v: Array) -> Array:
@@ -118,7 +118,7 @@ class Sphere(Manifold):
         """
         # Simple retraction by normalization
         y = x + v
-        return y / jnp.linalg.norm(y)
+        return jnp.asarray(y / jnp.linalg.norm(y))
 
     @jit_optimized(static_args=(0,))
     def transp(self, x: Array, y: Array, v: Array) -> Array:
@@ -143,14 +143,14 @@ class Sphere(Manifold):
 
         def small_case() -> Array:
             # If x and y are close, approximate with projection
-            return self.proj(y, v)
+            return jnp.asarray(self.proj(y, v))
 
         def normal_case() -> Array:
             # Normal case: compute parallel transport
             u = log_xy / log_xy_norm
-            return v - (jnp.dot(v, u) / (1 + jnp.dot(x, y))) * (u + y)
+            return jnp.asarray(v - (jnp.dot(v, u) / (1 + jnp.dot(x, y))) * (u + y))
 
-        return lax.cond(is_small, small_case, normal_case)
+        return jnp.asarray(lax.cond(is_small, small_case, normal_case))
 
     @jit_optimized(static_args=(0,))
     def inner(self, x: Array, u: Array, v: Array) -> Array:
@@ -208,7 +208,7 @@ class Sphere(Manifold):
         samples = jr.normal(key, shape)
 
         # Normalize to get points on the sphere
-        return samples / jnp.linalg.norm(samples, axis=-1, keepdims=True)
+        return jnp.asarray(samples / jnp.linalg.norm(samples, axis=-1, keepdims=True))
 
     def random_tangent(self, key: Array, x: Array, *shape: int) -> Array:
         """Generate random tangent vector(s) at point x.
@@ -234,7 +234,7 @@ class Sphere(Manifold):
         # Project onto the tangent space at x
         tangent_vectors = self.proj(x, ambient_vectors)
 
-        return tangent_vectors
+        return jnp.asarray(tangent_vectors)
 
     def validate_point(self, x: ManifoldPoint, atol: float = 1e-6) -> bool:
         """Validate that x is a valid point on the sphere."""
@@ -319,7 +319,7 @@ class Sphere(Manifold):
             sin_norm = jnp.sin(v_norm)
             return cos_norm * x + sin_norm * v / safe_norm
 
-        return lax.cond(is_small, small_vector_case, normal_case)
+        return jnp.asarray(lax.cond(is_small, small_vector_case, normal_case))
 
     def _log_impl(self, x: Array, y: Array) -> Array:
         """JIT-optimized logarithmic map implementation.
