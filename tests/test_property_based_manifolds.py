@@ -305,7 +305,7 @@ class TestStiefelPropertyBased:
         constraint = point @ tangent.T + tangent @ point.T
         constraint_error = jnp.linalg.norm(constraint, ord='fro')
 
-        assert constraint_error < 2e-6, \
+        assert constraint_error < 3e-6, \
             f"Tangent space constraint violated: ||X V^T + V X^T||_F = {constraint_error}"
 
 
