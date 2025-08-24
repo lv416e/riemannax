@@ -1,0 +1,167 @@
+name: Quality Gates
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "riemannax/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".pre-commit-config.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "riemannax/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".pre-commit-config.yaml"
+
+jobs:
+  lint-ruff:
+    name: "Ruff Linting (Zero Tolerance)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff>=0.9.0
+
+      - name: Run ruff check (zero tolerance)
+        run: |
+          ruff check . --no-fix
+
+      - name: Run ruff format check
+        run: |
+          ruff format --check .
+
+  type-check-mypy:
+    name: "MyPy Type Checking (Strict Mode)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install mypy>=1.8.0
+          pip install types-requests types-setuptools
+          pip install jaxtyping>=0.2.0
+
+      - name: Run mypy type checking
+        run: |
+          mypy --config-file=pyproject.toml riemannax/
+        continue-on-error: true  # Allow type errors during transition period
+
+      - name: Report mypy status
+        if: failure()
+        run: |
+          echo "::warning::MyPy found type issues. This is expected during the transition to strict typing."
+          echo "::notice::Type checking configured successfully. Fix type issues incrementally."
+
+  test-coverage:
+    name: "Test Coverage (95% Threshold)"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install pytest-cov>=4.0.0
+          pip install coverage[toml]>=7.0.0
+
+      - name: Run tests with coverage
+        run: |
+          pytest --cov=riemannax --cov-report=xml --cov-report=term-missing --cov-fail-under=95
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.10'
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: true
+          verbose: true
+
+  pre-commit-all:
+    name: "Pre-commit Hooks (All Files)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install pre-commit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pre-commit
+
+      - name: Run pre-commit on all files
+        run: |
+          pre-commit run --all-files
+        env:
+          SKIP: mypy  # Skip mypy in pre-commit since it's run separately
+
+  quality-gate-summary:
+    name: "Quality Gate Summary"
+    runs-on: ubuntu-latest
+    needs: [lint-ruff, type-check-mypy, test-coverage, pre-commit-all]
+    if: always()
+    steps:
+      - name: Check quality gates
+        run: |
+          echo "## Quality Gate Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check each job status
+          RUFF_STATUS="${{ needs.lint-ruff.result }}"
+          MYPY_STATUS="${{ needs.type-check-mypy.result }}"
+          COVERAGE_STATUS="${{ needs.test-coverage.result }}"
+          PRECOMMIT_STATUS="${{ needs.pre-commit-all.result }}"
+
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Ruff Linting | $RUFF_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "| MyPy Type Checking | $MYPY_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Coverage (95%) | $COVERAGE_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pre-commit Hooks | $PRECOMMIT_STATUS |" >> $GITHUB_STEP_SUMMARY
+
+          # Determine overall result
+          if [[ "$RUFF_STATUS" == "success" && "$COVERAGE_STATUS" == "success" && "$PRECOMMIT_STATUS" == "success" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Quality gates PASSED**" >> $GITHUB_STEP_SUMMARY
+            echo "All critical quality checks are passing." >> $GITHUB_STEP_SUMMARY
+            if [[ "$MYPY_STATUS" != "success" ]]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "⚠️  **Note**: MyPy type checking has issues (expected during transition)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Quality gates FAILED**" >> $GITHUB_STEP_SUMMARY
+            echo "One or more critical quality checks are failing." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi

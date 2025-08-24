@@ -2,6 +2,7 @@
 
 import statistics
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -10,7 +11,7 @@ from typing import Any, ClassVar
 
 @dataclass
 class OperationMetrics:
-    """個別操作のメトリクス情報."""
+    """Metrics information for individual operations."""
 
     execution_times: list[float] = field(default_factory=list)
     compilation_time: float | None = None
@@ -19,21 +20,21 @@ class OperationMetrics:
 
 
 class PerformanceMonitor:
-    """JIT最適化パフォーマンス監視システム."""
+    """JIT optimization performance monitoring system."""
 
-    # クラス変数でメトリクス情報を管理
+    # Manage metrics information with class variables
     _metrics: ClassVar[dict[str, OperationMetrics]] = {}
 
     @classmethod
     @contextmanager
-    def measure(cls, operation_name: str):
-        """操作時間測定コンテキストマネージャー.
+    def measure(cls, operation_name: str) -> Generator[None, None, None]:
+        """Operation time measurement context manager.
 
         Args:
-            operation_name: 測定対象操作名
+            operation_name: Name of the operation to be measured.
 
         Yields:
-            測定実行コンテキスト
+            Measurement execution context.
         """
         start_time = time.time()
         try:
@@ -45,11 +46,11 @@ class PerformanceMonitor:
 
     @classmethod
     def _record_execution_time(cls, operation_name: str, execution_time: float) -> None:
-        """実行時間を記録.
+        """Record execution time.
 
         Args:
-            operation_name: 操作名
-            execution_time: 実行時間(秒)
+            operation_name: Name of the operation.
+            execution_time: Execution time in seconds.
         """
         if operation_name not in cls._metrics:
             cls._metrics[operation_name] = OperationMetrics()
@@ -59,11 +60,11 @@ class PerformanceMonitor:
 
     @classmethod
     def compilation_time(cls, func_name: str, compile_time: float) -> None:
-        """コンパイル時間記録.
+        """Record compilation time.
 
         Args:
-            func_name: 関数名
-            compile_time: コンパイル時間(秒)
+            func_name: Name of the function.
+            compile_time: Compilation time in seconds.
         """
         if func_name not in cls._metrics:
             cls._metrics[func_name] = OperationMetrics()
@@ -73,10 +74,10 @@ class PerformanceMonitor:
 
     @classmethod
     def get_metrics(cls) -> dict[str, dict[str, Any]]:
-        """全メトリクス情報取得.
+        """Get all metrics information.
 
         Returns:
-            メトリクス情報辞書
+            Dictionary containing metrics information.
         """
         result = {}
         for operation_name, metrics in cls._metrics.items():
@@ -90,10 +91,10 @@ class PerformanceMonitor:
 
     @classmethod
     def get_speedup_report(cls) -> dict[str, Any]:
-        """速度向上レポート生成.
+        """Generate speedup report.
 
         Returns:
-            速度向上レポート
+            Dictionary containing speedup report data.
         """
         total_operations = len(cls._metrics)
         operations_with_times = sum(1 for metrics in cls._metrics.values() if len(metrics.execution_times) > 0)
@@ -116,14 +117,14 @@ class PerformanceMonitor:
 
     @classmethod
     def calculate_speedup(cls, baseline_operation: str, optimized_operation: str) -> float:
-        """速度向上比率計算.
+        """Calculate speedup ratio.
 
         Args:
-            baseline_operation: 基準操作名
-            optimized_operation: 最適化操作名
+            baseline_operation: Name of the baseline operation.
+            optimized_operation: Name of the optimized operation.
 
         Returns:
-            速度向上比率(倍数)
+            Speedup ratio as a multiplier.
         """
         baseline_metrics = cls._metrics.get(baseline_operation)
         optimized_metrics = cls._metrics.get(optimized_operation)
@@ -144,15 +145,15 @@ class PerformanceMonitor:
 
     @classmethod
     def check_performance_target(cls, operation_name: str, baseline_time: float, target_speedup: float) -> bool:
-        """パフォーマンス目標達成チェック.
+        """Check performance target achievement.
 
         Args:
-            operation_name: 操作名
-            baseline_time: 基準実行時間
-            target_speedup: 目標速度向上倍率
+            operation_name: Name of the operation.
+            baseline_time: Baseline execution time.
+            target_speedup: Target speedup multiplier.
 
         Returns:
-            目標達成の可否
+            True if target is achieved, False otherwise.
         """
         metrics = cls._metrics.get(operation_name)
         if not metrics or not metrics.execution_times:
@@ -165,13 +166,13 @@ class PerformanceMonitor:
 
     @classmethod
     def get_average_execution_time(cls, operation_name: str) -> float | None:
-        """平均実行時間取得.
+        """Get average execution time.
 
         Args:
-            operation_name: 操作名
+            operation_name: Name of the operation.
 
         Returns:
-            平均実行時間(秒)
+            Average execution time in seconds, or None if no data.
         """
         metrics = cls._metrics.get(operation_name)
         if not metrics or not metrics.execution_times:
@@ -181,13 +182,13 @@ class PerformanceMonitor:
 
     @classmethod
     def get_performance_statistics(cls, operation_name: str) -> dict[str, float]:
-        """パフォーマンス統計情報取得.
+        """Get performance statistics information.
 
         Args:
-            operation_name: 操作名
+            operation_name: Name of the operation.
 
         Returns:
-            統計情報辞書
+            Dictionary containing statistical information.
         """
         metrics = cls._metrics.get(operation_name)
         if not metrics or not metrics.execution_times:
@@ -204,44 +205,44 @@ class PerformanceMonitor:
 
     @classmethod
     def reset_metrics(cls) -> None:
-        """全メトリクス初期化."""
+        """Initialize all metrics."""
         cls._metrics.clear()
 
     @classmethod
     def enable(cls) -> None:
-        """パフォーマンス監視を有効化."""
-        # すでにクラス変数として監視システムは有効なため、特別な初期化は不要
-        # 将来的な拡張のためのプレースホルダー
+        """Enable performance monitoring."""
+        # No special initialization needed as monitoring system is already enabled as class variable
+        # Placeholder for future expansion
         pass
 
     @classmethod
     def disable(cls) -> None:
-        """パフォーマンス監視を無効化."""
-        # 将来的な拡張のためのプレースホルダー
+        """Disable performance monitoring."""
+        # Placeholder for future expansion
         pass
 
     @classmethod
     def clear_stats(cls) -> None:
-        """統計情報をクリア(reset_metricsのエイリアス)."""
+        """Clear statistics (alias for reset_metrics)."""
         cls.reset_metrics()
 
     @classmethod
     def get_stats(cls) -> dict[str, Any]:
-        """統計情報取得(get_speedup_reportのエイリアス)."""
+        """Get statistics (alias for get_speedup_report)."""
         report = cls.get_speedup_report()
 
-        # より詳細な統計情報を追加
+        # Add more detailed statistical information
         stats = {
             "total_operations": report["summary"]["total_operations"],
             "operations_with_measurements": report["summary"]["operations_with_measurements"],
             "generated_at": report["summary"]["generated_at"],
         }
 
-        # 平均速度向上の計算
+        # Calculate average speedup
         speedups = []
         for _name, details in report["details"].items():
             if details["average_time"] and details["compilation_time"] and details["average_time"] > 0:
-                # 仮想的なベースライン(JIT無し)は約10倍遅いと仮定
+                # Assume virtual baseline (without JIT) is about 10 times slower
                 estimated_speedup = 10.0 * details["compilation_time"] / details["average_time"]
                 if estimated_speedup > 1.0:
                     speedups.append(estimated_speedup)

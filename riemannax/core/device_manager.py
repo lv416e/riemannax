@@ -222,7 +222,7 @@ class DeviceManager:
         return capabilities
 
     @classmethod
-    def estimate_memory_usage(cls, array_shape: tuple[int, ...], dtype=jnp.float32) -> int:
+    def estimate_memory_usage(cls, array_shape: tuple[int, ...], dtype: Any = jnp.float32) -> int:
         """メモリ使用量推定.
 
         Args:
@@ -244,7 +244,7 @@ class DeviceManager:
         return num_elements * element_size
 
     @classmethod
-    def get_preferred_device(cls):
+    def get_preferred_device(cls) -> Any:
         """優先デバイス取得.
 
         Returns:

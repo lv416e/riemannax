@@ -96,13 +96,21 @@ markers =
     manifolds: marks tests related to manifolds
     optimizers: marks tests related to optimizers
     solvers: marks tests related to solvers
+
+filterwarnings =
+    ignore::DeprecationWarning
+    ignore::PendingDeprecationWarning
 ```
 
 #### **Test Categories**
-- **Unit Tests**: Individual component testing with mathematical validation
+- **Unit Tests**: Individual component testing with mathematical validation (49+ test files)
 - **Integration Tests**: End-to-end workflow testing across manifolds
-- **Performance Tests**: Benchmarking and speedup validation
-- **Numerical Tests**: Stability and convergence verification
+- **JIT Tests**: JIT compilation and optimization validation (per-manifold `*_jit.py` tests)
+- **Performance Tests**: Benchmarking and speedup validation with comprehensive performance monitoring
+- **Core Module Tests**: JIT manager, JIT decorator, device manager, batch operations, performance monitoring, type system, and constants
+- **Numerical Stability Tests**: Comprehensive numerical stability and convergence verification
+- **Property-Based Tests**: Mathematical property validation across manifold implementations
+- **Compatibility Tests**: Cross-platform, dependency compatibility, and JIT compatibility validation
 
 ## Common Commands
 

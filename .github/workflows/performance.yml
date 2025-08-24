@@ -1,0 +1,330 @@
+name: Performance Benchmarking
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "riemannax/**"
+      - "tests/core/test_performance_*.py"
+      - "tests/manifolds/*jit*.py"
+  push:
+    branches: [main]
+    paths:
+      - "riemannax/**"
+  schedule:
+    # Run nightly benchmarks at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      benchmark_type:
+        description: 'Type of benchmark to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - 'all'
+          - 'jit_speedup'
+          - 'manifold_operations'
+          - 'integration'
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  benchmark-performance:
+    name: "Performance Benchmarks"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+        jax-backend: ["cpu"]  # Can be extended to include GPU when available
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for performance comparison
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install pytest-benchmark>=4.0.0
+          pip install psutil  # For system monitoring
+          pip install matplotlib seaborn  # For plotting
+
+      - name: Install JAX (CPU)
+        if: matrix.jax-backend == 'cpu'
+        run: |
+          pip install "jax[cpu]"
+
+      - name: System Information
+        run: |
+          python -c "
+          import sys, psutil, jax
+          print(f'Python: {sys.version}')
+          print(f'JAX: {jax.__version__}')
+          print(f'JAX Backend: {jax.default_backend()}')
+          print(f'CPU Count: {psutil.cpu_count()}')
+          print(f'Memory: {psutil.virtual_memory().total // (1024**3)} GB')
+          "
+
+      - name: Run JIT Performance Benchmarks
+        if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'jit_speedup' || github.event.inputs.benchmark_type == ''
+        run: |
+          mkdir -p benchmark_results
+          pytest tests/core/test_performance_benchmark_functionality.py \
+            --benchmark-json=benchmark_results/jit_benchmarks.json \
+            --benchmark-warmup=on \
+            --benchmark-warmup-iterations=3 \
+            --benchmark-min-rounds=5 \
+            -v
+
+      - name: Run Manifold Operation Benchmarks
+        if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'manifold_operations' || github.event.inputs.benchmark_type == ''
+        run: |
+          mkdir -p benchmark_results
+          pytest tests/manifolds/test_*jit*.py \
+            --benchmark-json=benchmark_results/manifold_benchmarks.json \
+            --benchmark-warmup=on \
+            --benchmark-warmup-iterations=3 \
+            --benchmark-min-rounds=5 \
+            -v
+
+      - name: Run Integration Performance Tests
+        if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'integration' || github.event.inputs.benchmark_type == ''
+        run: |
+          mkdir -p benchmark_results
+          pytest tests/test_comprehensive_numerical_stability.py \
+            --benchmark-json=benchmark_results/integration_benchmarks.json \
+            --benchmark-warmup=on \
+            --benchmark-warmup-iterations=2 \
+            --benchmark-min-rounds=3 \
+            -v
+
+      - name: Generate Performance Report
+        run: |
+          python -c "
+          import json
+          import sys
+          from pathlib import Path
+
+          # Collect all benchmark results
+          results_dir = Path('benchmark_results')
+          all_results = {}
+
+          for json_file in results_dir.glob('*.json'):
+              if json_file.stat().st_size > 0:
+                  try:
+                      with open(json_file) as f:
+                          data = json.load(f)
+                          all_results[json_file.stem] = data
+                  except json.JSONDecodeError:
+                      print(f'Warning: Could not parse {json_file}')
+
+          # Generate summary report
+          summary = {
+              'timestamp': '$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")',
+              'commit': '${GITHUB_SHA}',
+              'branch': '${GITHUB_REF_NAME}',
+              'python_version': '${{ matrix.python-version }}',
+              'jax_backend': '${{ matrix.jax-backend }}',
+              'benchmark_results': all_results
+          }
+
+          # Save comprehensive results
+          with open('benchmark_results/performance_summary.json', 'w') as f:
+              json.dump(summary, f, indent=2)
+
+          # Generate markdown report
+          with open('benchmark_results/PERFORMANCE_REPORT.md', 'w') as f:
+              f.write('# Performance Benchmark Report\\n\\n')
+              f.write(f'- **Timestamp**: {summary[\"timestamp\"]}\\n')
+              f.write(f'- **Commit**: {summary[\"commit\"]}\\n')
+              f.write(f'- **Branch**: {summary[\"branch\"]}\\n')
+              f.write(f'- **Python**: {summary[\"python_version\"]}\\n')
+              f.write(f'- **JAX Backend**: {summary[\"jax_backend\"]}\\n\\n')
+
+              for benchmark_type, results in all_results.items():
+                  f.write(f'## {benchmark_type.replace(\"_\", \" \").title()}\\n\\n')
+
+                  if 'benchmarks' in results:
+                      for bench in results['benchmarks']:
+                          name = bench.get('name', 'Unknown')
+                          mean_time = bench.get('stats', {}).get('mean', 0)
+                          f.write(f'- **{name}**: {mean_time:.6f}s\\n')
+                  f.write('\\n')
+
+          print('Performance report generated successfully')
+          "
+
+      - name: Performance Regression Detection
+        if: github.event_name == 'pull_request'
+        run: |
+          python -c "
+          import json
+          import os
+          from pathlib import Path
+
+          # This is a simplified regression detection
+          # In a real scenario, you'd compare against baseline from main branch
+
+          results_file = Path('benchmark_results/performance_summary.json')
+          if not results_file.exists():
+              print('No benchmark results to analyze')
+              exit(0)
+
+          with open(results_file) as f:
+              current_results = json.load(f)
+
+          # Regression thresholds
+          REGRESSION_THRESHOLD = 1.2  # 20% performance degradation
+
+          # For now, just validate that JIT speedup requirements are met
+          print('## Performance Validation Results')
+          print()
+
+          # Check if we have JIT benchmark results
+          jit_results = current_results.get('benchmark_results', {}).get('jit_benchmarks', {})
+
+          if jit_results and 'benchmarks' in jit_results:
+              print('✅ JIT benchmarks completed successfully')
+
+              # Look for speedup-related benchmarks
+              speedup_benchmarks = [b for b in jit_results['benchmarks'] if 'speedup' in b.get('name', '').lower()]
+
+              if speedup_benchmarks:
+                  print(f'Found {len(speedup_benchmarks)} speedup benchmark(s)')
+                  for bench in speedup_benchmarks:
+                      name = bench.get('name', 'Unknown')
+                      mean_time = bench.get('stats', {}).get('mean', 0)
+                      print(f'  - {name}: {mean_time:.6f}s')
+              else:
+                  print('ℹ️  No specific speedup benchmarks found')
+          else:
+              print('⚠️  No JIT benchmark results found')
+
+          print()
+          print('Performance regression detection completed.')
+          print('Note: Baseline comparison will be implemented when historical data is available.')
+          "
+
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-benchmarks-${{ matrix.python-version }}-${{ matrix.jax-backend }}-${{ github.sha }}
+          path: benchmark_results/
+          retention-days: 30
+
+      - name: Comment PR with Performance Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            try {
+              // Read the performance report
+              const reportPath = 'benchmark_results/PERFORMANCE_REPORT.md';
+              if (fs.existsSync(reportPath)) {
+                const report = fs.readFileSync(reportPath, 'utf8');
+
+                // Create comment body
+                const commentBody = `## 🚀 Performance Benchmark Results
+
+            ${report}
+
+            <details>
+            <summary>📊 Full Results</summary>
+
+            Benchmark artifacts have been uploaded and will be available for 30 days.
+
+            **Benchmark Configuration:**
+            - Python: ${{ matrix.python-version }}
+            - JAX Backend: ${{ matrix.jax-backend }}
+            - Commit: ${context.sha}
+
+            </details>
+
+            ---
+            *This comment was automatically generated by the performance benchmarking workflow.*`;
+
+                // Find existing comment and update or create new
+                const { data: comments } = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                });
+
+                const existingComment = comments.find(comment =>
+                  comment.body.includes('Performance Benchmark Results')
+                );
+
+                if (existingComment) {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: existingComment.id,
+                    body: commentBody,
+                  });
+                } else {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: context.issue.number,
+                    body: commentBody,
+                  });
+                }
+              }
+            } catch (error) {
+              console.log('Could not post performance results comment:', error.message);
+            }
+
+  store-baseline:
+    name: "Store Performance Baseline"
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [benchmark-performance]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: performance-benchmarks-*
+          merge-multiple: true
+          path: benchmark_results/
+
+      - name: Store baseline performance data
+        run: |
+          # Create baseline directory if it doesn't exist
+          mkdir -p .github/performance_baselines
+
+          # Copy current results as new baseline
+          cp benchmark_results/performance_summary.json .github/performance_baselines/baseline_$(date +%Y%m%d_%H%M%S).json
+          cp benchmark_results/performance_summary.json .github/performance_baselines/latest_baseline.json
+
+          # Keep only last 10 baselines
+          cd .github/performance_baselines
+          ls -t baseline_*.json | tail -n +11 | xargs -r rm
+
+          echo "Baseline performance data stored successfully"
+
+      - name: Commit baseline data
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .github/performance_baselines/
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update performance baseline data [skip ci]"
+            git push
+          else
+            echo "No baseline changes to commit"
+          fi

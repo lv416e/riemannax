@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import jax
 
@@ -75,11 +75,11 @@ class SafeJITWrapper:
 
     def safe_jit(
         self,
-        func: Callable,
-        fallback_func: Callable | None = None,
+        func: Callable[..., Any],
+        fallback_func: Callable[..., Any] | None = None,
         static_argnums: tuple[int, ...] | None = None,
-        **jit_kwargs,
-    ) -> Callable:
+        **jit_kwargs: Any,
+    ) -> Callable[..., Any]:
         """安全なJITデコレータ.
 
         Args:
@@ -128,7 +128,7 @@ class SafeJITWrapper:
             return self._create_fallback_wrapper(fallback_func, func_name)
 
         @wraps(func)
-        def safe_wrapper(*args, **kwargs):
+        def safe_wrapper(*args: Any, **kwargs: Any) -> Any:
             retry_count = 0
             last_error = None
 
@@ -183,11 +183,11 @@ class SafeJITWrapper:
 
         return safe_wrapper
 
-    def _create_fallback_wrapper(self, fallback_func: Callable, func_name: str) -> Callable:
+    def _create_fallback_wrapper(self, fallback_func: Callable[..., Any], func_name: str) -> Callable[..., Any]:
         """フォールバック関数のラッパー作成."""
 
         @wraps(fallback_func)
-        def fallback_wrapper(*args, **kwargs):
+        def fallback_wrapper(*args: Any, **kwargs: Any) -> Any:
             if self.performance_monitoring:
                 start_time = time.time()
                 result = fallback_func(*args, **kwargs)
@@ -330,11 +330,11 @@ class SafeJITWrapper:
         """
         return self._closed
 
-    def __enter__(self):
+    def __enter__(self) -> "SafeJITWrapper":
         """コンテキストマネージャー開始."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Literal[False]:
         """コンテキストマネージャー終了."""
         self._closed = True
         return False

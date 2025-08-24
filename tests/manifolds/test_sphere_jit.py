@@ -1,8 +1,13 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
+import time
+import statistics
+from typing import Dict, Any
 
 from riemannax.manifolds.sphere import Sphere
+from riemannax.core.constants import PerformanceThresholds
 
 
 class TestSphereJITOptimization:
@@ -266,3 +271,303 @@ class TestSphereJITOptimization:
         except (ValueError, TypeError, IndexError):
             # 適切なエラーが発生した場合は成功
             assert True
+
+    @pytest.fixture
+    def benchmark_fixture(self):
+        """Benchmark fixture for consistent performance testing."""
+        from riemannax.core.performance_benchmark import PerformanceBenchmark
+        return PerformanceBenchmark(warmup_runs=5, precision=6)
+
+    @pytest.fixture
+    def sphere_performance_data(self):
+        """Generate test data for performance benchmarking."""
+        key = jax.random.PRNGKey(42)
+        batch_size = 100
+        dim = 100
+
+        # Generate sphere points
+        x = jax.random.normal(key, (batch_size, dim))
+        x = x / jnp.linalg.norm(x, axis=1, keepdims=True)
+
+        # Generate tangent vectors
+        key, subkey = jax.random.split(key)
+        v = jax.random.normal(subkey, (batch_size, dim))
+        # Project to tangent space
+        v = v - jnp.sum(v * x, axis=1, keepdims=True) * x
+
+        return x[0], v[0], x, v  # single and batch data
+
+    def test_proj_jit_speedup_validation(self, benchmark_fixture, sphere_performance_data):
+        """Performance validation: JIT proj speedup meets minimum requirements."""
+        x, v, _, _ = sphere_performance_data
+
+        # Compare JIT vs non-JIT performance
+        def non_jit_proj(x_val, v_val):
+            return self.manifold.proj(x_val, v_val)
+
+        results = benchmark_fixture.compare_jit_performance(
+            func=non_jit_proj,
+            args=(x, v),
+            static_argnums=None,
+            num_runs=20
+        )
+
+        # RED phase: This should fail initially to validate test works
+        speedup = results["jit_speedup"]
+
+        # Device-specific threshold validation
+        current_device = str(jax.devices()[0]).lower()
+        if "gpu" in current_device:
+            min_speedup = PerformanceThresholds.MIN_GPU_SPEEDUP
+        else:
+            min_speedup = PerformanceThresholds.MIN_CPU_SPEEDUP
+
+        # Performance assertion with detailed failure message
+        assert speedup >= min_speedup, (
+            f"JIT speedup {speedup:.2f}x below minimum {min_speedup}x threshold "
+            f"on {current_device} device. "
+            f"Non-JIT: {results['no_jit_time']:.6f}s, JIT: {results['jit_time']:.6f}s"
+        )
+
+        # Additional performance validations
+        assert results["jit_time"] > 0, "JIT execution time must be positive"
+        assert results["compilation_time"] < 5.0, "Compilation time should be under 5 seconds"
+
+    def test_exp_jit_speedup_validation(self, benchmark_fixture, sphere_performance_data):
+        """Performance validation: JIT exp speedup meets minimum requirements."""
+        x, v, _, _ = sphere_performance_data
+
+        def non_jit_exp(x_val, v_val):
+            return self.manifold.exp(x_val, v_val)
+
+        results = benchmark_fixture.compare_jit_performance(
+            func=non_jit_exp,
+            args=(x, v),
+            static_argnums=None,
+            num_runs=20
+        )
+
+        speedup = results["jit_speedup"]
+
+        current_device = str(jax.devices()[0]).lower()
+        min_speedup = (PerformanceThresholds.MIN_GPU_SPEEDUP
+                      if "gpu" in current_device
+                      else PerformanceThresholds.MIN_CPU_SPEEDUP)
+
+        assert speedup >= min_speedup, (
+            f"Exponential map JIT speedup {speedup:.2f}x below minimum {min_speedup}x "
+            f"threshold on {current_device} device"
+        )
+
+    def test_log_jit_speedup_validation(self, benchmark_fixture, sphere_performance_data):
+        """Performance validation: JIT log speedup meets minimum requirements."""
+        x, v, _, _ = sphere_performance_data
+
+        # Create target point for logarithmic map
+        y = self.manifold.exp(x, v * 0.1)  # Small displacement
+
+        def non_jit_log(x_val, y_val):
+            return self.manifold.log(x_val, y_val)
+
+        results = benchmark_fixture.compare_jit_performance(
+            func=non_jit_log,
+            args=(x, y),
+            static_argnums=None,
+            num_runs=20
+        )
+
+        speedup = results["jit_speedup"]
+
+        current_device = str(jax.devices()[0]).lower()
+        min_speedup = (PerformanceThresholds.MIN_GPU_SPEEDUP
+                      if "gpu" in current_device
+                      else PerformanceThresholds.MIN_CPU_SPEEDUP)
+
+        assert speedup >= min_speedup, (
+            f"Logarithmic map JIT speedup {speedup:.2f}x below minimum {min_speedup}x "
+            f"threshold on {current_device} device"
+        )
+
+    def test_batch_operation_performance_scaling(self, benchmark_fixture, sphere_performance_data):
+        """Performance validation: Batch operations scale efficiently."""
+        x_single, v_single, x_batch, v_batch = sphere_performance_data
+
+        # Single operation
+        def single_proj(x_val, v_val):
+            return self.manifold._proj_impl(x_val, v_val)
+
+        # Batch operation using vmap
+        batch_proj = jax.vmap(single_proj)
+        def batch_operation(x_batch_val, v_batch_val):
+            return batch_proj(x_batch_val, v_batch_val)
+
+        results = benchmark_fixture.compare_batch_performance(
+            single_func=single_proj,
+            single_args=(x_single, v_single),
+            batch_func=batch_operation,
+            batch_args=(x_batch, v_batch),
+            batch_size=len(x_batch)
+        )
+
+        # Batch should be more efficient than individual operations
+        batch_efficiency = results["batch_efficiency"]
+        assert batch_efficiency > 1.5, (
+            f"Batch efficiency {batch_efficiency:.2f}x should be > 1.5x. "
+            f"Batch per-item time: {results['per_item_batch_time']:.6f}s, "
+            f"Single operation time: {results['single_operation_time']:.6f}s"
+        )
+
+    def test_compilation_caching_efficiency(self, benchmark_fixture):
+        """Performance validation: JIT compilation caching works efficiently."""
+        x = jnp.array([1.0, 0.0, 0.0])
+        v = jnp.array([0.0, 0.1, 0.2])
+
+        def proj_func(x_val, v_val):
+            return self.manifold._proj_impl(x_val, v_val)
+
+        results = benchmark_fixture.analyze_compilation_caching(
+            func=proj_func,
+            args=(x, v),
+            num_cache_tests=15,
+            cache_clear_interval=5
+        )
+
+        # Cache hit ratio should be reasonable
+        cache_hit_ratio = results["cache_hit_ratio"]
+        assert cache_hit_ratio > 0.5, (
+            f"Cache hit ratio {cache_hit_ratio:.3f} should be > 0.5"
+        )
+
+        # Cache efficiency should show significant speedup
+        cache_efficiency = results["cache_efficiency"]
+        assert cache_efficiency > 5.0, (
+            f"Cache efficiency {cache_efficiency:.2f}x should show significant "
+            f"speedup (>5x) over recompilation"
+        )
+
+    def test_performance_regression_detection(self, benchmark_fixture):
+        """Performance validation: Detect potential performance regressions."""
+        x = jnp.array([1.0, 0.0, 0.0])
+        v = jnp.array([0.0, 0.1, 0.2])
+
+        # Test multiple operations for comprehensive performance analysis
+        operations = {
+            "proj": (lambda x_val, v_val: self.manifold._proj_impl(x_val, v_val), (x, v)),
+            "exp": (lambda x_val, v_val: self.manifold._exp_impl(x_val, v_val), (x, v)),
+            "inner": (lambda x_val, u_val, v_val: self.manifold._inner_impl(x_val, u_val, v_val), (x, v, v)),
+        }
+
+        results = benchmark_fixture.benchmark_manifold_operations(
+            manifold_name="Sphere",
+            operations=operations,
+            num_runs=15
+        )
+
+        # Validate each operation meets performance requirements
+        current_device = str(jax.devices()[0]).lower()
+        min_speedup = (PerformanceThresholds.MIN_GPU_SPEEDUP
+                      if "gpu" in current_device
+                      else PerformanceThresholds.MIN_CPU_SPEEDUP)
+
+        performance_failures = []
+
+        for op_name, op_results in results.items():
+            speedup = op_results["jit_speedup"]
+            if speedup < min_speedup:
+                performance_failures.append(
+                    f"{op_name}: {speedup:.2f}x (expected >= {min_speedup}x)"
+                )
+
+            # Check compilation overhead is reasonable
+            efficiency = op_results["efficiency"]
+            if efficiency < 1.0:
+                performance_failures.append(
+                    f"{op_name}: negative efficiency {efficiency:.2f} "
+                    f"(high compilation overhead)"
+                )
+
+        assert not performance_failures, (
+            f"Performance regression detected on {current_device}:\n" +
+            "\n".join(performance_failures)
+        )
+
+    def test_statistical_performance_validation(self, benchmark_fixture):
+        """Performance validation: Statistical analysis of performance consistency."""
+        x = jnp.array([1.0, 0.0, 0.0])
+        v = jnp.array([0.0, 0.1, 0.2])
+
+        def proj_func(x_val, v_val):
+            return self.manifold._proj_impl(x_val, v_val)
+
+        results = benchmark_fixture.statistical_performance_analysis(
+            func=proj_func,
+            args=(x, v),
+            num_runs=50,
+            confidence_level=0.95
+        )
+
+        # Performance should be consistent (low standard deviation)
+        mean_time = results["mean_execution_time"]
+        std_time = results["std_execution_time"]
+        coefficient_of_variation = std_time / mean_time if mean_time > 0 else float('inf')
+
+        assert coefficient_of_variation < 0.2, (
+            f"Performance variability too high: CV={coefficient_of_variation:.3f} "
+            f"(mean={mean_time:.6f}s, std={std_time:.6f}s)"
+        )
+
+        # Should not have excessive outliers
+        num_outliers = results["num_outliers"]
+        outlier_ratio = num_outliers / 50
+        assert outlier_ratio < 0.1, (
+            f"Too many outliers detected: {num_outliers}/50 ({outlier_ratio:.1%})"
+        )
+
+    def test_performance_threshold_validation_comprehensive(self, benchmark_fixture):
+        """Performance validation: Comprehensive threshold validation."""
+        x = jnp.array([1.0, 0.0, 0.0])
+        v = jnp.array([0.0, 0.1, 0.2])
+
+        def proj_func(x_val, v_val):
+            return self.manifold._proj_impl(x_val, v_val)
+
+        # Get comprehensive performance metrics
+        jit_results = benchmark_fixture.compare_jit_performance(
+            func=proj_func, args=(x, v), num_runs=25
+        )
+
+        cache_results = benchmark_fixture.analyze_compilation_caching(
+            func=proj_func, args=(x, v), num_cache_tests=10
+        )
+
+        # Combine results for threshold validation
+        combined_results = {
+            **jit_results,
+            **cache_results
+        }
+
+        # Define comprehensive thresholds
+        current_device = str(jax.devices()[0]).lower()
+        thresholds = {
+            "min_jit_speedup": (PerformanceThresholds.MIN_GPU_SPEEDUP
+                               if "gpu" in current_device
+                               else PerformanceThresholds.MIN_CPU_SPEEDUP),
+            "max_compilation_time": 3.0,  # seconds
+            "min_cache_hit_ratio": 0.6,
+            "max_memory_overhead": 1000000,  # bytes
+        }
+
+        validation_results = benchmark_fixture.validate_performance_thresholds(
+            results=combined_results,
+            thresholds=thresholds
+        )
+
+        assert validation_results["all_passed"], (
+            f"Performance validation failed on {current_device}:\n" +
+            "\n".join(validation_results["failures"])
+        )
+
+        # Log successful validations
+        passed_count = len(validation_results["passed"])
+        total_count = validation_results["total_checked"]
+        print(f"Performance validation: {passed_count}/{total_count} thresholds passed")

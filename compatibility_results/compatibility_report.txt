@@ -12,40 +12,24 @@ Numerical instabilities: 0
 
 RESULTS BY MANIFOLD
 ----------------------------------------
-sphere_3d: 5/8 (62.5%)
-sphere_5d: 5/8 (62.5%)
-grassmann_5_3: 6/8 (75.0%)
-stiefel_5_3: 4/6 (66.7%)
+sphere_3d: 6/8 (75.0%)
+sphere_5d: 6/8 (75.0%)
+grassmann_5_3: 5/8 (62.5%)
+stiefel_5_3: 3/6 (50.0%)
 so_3: 5/8 (62.5%)
 spd_3: 3/6 (50.0%)
 
 RESULTS BY OPERATION
 ----------------------------------------
-exp: 9/12 (75.0%)
+exp: 7/12 (58.3%)
 log: 4/8 (50.0%)
-proj: 6/12 (50.0%)
+proj: 8/12 (66.7%)
 inner: 9/12 (75.0%)
 
 FAILED TESTS DETAIL
 ----------------------------------------
 sphere_3d.log (batch=5)
   Error: TypeError - dot_general requires contracting dimensions to have the same shape, got (3,) and (5,).
-
-sphere_3d.proj (batch=5)
-  Error: ToleranceError -
-Not equal to tolerance rtol=1e-05, atol=1e-07
-
-Mismatched elements: 15 / 15 (100%)
-Max absolute difference: 0.27894968
-Max relative difference: 1.6966561
- x: array([[ 0.003774, -0.011687,  0.018823],
-       [ 0.012219, -0.06073 , -0.043373],
-       [ 0.028066,  0.043275,  0.014824],...
- y: array([[ 0.020019, -0.279788, -0.15089 ],
-       [-0.170876,  0.087173, -0.302043],
-       [ 0.307016, -0.103057, -0.086119],...
-  Max abs diff: 2.79e-01
-  Max rel diff: 1.70e+00
 
 sphere_3d.inner (batch=5)
   Error: TypeError - dot_general requires contracting dimensions to have the same shape, got (3,) and (5,).
@@ -55,45 +39,32 @@ sphere_5d.log (batch=5)
 Not equal to tolerance rtol=0.0001, atol=1e-06
 
 Mismatched elements: 25 / 25 (100%)
-Max absolute difference: 1.4045646
-Max relative difference: 181.21333
- x: array([[ 0.606785,  0.161602, -0.42059 , -0.568094, -1.235824],
-       [ 0.886132,  0.028329, -1.018336, -0.325349,  0.865714],
-       [-0.429543, -0.553136,  0.00169 ,  0.500968,  1.396814],...
- y: array([[-0.027541,  0.577591,  0.378912,  0.182934, -0.159862],
-       [ 0.085179, -0.533219,  0.25481 ,  0.1807  ,  0.331797],
-       [-0.125689,  0.376079,  0.493036,  0.351238, -0.007751],...
-  Max abs diff: 1.40e+00
-  Max rel diff: 1.81e+02
-
-sphere_5d.proj (batch=5)
-  Error: ToleranceError -
-Not equal to tolerance rtol=1e-05, atol=1e-07
-
-Mismatched elements: 25 / 25 (100%)
-Max absolute difference: 0.26145238
-Max relative difference: 3.7909207
- x: array([[ 0.003054, -0.00534 ,  0.019969, -0.022171, -0.000646],
-       [-0.064069,  0.015573,  0.03151 ,  0.011455,  0.007194],
-       [-0.021103, -0.001781, -0.022833,  0.027266,  0.045208],...
- y: array([[ 0.017074, -0.236725, -0.126501, -0.098227,  0.060791],
-       [-0.099642,  0.251859, -0.092442, -0.07405 , -0.142062],
-       [ 0.033355, -0.16322 , -0.227607, -0.125828,  0.053181],...
-  Max abs diff: 2.61e-01
-  Max rel diff: 3.79e+00
+Max absolute difference: 0.7786907
+Max relative difference: 1.394369
+ x: array([[ 0.612548,  0.163136, -0.424585, -0.573489, -1.247562],
+       [ 0.85052 ,  0.027188, -0.97741 , -0.312273,  0.830923],
+       [-0.411194, -0.529506,  0.001619,  0.479568,  1.337144],...
+ y: array([[ 0.267539,  0.07493 , -0.196788, -0.258662, -0.525587],
+       [ 0.384259,  0.01223 , -0.430864, -0.134009,  0.374231],
+       [-0.180124, -0.24534 ,  0.000748,  0.211854,  0.558454],...
+  Max abs diff: 7.79e-01
+  Max rel diff: 1.39e+00
 
 sphere_5d.inner (batch=5)
   Error: ToleranceError -
 Not equal to tolerance rtol=1e-05, atol=1e-07
 
 (shapes (5,), (5, 5) mismatch)
- x: array([ 0.001788, -0.008354, -0.001757, -0.007696, -0.008752],
+ x: array([ 0.001262, -0.007064,  0.008632, -0.006381, -0.007723],
       dtype=float32)
- y: array([[ 0.001497, -0.002169, -0.009831, -0.003336,  0.004765],
-       [-0.002179, -0.006005,  0.002262,  0.004253,  0.007927],
-       [ 0.002203, -0.002449, -0.003574,  0.003437,  0.004673],...
-  Max abs diff: 1.67e-02
-  Max rel diff: 2.54e+01
+ y: array([[-6.556568e-03,  2.447548e-03,  4.349493e-03,  1.091498e-03,
+         3.098655e-03],
+       [-2.147943e-03, -2.839909e-03,  1.307290e-04,  4.971168e-03,...
+  Max abs diff: 1.95e-02
+  Max rel diff: 2.18e+02
+
+grassmann_5_3.exp (batch=5)
+  Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
 
 grassmann_5_3.log (batch=5)
   Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
@@ -101,8 +72,24 @@ grassmann_5_3.log (batch=5)
 grassmann_5_3.proj (batch=5)
   Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
 
+stiefel_5_3.exp (batch=1)
+  Error: ToleranceError -
+Not equal to tolerance rtol=0.0001, atol=1e-06
+
+Mismatched elements: 13 / 15 (86.7%)
+Max absolute difference: 0.00073466
+Max relative difference: 0.01815934
+ x: array([[-0.017042,  0.30995 ,  0.264997],
+       [ 0.041076, -0.093077,  0.088052],
+       [-0.645792,  0.519287,  0.457012],...
+ y: array([[-0.017357,  0.309959,  0.26502 ],
+       [ 0.04096 , -0.093064,  0.087896],
+       [-0.646362,  0.519161,  0.456331],...
+  Max abs diff: 7.35e-04
+  Max rel diff: 1.82e-02
+
 stiefel_5_3.exp (batch=5)
-  Error: ValueError - diag input must be 1d or 2d
+  Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
 
 stiefel_5_3.proj (batch=5)
   Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)

@@ -27,6 +27,7 @@ repos:
     rev: v1.8.0
     hooks:
     -   id: mypy
+        files: ^riemannax/.*\.py$
         additional_dependencies: [
             types-requests,
             types-setuptools,
@@ -34,10 +35,8 @@ repos:
             numpy>=1.20.0,
             pytest>=7.0.0,
         ]
-        exclude: ^(docs/|examples/|tests/|benchmarks/)
-        args: [
-            "--config-file=pyproject.toml",
-        ]
+        pass_filenames: false
+        entry: mypy --config-file=pyproject.toml riemannax/
 
 -   repo: https://github.com/kynan/nbstripout
     rev: 0.6.1

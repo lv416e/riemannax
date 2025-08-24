@@ -6,20 +6,20 @@ from riemannax.manifolds.grassmann import Grassmann
 
 
 class TestGrassmannJITOptimization:
-    """Grassmann多様体のJIT最適化テスト."""
+    """JIT optimization tests for Grassmann manifold."""
 
     def setup_method(self):
-        """各テスト実行前の初期化."""
+        """Setup before each test execution."""
         self.manifold_gr35 = Grassmann(n=5, p=3)  # Gr(3,5)
         self.manifold_gr24 = Grassmann(n=4, p=2)  # Gr(2,4)
 
-        # JIT関連の初期化
+        # JIT-related initialization
         for manifold in [self.manifold_gr35, self.manifold_gr24]:
             if hasattr(manifold, "_reset_jit_cache"):
                 manifold._reset_jit_cache()
 
     def test_grassmann_jit_implementation_methods_exist(self):
-        """GrassmannのJIT実装メソッドが存在するかテスト."""
+        """Test if Grassmann JIT implementation methods exist."""
         for manifold in [self.manifold_gr35, self.manifold_gr24]:
             assert hasattr(manifold, "_proj_impl")
             assert hasattr(manifold, "_exp_impl")
@@ -29,47 +29,47 @@ class TestGrassmannJITOptimization:
             assert hasattr(manifold, "_get_static_args")
 
     def test_proj_jit_vs_original_equivalence_gr35(self):
-        """プロジェクション: JIT版と元の版の数値同等性テスト（Gr(3,5)）."""
+        """Test numerical equivalence of projection: JIT vs original implementation (Gr(3,5))."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
         v_key = jax.random.PRNGKey(43)
         v = self.manifold_gr35.random_tangent(v_key, x)
 
-        # 元の実装
+        # Original implementation
         original_result = self.manifold_gr35.proj(x, v)
 
-        # JIT実装
+        # JIT implementation
         jit_result = self.manifold_gr35._proj_impl(x, v)
 
-        # 数値同等性確認
+        # Verify numerical equivalence
         np.testing.assert_array_almost_equal(jit_result, original_result, decimal=8)
 
     def test_exp_jit_vs_original_equivalence_gr35(self):
-        """指数写像: JIT版と元の版の数値同等性テスト（Gr(3,5)）."""
+        """Test numerical equivalence of exponential map: JIT vs original implementation (Gr(3,5))."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
         v_key = jax.random.PRNGKey(43)
         v = self.manifold_gr35.random_tangent(v_key, x)
 
-        # 元の実装（これはretr呼び出しだが、JIT版は真の指数写像）
-        # 数値的に近い結果になることを確認
+        # Original implementation (uses retraction, but JIT version is true exponential map)
+        # Verify results are numerically close
         original_result = self.manifold_gr35.exp(x, v)
 
-        # JIT実装（真の指数写像）
+        # JIT implementation (true exponential map)
         jit_result = self.manifold_gr35._exp_impl(x, v)
 
-        # 両方ともGrassmann多様体上の点であることを確認
+        # Verify both results are points on the Grassmann manifold
         assert self.manifold_gr35.validate_point(original_result)
         assert self.manifold_gr35.validate_point(jit_result)
 
-        # 距離が近いことを確認（完全に同じではないが数学的に正しい）
+        # Verify distance is close (not exactly the same but mathematically correct)
         distance = self.manifold_gr35.dist(original_result, jit_result)
-        assert distance < 1.0  # 合理的な許容範囲
+        assert distance < 1.0  # Reasonable tolerance
 
     def test_log_jit_mathematical_correctness(self):
-        """対数写像: JIT版の数学的正確性テスト."""
+        """Test mathematical correctness of logarithmic map: JIT implementation."""
         key1, key2 = jax.random.split(jax.random.PRNGKey(42))
         x = self.manifold_gr35.random_point(key1)
         y = self.manifold_gr35.random_point(key2)

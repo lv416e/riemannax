@@ -121,11 +121,12 @@ class TestGrassmann:
         y = manifold.exp(point, small_tangent)
         recovered_tangent = manifold.log(point, y)
 
-        # For retraction-based implementation, test relative error
+        # With JIT-compiled exponential map implementation, expect good precision
+        # (slightly relaxed tolerance to account for JIT compilation numerical differences)
         tangent_norm = manifold.norm(point, small_tangent)
         if tangent_norm > 1e-10:
             relative_error = manifold.norm(point, small_tangent - recovered_tangent) / tangent_norm
-            assert relative_error < 0.1  # Allow 10% relative error for approximation
+            assert relative_error < 1e-4, f"Relative error {relative_error:.2e} exceeds 1e-4 threshold"
 
     def test_distance_properties(self, manifold, point):
         """Test distance function properties."""

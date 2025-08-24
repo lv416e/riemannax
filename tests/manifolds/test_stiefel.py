@@ -134,9 +134,9 @@ class TestStiefel:
         y = manifold.exp(point, small_tangent)
         recovered_tangent = manifold.log(point, y)
 
-        # Note: Current implementation uses retraction-based approximation
-        # so we allow larger tolerance for this inverse relationship
-        assert jnp.allclose(small_tangent, recovered_tangent, atol=1e-3)
+        # With true exponential map implementation, expect high precision
+        # for this inverse relationship (exp/log round-trip)
+        assert jnp.allclose(small_tangent, recovered_tangent, atol=1e-6, rtol=1e-6)
 
     def test_distance_properties(self, manifold, point):
         """Test distance function properties."""

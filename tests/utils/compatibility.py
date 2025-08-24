@@ -1,7 +1,7 @@
 """Test compatibility utilities for JIT optimizations."""
 
 from collections.abc import Callable
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Dict
 
 import jax.numpy as jnp
 import numpy as np
@@ -70,12 +70,12 @@ class JITCompatibilityHelper:
 
     @staticmethod
     def safe_jit_comparison(
-        jit_func: Callable,
-        nojit_func: Callable,
-        *args,
+        jit_func: Callable[..., Any],
+        nojit_func: Callable[..., Any],
+        *args: Any,
         operation_name: str = "operation",
         skip_on_instability: bool = True,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Safely compare JIT and non-JIT function results."""
         try:
@@ -139,7 +139,7 @@ class JITCompatibilityHelper:
 
     @staticmethod
     def verify_manifold_operation_compatibility(
-        manifold: Any, operation_name: str, test_data: dict, max_retries: int = 3
+        manifold: Any, operation_name: str, test_data: Dict[str, Any], max_retries: int = 3
     ) -> None:
         """Verify compatibility of a manifold operation between JIT and non-JIT."""
         for attempt in range(max_retries):
@@ -177,7 +177,7 @@ class JITCompatibilityHelper:
 class SPDCompatibilityMixin:
     """Mixin for SPD-specific compatibility tests."""
 
-    def assert_spd_result(self, matrix: jnp.ndarray, operation_name: str = "operation"):
+    def assert_spd_result(self, matrix: jnp.ndarray, operation_name: str = "operation") -> None:
         """Assert that result satisfies SPD constraints with proper error handling."""
         if not JITCompatibilityHelper.check_numerical_stability(matrix, operation_name):
             pytest.skip(f"Numerical instability in {operation_name}")
@@ -191,7 +191,7 @@ class SPDCompatibilityMixin:
                 pytest.fail(f"SPD constraint violation in {operation_name}: min eigenvalue = {min_eigenval}")
 
 
-def requires_numerical_stability(operation_name: str):
+def requires_numerical_stability(operation_name: str) -> Any:
     """Decorator to skip tests that encounter numerical instability."""
 
     def decorator(test_func):

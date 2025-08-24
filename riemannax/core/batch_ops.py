@@ -37,7 +37,7 @@ class BatchJITOptimizer:
             cache_size: Maximum number of cached compiled functions
             enable_monitoring: Whether to enable performance monitoring
         """
-        self._compilation_cache: dict[str, Callable] = {}
+        self._compilation_cache: dict[str, Callable[..., Any]] = {}
         self._cache_size = cache_size
         self._performance_monitoring = enable_monitoring
         self._performance_stats: dict[str, dict[str, Any]] = defaultdict(dict)
@@ -47,10 +47,10 @@ class BatchJITOptimizer:
     def vectorize_manifold_op(
         self,
         manifold: Any,
-        operation: str | Callable,
+        operation: str | Callable[..., Any],
         in_axes: int | tuple[int, ...] | None = None,
         static_args: dict[str, Any] | None = None,
-    ) -> Callable:
+    ) -> Callable[..., Any]:
         """Vectorize a manifold operation using JAX vmap and JIT.
 
         Args:
@@ -91,7 +91,7 @@ class BatchJITOptimizer:
             return self._compilation_cache[cache_key]
 
         # Create vectorized function
-        def vectorized_op(*args, **kwargs):
+        def vectorized_op(*args: Any, **kwargs: Any) -> Any:
             # Merge static args with runtime kwargs
             merged_kwargs = {**static_args, **kwargs}
 
@@ -116,7 +116,7 @@ class BatchJITOptimizer:
         except Exception as e:
             # Fallback to non-JIT version
             print(f"Warning: JIT compilation failed for {op_name}: {e}")
-            jitted_op = vmapped_op  # type: ignore[assignment]
+            jitted_op = vmapped_op
 
         # Wrap with performance monitoring if enabled
         if self._performance_monitoring:
@@ -129,7 +129,7 @@ class BatchJITOptimizer:
 
         return monitored_op
 
-    def dynamic_batch_compilation(self, manifold: Any, operation: str, *input_shapes: tuple[int, ...]) -> Callable:
+    def dynamic_batch_compilation(self, manifold: Any, operation: str, *input_shapes: tuple[int, ...]) -> Callable[..., Any]:
         """Compile function dynamically based on batch shapes.
 
         Args:
@@ -148,8 +148,8 @@ class BatchJITOptimizer:
             return self._compilation_cache[shape_key]
 
         # Determine batch axes from shapes
-        input_shapes[0][0] if input_shapes else 1
-        in_axes = tuple(0 for _ in input_shapes)  # Assume batch is first dimension
+        # Assume batch is first dimension
+        in_axes = tuple(0 for _ in input_shapes)
 
         # Get manifold operation
         if not hasattr(manifold, operation):
@@ -217,7 +217,7 @@ class BatchJITOptimizer:
         }
 
     def _create_cache_key(
-        self, manifold: Any, operation: str, in_axes: int | tuple | None, static_args: dict[str, Any]
+        self, manifold: Any, operation: str, in_axes: int | tuple[Any, ...] | None, static_args: dict[str, Any]
     ) -> str:
         """Create cache key for function signature."""
         manifold_type = type(manifold).__name__
@@ -258,7 +258,7 @@ class BatchJITOptimizer:
 
         return params
 
-    def _cache_compiled_function(self, key: str, func: Callable) -> None:
+    def _cache_compiled_function(self, key: str, func: Callable[..., Any]) -> None:
         """Cache compiled function with size management."""
         # Remove oldest entries if cache is full
         if len(self._compilation_cache) >= self._cache_size:
@@ -268,11 +268,11 @@ class BatchJITOptimizer:
 
         self._compilation_cache[key] = func
 
-    def _wrap_with_monitoring(self, func: Callable, operation_name: str) -> Callable:
+    def _wrap_with_monitoring(self, func: Callable[..., Any], operation_name: str) -> Callable[..., Any]:
         """Wrap function with performance monitoring."""
 
         @functools.wraps(func)
-        def monitored_func(*args, **kwargs):
+        def monitored_func(*args: Any, **kwargs: Any) -> Any:
             start_time = time.time()
 
             try:
@@ -315,7 +315,7 @@ class BatchJITOptimizer:
 
 
 # Global batch optimizer instance for convenience
-_global_batch_optimizer = None
+_global_batch_optimizer: BatchJITOptimizer | None = None
 
 
 def get_batch_optimizer() -> BatchJITOptimizer:
@@ -330,7 +330,7 @@ def get_batch_optimizer() -> BatchJITOptimizer:
     return _global_batch_optimizer
 
 
-def vectorize(manifold: Any, operation: str, **vmap_kwargs) -> Callable:
+def vectorize(manifold: Any, operation: str, **vmap_kwargs: Any) -> Callable[..., Any]:
     """Convenience function for vectorizing manifold operations.
 
     Args:
@@ -345,7 +345,7 @@ def vectorize(manifold: Any, operation: str, **vmap_kwargs) -> Callable:
     return optimizer.vectorize_manifold_op(manifold, operation, **vmap_kwargs)
 
 
-def batch_compile(manifold: Any, operation: str, *shapes: tuple[int, ...]) -> Callable:
+def batch_compile(manifold: Any, operation: str, *shapes: tuple[int, ...]) -> Callable[..., Any]:
     """Convenience function for dynamic batch compilation.
 
     Args:

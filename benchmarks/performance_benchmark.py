@@ -68,10 +68,9 @@ class PerformanceBenchmark:
         """
         self.jit_manager = JITManager()
         self.results: list[PerformanceResult] = []
-        self.output_dir: Path | None
 
         if output_dir:
-            self.output_dir = Path(output_dir)
+            self.output_dir: Path | None = Path(output_dir)
             self.output_dir.mkdir(parents=True, exist_ok=True)
         else:
             self.output_dir = None
@@ -200,7 +199,7 @@ class PerformanceBenchmark:
         yield None  # For now, return None for memory usage
 
     def measure_execution_time(
-        self, func, *args, warmup_runs: int = 3, measurement_runs: int = 5
+        self, func: Any, *args: Any, warmup_runs: int = 3, measurement_runs: int = 5
     ) -> tuple[float, float | None]:
         """Measure execution time with warmup and compilation timing.
 
@@ -279,18 +278,12 @@ class PerformanceBenchmark:
                 if len(test_data) >= 2:
                     x, v = list(test_data.values())[:2]
 
-                    def nojit_func():
+                    def nojit_func() -> Any:
                         return manifold.exp(x, v)
 
-                    # Use manifold's JIT method directly
-                    if hasattr(manifold, "_call_jit_method") and manifold._jit_enabled:
-
-                        def jit_func_call():
-                            return manifold._call_jit_method("exp", x, v)
-                    else:
-
-                        def jit_func_call():
-                            return manifold.exp(x, v)  # Fallback to regular method
+                    # Use manifold's JIT-decorated method directly (now handled by @jit_optimized decorator)
+                    def jit_func_call() -> Any:
+                        return manifold.exp(x, v)
                 else:
                     raise ValueError(f"Insufficient test data for operation {operation}")
             elif operation == "log":
@@ -302,15 +295,9 @@ class PerformanceBenchmark:
                     def nojit_func():
                         return manifold.log(x, y)
 
-                    # Use manifold's JIT method directly
-                    if hasattr(manifold, "_call_jit_method") and manifold._jit_enabled:
-
-                        def jit_func_call():
-                            return manifold._call_jit_method("log", x, y)
-                    else:
-
-                        def jit_func_call():
-                            return manifold.log(x, y)  # Fallback to regular method
+                    # Use manifold's JIT-decorated method directly
+                    def jit_func_call():
+                        return manifold.log(x, y)
                 else:
                     raise ValueError(f"Insufficient test data for operation {operation}")
             elif operation == "proj":
@@ -320,15 +307,9 @@ class PerformanceBenchmark:
                     def nojit_func():
                         return manifold.proj(x, v)
 
-                    # Use manifold's JIT method directly
-                    if hasattr(manifold, "_call_jit_method") and manifold._jit_enabled:
-
-                        def jit_func_call():
-                            return manifold._call_jit_method("proj", x, v)
-                    else:
-
-                        def jit_func_call():
-                            return manifold.proj(x, v)  # Fallback to regular method
+                    # Use manifold's JIT-decorated method directly
+                    def jit_func_call():
+                        return manifold.proj(x, v)
                 else:
                     raise ValueError(f"Insufficient test data for operation {operation}")
             elif operation == "inner":
@@ -338,15 +319,9 @@ class PerformanceBenchmark:
                     def nojit_func():
                         return manifold.inner(x, v, v)
 
-                    # Use manifold's JIT method directly
-                    if hasattr(manifold, "_call_jit_method") and manifold._jit_enabled:
-
-                        def jit_func_call():
-                            return manifold._call_jit_method("inner", x, v, v)
-                    else:
-
-                        def jit_func_call():
-                            return manifold.inner(x, v, v)  # Fallback to regular method
+                    # Use manifold's JIT-decorated method directly
+                    def jit_func_call():
+                        return manifold.inner(x, v, v)
                 else:
                     raise ValueError(f"Insufficient test data for operation {operation}")
             elif operation == "random_point":
@@ -358,15 +333,9 @@ class PerformanceBenchmark:
                     def nojit_func():
                         return manifold.random_point(key, batch_size, dim)
 
-                    # Use manifold's JIT method directly
-                    if hasattr(manifold, "_call_jit_method") and manifold._jit_enabled:
-
-                        def jit_func_call():
-                            return manifold._call_jit_method("random_point", key, batch_size, dim)
-                    else:
-
-                        def jit_func_call():
-                            return manifold.random_point(key, batch_size, dim)
+                    # Use manifold's JIT-decorated method directly
+                    def jit_func_call():
+                        return manifold.random_point(key, batch_size, dim)
                 else:
                     # For matrix manifolds, use n parameter
                     n = dims.get("n", 3)
@@ -374,15 +343,9 @@ class PerformanceBenchmark:
                     def nojit_func():
                         return manifold.random_point(key, n)
 
-                    # Use manifold's JIT method directly
-                    if hasattr(manifold, "_call_jit_method") and manifold._jit_enabled:
-
-                        def jit_func_call():
-                            return manifold._call_jit_method("random_point", key, n)
-                    else:
-
-                        def jit_func_call():
-                            return manifold.random_point(key, n)
+                    # Use manifold's JIT-decorated method directly
+                    def jit_func_call():
+                        return manifold.random_point(key, n)
             else:
                 # Unsupported operation
                 raise ValueError(f"Unsupported operation: {operation}")

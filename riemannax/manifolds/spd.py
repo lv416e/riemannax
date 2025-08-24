@@ -5,15 +5,20 @@ positive definite matrices, which is fundamental in covariance estimation,
 signal processing, and many machine learning applications.
 """
 
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 import jax.random as jr
+from jax import Array
 from jax.scipy.linalg import expm, solve
 
+from ..core.constants import NumericalConstants
+from ..core.jit_decorator import jit_optimized
 from .base import Manifold
 
 
-def _matrix_log(x):
+def _matrix_log(x: Array) -> Array:
     """Compute matrix logarithm using eigendecomposition for SPD matrices.
 
     For SPD matrices, we can use eigendecomposition: X = Q @ diag(λ) @ Q^T
@@ -21,12 +26,12 @@ def _matrix_log(x):
     """
     eigenvals, eigenvecs = jnp.linalg.eigh(x)
     # Ensure all eigenvalues are positive (numerical stability)
-    eigenvals = jnp.maximum(eigenvals, 1e-12)
+    eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
     log_eigenvals = jnp.log(eigenvals)
-    return eigenvecs @ jnp.diag(log_eigenvals) @ eigenvecs.T
+    return jnp.asarray(eigenvecs @ jnp.diag(log_eigenvals) @ eigenvecs.T)
 
 
-def _matrix_sqrt(x):
+def _matrix_sqrt(x: Array) -> Array:
     """Compute matrix square root using eigendecomposition for SPD matrices.
 
     For SPD matrices, we can use eigendecomposition: X = Q @ diag(λ) @ Q^T
@@ -34,9 +39,9 @@ def _matrix_sqrt(x):
     """
     eigenvals, eigenvecs = jnp.linalg.eigh(x)
     # Ensure all eigenvalues are positive (numerical stability)
-    eigenvals = jnp.maximum(eigenvals, 1e-12)
+    eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
     sqrt_eigenvals = jnp.sqrt(eigenvals)
-    return eigenvecs @ jnp.diag(sqrt_eigenvals) @ eigenvecs.T
+    return jnp.asarray(eigenvecs @ jnp.diag(sqrt_eigenvals) @ eigenvecs.T)
 
 
 class SymmetricPositiveDefinite(Manifold):
@@ -49,16 +54,17 @@ class SymmetricPositiveDefinite(Manifold):
     the manifold complete and provides nice theoretical properties.
     """
 
-    def __init__(self, n):
+    def __init__(self, n: int) -> None:
         """Initialize the SPD manifold.
 
         Args:
             n: Size of the matrices (nxn).
         """
-        super().__init__()  # JIT関連の初期化
+        super().__init__()  # JIT-related initialization
         self.n = n
 
-    def proj(self, x, v):
+    @jit_optimized(static_args=(0,))
+    def proj(self, x: Array, v: Array) -> Array:
         """Project matrix v onto the tangent space of SPD at point x.
 
         The tangent space at x consists of symmetric matrices.
@@ -75,7 +81,8 @@ class SymmetricPositiveDefinite(Manifold):
         # For the affine-invariant metric, the tangent space is just symmetric matrices
         return 0.5 * (v + v.T)
 
-    def exp(self, x, v):
+    @jit_optimized(static_args=(0,))
+    def exp(self, x: Array, v: Array) -> Array:
         """Apply the exponential map to move from point x along tangent vector v.
 
         For the affine-invariant metric on SPD:
@@ -99,9 +106,10 @@ class SymmetricPositiveDefinite(Manifold):
         exp_v = expm(v_transformed)
 
         # Transform back to SPD manifold
-        return x_sqrt @ exp_v @ x_sqrt
+        return jnp.asarray(x_sqrt @ exp_v @ x_sqrt)
 
-    def log(self, x, y):
+    @jit_optimized(static_args=(0,))
+    def log(self, x: Array, y: Array) -> Array:
         """Apply the logarithmic map to find the tangent vector from x to y.
 
         For the affine-invariant metric on SPD:
@@ -125,9 +133,10 @@ class SymmetricPositiveDefinite(Manifold):
         log_y = _matrix_log(y_transformed)
 
         # Transform back to tangent space
-        return x_sqrt @ log_y @ x_sqrt
+        return jnp.asarray(x_sqrt @ log_y @ x_sqrt)
 
-    def inner(self, x, u, v):
+    @jit_optimized(static_args=(0,))
+    def inner(self, x: Array, u: Array, v: Array) -> Array:
         """Compute the Riemannian inner product between tangent vectors u and v.
 
         For the affine-invariant metric:
@@ -144,7 +153,8 @@ class SymmetricPositiveDefinite(Manifold):
         x_inv = solve(x, jnp.eye(self.n), assume_a="pos")
         return jnp.trace(x_inv @ u @ x_inv @ v)
 
-    def transp(self, x, y, v):
+    @jit_optimized(static_args=(0,))
+    def transp(self, x: Array, y: Array, v: Array) -> Array:
         """Parallel transport vector v from tangent space at x to tangent space at y.
 
         For the affine-invariant metric, we use a simplified approach:
@@ -162,9 +172,10 @@ class SymmetricPositiveDefinite(Manifold):
         # Simplified parallel transport using square root scaling
         x_inv = solve(x, jnp.eye(self.n), assume_a="pos")
         scaling = _matrix_sqrt(y @ x_inv)
-        return scaling @ v @ scaling.T
+        return jnp.asarray(scaling @ v @ scaling.T)
 
-    def dist(self, x, y):
+    @jit_optimized(static_args=(0,))
+    def dist(self, x: Array, y: Array) -> Array:
         """Compute the Riemannian distance between points x and y.
 
         For the affine-invariant metric:
@@ -183,7 +194,7 @@ class SymmetricPositiveDefinite(Manifold):
         # Compute the norm in the Riemannian metric
         return jnp.sqrt(self.inner(x, log_xy, log_xy))
 
-    def random_point(self, key, *shape):
+    def random_point(self, key: Array, *shape: int) -> Array:
         """Generate random point(s) on the SPD manifold.
 
         Generates SPD matrices by creating random matrices and computing A @ A^T + ε*I
@@ -208,7 +219,7 @@ class SymmetricPositiveDefinite(Manifold):
             AAt = jnp.einsum("...ij,...kj->...ik", A, A)
             return AAt + 1e-6 * jnp.eye(self.n)
 
-    def random_tangent(self, key, x, *shape):
+    def random_tangent(self, key: Array, x: Array, *shape: int) -> Array:
         """Generate random tangent vector(s) at point x.
 
         Generates random symmetric matrices in the tangent space.
@@ -224,19 +235,19 @@ class SymmetricPositiveDefinite(Manifold):
         if len(shape) == 0:
             # Single tangent vector
             v_raw = jr.normal(key, (self.n, self.n))
-            return self.proj(x, v_raw)
+            return jnp.asarray(self.proj(x, v_raw))
         else:
             # Batch of tangent vectors
             full_shape = (*shape, self.n, self.n)
             v_raw = jr.normal(key, full_shape)
 
             # Apply projection to each matrix in the batch
-            def proj_single(v):
-                return self.proj(x, v)
+            def proj_single(v: Array) -> Array:
+                return jnp.asarray(self.proj(x, v))
 
             return jax.vmap(proj_single)(v_raw)
 
-    def _is_in_manifold(self, x, tolerance=1e-6):
+    def _is_in_manifold(self, x: Array, tolerance: float = 1e-6) -> bool:
         """Check if a matrix is in the SPD manifold.
 
         Args:
@@ -253,30 +264,41 @@ class SymmetricPositiveDefinite(Manifold):
         eigenvals = jnp.linalg.eigvals(x)
         is_positive_definite = jnp.all(eigenvals > tolerance)
 
-        return is_symmetric and is_positive_definite
+        return bool(is_symmetric and is_positive_definite)
+
+    def validate_point(self, x: Array) -> bool:
+        """Validate that x is a valid point on the SPD manifold.
+
+        Args:
+            x: Point to validate.
+
+        Returns:
+            True if x is on the manifold (symmetric positive definite), False otherwise.
+        """
+        return self._is_in_manifold(x)
 
     # JIT-optimized implementation methods
 
-    def _proj_impl(self, x, v):
-        """JIT最適化版プロジェクション実装.
+    def _proj_impl(self, x: Array, v: Array) -> Array:
+        """JIT-optimized projection implementation.
 
-        数値安定性向上:
-        - 対称性の効率的保証
+        Numerical stability improvements:
+        - Efficient guarantee of symmetry
         """
         # For SPD manifolds, tangent space consists of symmetric matrices
         return 0.5 * (v + v.T)
 
-    def _exp_impl(self, x, v):
-        """JIT最適化版指数写像実装.
+    def _exp_impl(self, x: Array, v: Array) -> Array:
+        """JIT-optimized exponential map implementation.
 
-        数値安定性向上:
-        - 固有値分解による安定な実装
-        - 条件数制御による数値安定性確保
+        Numerical stability improvements:
+        - Stable implementation via eigenvalue decomposition
+        - Numerical stability ensured through condition number control
         """
         # Use eigendecomposition for better JAX compatibility
         return self._exp_impl_eigen(x, v)
 
-    def _exp_impl_eigen(self, x, v):
+    def _exp_impl_eigen(self, x: Array, v: Array) -> Array:
         """Eigendecomposition-based exponential map fallback with batch support."""
         # Compute matrix square root via eigendecomposition (batch-aware)
         eigenvals_x, eigenvecs_x = jnp.linalg.eigh(x)
@@ -307,19 +329,19 @@ class SymmetricPositiveDefinite(Manifold):
         exp_v = expm(v_transformed)
 
         # Transform back (batch-aware)
-        return x_sqrt @ exp_v @ x_sqrt
+        return jnp.asarray(x_sqrt @ exp_v @ x_sqrt)
 
-    def _log_impl(self, x, y):
-        """JIT最適化版対数写像実装.
+    def _log_impl(self, x: Array, y: Array) -> Array:
+        """JIT-optimized logarithmic map implementation.
 
-        数値安定性向上:
-        - 固有値分解による安定な実装
-        - 条件数制御による安定性確保
+        Numerical stability improvements:
+        - Stable implementation via eigenvalue decomposition
+        - Stability ensured through condition number control
         """
         # Use eigendecomposition for better JAX compatibility
         return self._log_impl_eigen(x, y)
 
-    def _log_impl_eigen(self, x, y):
+    def _log_impl_eigen(self, x: Array, y: Array) -> Array:
         """Eigendecomposition-based logarithmic map fallback."""
         # Compute matrix square root via eigendecomposition
         eigenvals_x, eigenvecs_x = jnp.linalg.eigh(x)
@@ -341,13 +363,13 @@ class SymmetricPositiveDefinite(Manifold):
         log_y = eigenvecs_y @ jnp.diag(log_eigenvals_y) @ eigenvecs_y.T
 
         # Transform back
-        return x_sqrt @ log_y @ x_sqrt
+        return jnp.asarray(x_sqrt @ log_y @ x_sqrt)
 
-    def _inner_impl(self, x, u, v):
-        """JIT最適化版内積実装.
+    def _inner_impl(self, x: Array, u: Array, v: Array) -> Array:
+        """JIT-optimized inner product implementation.
 
-        SPD多様体上のaffine-invariant内積
-        バッチ処理対応
+        Affine-invariant inner product on SPD manifold
+        Batch processing support
         """
         # Compute x^(-1) using direct solve for JAX compatibility (batch-aware)
         # Create identity matrix with correct batch shape
@@ -363,11 +385,11 @@ class SymmetricPositiveDefinite(Manifold):
         inner_product = jnp.trace(temp, axis1=-2, axis2=-1)
         return jnp.clip(inner_product, -1e15, 1e15)  # Numerical stability  # Numerical stability
 
-    def _dist_impl(self, x, y):
-        """JIT最適化版距離計算実装.
+    def _dist_impl(self, x: Array, y: Array) -> Array:
+        """JIT-optimized distance calculation implementation.
 
-        数値安定性向上:
-        - Cholesky分解による効率的計算
+        Numerical stability improvements:
+        - Efficient calculation via Cholesky decomposition
         """
         # Use the logarithmic map and inner product
         log_xy = self._log_impl(x, y)
@@ -379,11 +401,14 @@ class SymmetricPositiveDefinite(Manifold):
         inner_product = jnp.maximum(inner_product, 0.0)
 
         distance = jnp.sqrt(inner_product)
-        return jnp.where(distance < 1e-12, 0.0, distance)
+        return jnp.where(distance < NumericalConstants.HIGH_PRECISION_EPSILON, 0.0, distance)
 
-    def _get_static_args(self, method_name: str) -> tuple:
-        """JITコンパイル用の静的引数設定.
+    def _get_static_args(self, method_name: str) -> tuple[Any, ...]:
+        """Static argument configuration for JIT compilation.
 
-        SPD多様体では行列サイズ n を静的引数として指定
+        For SPD manifold, returns argument position indices for static compilation.
+        Conservative approach: no static arguments to avoid shape/type conflicts.
         """
-        return (self.n,)
+        # Return empty tuple - no static arguments for safety
+        # Future optimization could consider making 'self' parameter static (position 0)
+        return ()

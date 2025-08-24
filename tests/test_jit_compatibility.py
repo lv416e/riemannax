@@ -79,7 +79,7 @@ class JITCompatibilityVerifier:
         self.batch_sizes = [1, 5]
         self.results: list[CompatibilityResult] = []
 
-    def generate_test_data(self, manifold_name: str, batch_size: int) -> dict[str, jnp.ndarray]:
+    def generate_test_data(self, manifold_name: str, batch_size: int) -> dict[str, Any]:
         """Generate stable test data for a manifold."""
         manifold = self.manifolds[manifold_name]
         key = jr.key(42)
@@ -430,7 +430,7 @@ class JITCompatibilityVerifier:
 
         return "\n".join(report)
 
-    def save_results(self, output_dir: str = "compatibility_results"):
+    def save_results(self, output_dir: str = "compatibility_results") -> None:
         """Save results to JSON and text files."""
         output_path = Path(output_dir)
         output_path.mkdir(exist_ok=True)
@@ -448,7 +448,7 @@ class JITCompatibilityVerifier:
         print(f"Results saved to {output_path}")
 
 
-def run_compatibility_verification():
+def run_compatibility_verification() -> float:
     """Main function to run compatibility verification."""
     verifier = JITCompatibilityVerifier()
 

@@ -9,33 +9,33 @@ from riemannax.core.jit_manager import JITManager
 
 
 class TestJITManager:
-    """JIT管理システムのユニットテスト."""
+    """Unit tests for JIT management system."""
 
     def setup_method(self):
-        """各テスト実行前の初期化."""
+        """Setup before each test execution."""
         JITManager.reset_config()
         JITManager.clear_cache()
 
     def test_configure_basic_settings(self):
-        """基本設定の更新テスト."""
-        # 初期化
+        """Test basic configuration updates."""
+        # Initialize
         JITManager.configure(enable_jit=True, cache_size=1000)
 
-        # 設定確認
+        # Verify configuration
         assert JITManager._config["enable_jit"] is True
         assert JITManager._config["cache_size"] == 1000
 
     def test_jit_decorator_basic_function(self):
-        """基本的な関数に対するJITデコレータテスト."""
+        """Test JIT decorator on basic functions."""
 
-        # テスト対象関数
+        # Target function for testing
         def simple_add(x, y):
             return x + y
 
-        # JIT最適化
+        # JIT optimization
         jit_add = JITManager.jit_decorator(simple_add)
 
-        # 実行テスト
+        # Execution test
         x = jnp.array([1.0, 2.0])
         y = jnp.array([3.0, 4.0])
         result = jit_add(x, y)
@@ -44,12 +44,12 @@ class TestJITManager:
         np.testing.assert_array_almost_equal(result, expected)
 
     def test_jit_decorator_with_static_args(self):
-        """静的引数付きJITデコレータテスト."""
+        """Test JIT decorator with static arguments."""
 
         def manifold_op(x, v, dim):
             return x + v * dim
 
-        # 静的引数指定でJIT最適化
+        # JIT optimization with static argument specification
         jit_op = JITManager.jit_decorator(manifold_op, static_argnums=(2,))
 
         x = jnp.array([1.0, 2.0])
@@ -61,23 +61,23 @@ class TestJITManager:
         np.testing.assert_array_almost_equal(result, expected)
 
     def test_clear_cache(self):
-        """JITキャッシュクリア機能テスト."""
-        # キャッシュにダミーデータ設定
+        """Test JIT cache clearing functionality."""
+        # Set dummy data to cache
         JITManager._cache["test_func"] = MagicMock()
 
-        # キャッシュクリア実行
+        # Execute cache clear
         JITManager.clear_cache()
 
-        # キャッシュが空になっていることを確認
+        # Confirm cache is empty
         assert len(JITManager._cache) == 0
 
     def test_jit_decorator_with_device_specification(self):
-        """デバイス指定付きJITデコレータテスト."""
+        """Test JIT decorator with device specification."""
 
         def device_op(x):
             return x * 2
 
-        # CPU指定でJIT最適化
+        # JIT optimization with CPU specification
         jit_op = JITManager.jit_decorator(device_op, device="cpu")
 
         x = jnp.array([1.0, 2.0])
@@ -86,26 +86,26 @@ class TestJITManager:
         np.testing.assert_array_almost_equal(result, expected)
 
     def test_config_initialization(self):
-        """設定の初期化テスト."""
-        # 初期設定値を確認
+        """Test configuration initialization."""
+        # Verify initial configuration values
         expected_defaults = {"enable_jit": True, "cache_size": 10000, "fallback_on_error": True, "debug_mode": False}
 
         for key, expected_value in expected_defaults.items():
             assert JITManager._config[key] == expected_value
 
     def test_jit_performance_tracking(self):
-        """JIT性能追跡機能のテスト."""
+        """Test JIT performance tracking functionality."""
 
         def tracked_func(x):
             return jnp.sum(x)
 
         jit_func = JITManager.jit_decorator(tracked_func)
 
-        # 実行と性能データの記録
+        # Execution and performance data recording
         x = jnp.array([1.0, 2.0, 3.0])
         result = jit_func(x)
 
-        # 結果確認
+        # Verify results
         assert result == 6.0
-        # 性能データが記録されていることを確認
-        # 注意: 実装により詳細は変更される可能性がある
+        # Verify performance data is recorded
+        # Note: Details may change depending on implementation

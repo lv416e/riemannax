@@ -24,7 +24,7 @@ class MomentumState(OptState):
         momentum: Momentum term in the tangent space.
     """
 
-    def __init__(self, x, momentum=None):
+    def __init__(self, x: Any, momentum: Any = None) -> None:
         """Initialize momentum state.
 
         Args:
@@ -34,14 +34,14 @@ class MomentumState(OptState):
         super().__init__(x)
         self.momentum = jnp.zeros_like(x) if momentum is None else momentum
 
-    def tree_flatten(self):
+    def tree_flatten(self) -> tuple[tuple[Any, Any], dict[str, Any]]:
         """Flatten the MomentumState for JAX."""
         children = (self.x, self.momentum)
         aux_data: dict[str, Any] = {}
         return children, aux_data
 
     @classmethod
-    def tree_unflatten(cls, aux_data, children):
+    def tree_unflatten(cls, aux_data: dict[str, Any], children: tuple[Any, Any]) -> 'MomentumState':
         """Unflatten the MomentumState for JAX."""
         return cls(x=children[0], momentum=children[1])
 
@@ -50,7 +50,7 @@ class MomentumState(OptState):
 tree_util.register_pytree_node_class(MomentumState)
 
 
-def riemannian_momentum(learning_rate=0.1, momentum=0.9, use_retraction=False):
+def riemannian_momentum(learning_rate: float = 0.1, momentum: float = 0.9, use_retraction: bool = False) -> tuple[Any, Any]:
     """Riemannian gradient descent with momentum.
 
     Implements Riemannian gradient descent with momentum, where the momentum
@@ -72,7 +72,7 @@ def riemannian_momentum(learning_rate=0.1, momentum=0.9, use_retraction=False):
         and their application to shape space. SIAM Journal on Optimization.
     """
 
-    def init_fn(x0):
+    def init_fn(x0: Any) -> MomentumState:
         """Initialize momentum optimizer state.
 
         Args:
@@ -83,7 +83,7 @@ def riemannian_momentum(learning_rate=0.1, momentum=0.9, use_retraction=False):
         """
         return MomentumState(x=x0)
 
-    def update_fn(gradient, state, manifold):
+    def update_fn(gradient: Any, state: MomentumState, manifold: Any) -> MomentumState:
         """Update momentum state using Riemannian gradient.
 
         Args:

@@ -4,30 +4,30 @@ from riemannax.core.performance import PerformanceMonitor
 
 
 class TestPerformanceMonitor:
-    """パフォーマンス監視システムのユニットテスト."""
+    """Unit tests for performance monitoring system."""
 
     def setup_method(self):
-        """各テスト実行前の初期化."""
+        """Setup before each test execution."""
         PerformanceMonitor.reset_metrics()
 
     def test_measure_context_manager(self):
-        """時間測定コンテキストマネージャーのテスト."""
+        """Test time measurement context manager."""
         operation_name = "test_operation"
 
         with PerformanceMonitor.measure(operation_name):
             time.sleep(0.1)
 
-        # 測定結果が記録されていることを確認
+        # Confirm measurement results are recorded
         metrics = PerformanceMonitor.get_metrics()
         assert operation_name in metrics
         assert len(metrics[operation_name]["execution_times"]) == 1
         assert metrics[operation_name]["execution_times"][0] >= 0.1
 
     def test_multiple_measurements(self):
-        """複数回測定のテスト."""
+        """Test multiple measurements."""
         operation_name = "repeated_operation"
 
-        # 3回測定実行
+        # Execute 3 measurements
         for _i in range(3):
             with PerformanceMonitor.measure(operation_name):
                 time.sleep(0.05)
@@ -38,7 +38,7 @@ class TestPerformanceMonitor:
             assert exec_time >= 0.05
 
     def test_compilation_time_recording(self):
-        """コンパイル時間記録のテスト."""
+        """Test compilation time recording."""
         func_name = "test_jit_function"
         compile_time = 1.234
 
@@ -49,111 +49,111 @@ class TestPerformanceMonitor:
         assert metrics[func_name]["compilation_time"] == compile_time
 
     def test_speedup_report_basic(self):
-        """基本的な速度向上レポートのテスト."""
-        # JIT最適化前の実行時間
+        """Test basic speedup report."""
+        # Execution time before JIT optimization
         with PerformanceMonitor.measure("operation_no_jit"):
             time.sleep(0.1)
 
-        # JIT最適化後の実行時間(高速化シミュレーション)
+        # Execution time after JIT optimization (speedup simulation)
         with PerformanceMonitor.measure("operation_jit"):
             time.sleep(0.02)
 
-        # 速度向上レポート取得
+        # Get speedup report
         report = PerformanceMonitor.get_speedup_report()
 
-        # レポート構造の確認
+        # Check report structure
         assert "summary" in report
         assert "details" in report
         assert "total_operations" in report["summary"]
 
     def test_speedup_calculation(self):
-        """速度向上計算のテスト."""
-        # 基準操作(遅い)
+        """Test speedup calculation."""
+        # Baseline operation (slow)
         baseline_op = "slow_operation"
         with PerformanceMonitor.measure(baseline_op):
             time.sleep(0.1)
 
-        # 最適化操作(速い)
+        # Optimized operation (fast)
         optimized_op = "fast_operation"
         with PerformanceMonitor.measure(optimized_op):
             time.sleep(0.02)
 
-        # 速度向上計算
+        # Calculate speedup
         speedup = PerformanceMonitor.calculate_speedup(baseline_op, optimized_op)
 
-        # 5倍程度の速度向上を期待
+        # Expect about 5x speedup
         assert speedup >= 4.0
         assert speedup <= 6.0
 
     def test_performance_threshold_check(self):
-        """パフォーマンス閾値チェックのテスト."""
+        """Test performance threshold check."""
         operation_name = "threshold_test"
-        target_speedup = 2.0  # より現実的な目標値
+        target_speedup = 2.0  # More realistic target value
 
-        # 高速操作をシミュレート
+        # Simulate fast operation (use shorter sleep for more reliable timing)
         with PerformanceMonitor.measure(operation_name):
-            time.sleep(0.02)
+            time.sleep(0.01)  # 10ms
 
-        # 閾値達成チェック
+        # Check threshold achievement
         achieved = PerformanceMonitor.check_performance_target(
             operation_name,
-            baseline_time=0.05,  # 基準時間: 50ms
-            target_speedup=target_speedup,  # 目標: 2倍高速化
+            baseline_time=0.05,  # Baseline time: 50ms
+            target_speedup=target_speedup,  # Target: 2x speedup (need < 25ms)
         )
 
-        # 約2.5倍速度向上を達成している想定 (50ms -> 20ms)
+        # Should achieve 5x speedup (50ms -> 10ms), well above 2x target
         assert achieved is True
 
     def test_reset_metrics(self):
-        """メトリクス初期化のテスト."""
-        # データ登録
+        """Test metrics initialization."""
+        # Register data
         with PerformanceMonitor.measure("test_op"):
             time.sleep(0.01)
 
         PerformanceMonitor.compilation_time("test_func", 1.0)
 
-        # 初期化実行
+        # Execute initialization
         PerformanceMonitor.reset_metrics()
 
-        # データがクリアされていることを確認
+        # Confirm data is cleared
         metrics = PerformanceMonitor.get_metrics()
         assert len(metrics) == 0
 
     def test_get_average_execution_time(self):
-        """平均実行時間取得のテスト."""
+        """Test getting average execution time."""
         operation_name = "avg_test"
 
-        # 複数回実行(異なる時間)
+        # Multiple executions (different times)
         sleep_times = [0.01, 0.02, 0.03]
         for sleep_time in sleep_times:
             with PerformanceMonitor.measure(operation_name):
                 time.sleep(sleep_time)
 
-        # 平均実行時間取得
+        # Get average execution time
         avg_time = PerformanceMonitor.get_average_execution_time(operation_name)
 
-        # 期待される平均時間周辺であることを確認
+        # Confirm it's around the expected average time
         expected_avg = sum(sleep_times) / len(sleep_times)
         assert abs(avg_time - expected_avg) < 0.01
 
     def test_performance_statistics(self):
-        """パフォーマンス統計情報のテスト."""
+        """Test performance statistics information."""
         operation_name = "stats_test"
 
-        # 複数回実行
+        # Multiple executions
         for i in range(5):
             with PerformanceMonitor.measure(operation_name):
                 time.sleep(0.01 + i * 0.01)
 
-        # 統計情報取得
+        # Get statistics information
         stats = PerformanceMonitor.get_performance_statistics(operation_name)
 
-        # 統計情報の構造確認
+        # Check statistics information structure
         assert "count" in stats
         assert "mean" in stats
         assert "min" in stats
         assert "max" in stats
         assert "std" in stats
 
-        # 実行回数の確認
+        # Check execution count
         assert stats["count"] == 5
