@@ -48,6 +48,30 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 6. **Keep steering current**: Run `/kiro:steering` after significant changes
 7. **Check spec compliance**: Use `/kiro:spec-status` to verify alignment
 
+## Python Development Constitution
+
+### 📜 Absolute Quality Standards
+
+**CONSTITUTIONAL LAW**: The following quality checks are **mandatory** for each Todo and **must ALL pass** before proceeding to the next Todo. **NO EXCEPTIONS ALLOWED**.
+
+#### Mandatory Quality Checks (All Must Pass)
+1. `mypy --config-file=pyproject.toml` - Complete type error resolution
+2. `pre-commit run --all-files` - Complete style/quality issue resolution
+3. `ruff check . --fix --unsafe-fixes` - Complete lint issue resolution
+4. `pytest` - Complete test failure resolution
+
+#### Information Quality Requirement
+- **MANDATORY**: Use `context7` for precise, research-based implementations
+- **PROHIBITED**: Implementations based on guesswork or general knowledge
+
+#### Constitutional Enforcement
+- ✅ **GREEN STATUS REQUIRED**: All 4 checks must show PASS status
+- 🚫 **PROGRESSION BLOCKED**: Any RED/FAIL status blocks next Todo
+- 🎯 **ZERO COMPROMISE**: Technical debt accumulation is constitutionally prohibited
+
+#### Philosophy
+This constitution eliminates technical debt at its source, ensuring every code change meets professional standards. Quality is non-negotiable.
+
 ## Steering Configuration
 
 ### Current Steering Files
@@ -65,6 +89,8 @@ Managed by `/kiro:steering` command. Updates here reflect command changes.
   Mode: Always|Conditional|Manual
   Pattern: File patterns for Conditional mode
 -->
+
+- `python_development_constitution.md`: Conditional - *.py,pyproject.toml,requirements*.txt,setup.py,conftest.py,tests/**/*.py - Python Development Constitutional Law enforcing mandatory quality checks
 
 ### Inclusion Modes
 - **Always**: Loaded in every interaction (default)
