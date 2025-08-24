@@ -213,18 +213,19 @@ class Manifold:
         """
         raise NotImplementedError("Injectivity radius computation not implemented")
 
-    def validate_point(self, x: ManifoldPoint) -> bool:
+    def validate_point(self, x: ManifoldPoint, atol: float = 1e-6) -> bool | Array:
         """Validate that x is a valid point on the manifold.
 
         Args:
             x: Point to validate.
+            atol: Absolute tolerance for validation.
 
         Returns:
             True if x is on the manifold, False otherwise.
         """
         raise NotImplementedError("Point validation not implemented")
 
-    def validate_tangent(self, x: ManifoldPoint, v: TangentVector, atol: float = 1e-6) -> bool:
+    def validate_tangent(self, x: ManifoldPoint, v: TangentVector, atol: float = 1e-6) -> bool | Array:
         """Validate that v is a valid tangent vector at point x.
 
         Args:
@@ -237,7 +238,13 @@ class Manifold:
         """
         # Default implementation: check if v equals its projection
         proj_v = self.proj(x, v)
-        return bool(jnp.allclose(v, proj_v, atol=atol))
+        result = jnp.allclose(v, proj_v, atol=atol)
+        # Return JAX array directly if in traced context to avoid TracerBoolConversionError
+        try:
+            return bool(result)
+        except TypeError:
+            # In JAX traced context, return the array directly
+            return result
 
     @property
     def dimension(self) -> int:

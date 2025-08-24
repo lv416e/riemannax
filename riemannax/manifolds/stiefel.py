@@ -9,7 +9,7 @@ from typing import Any, Literal
 import jax
 import jax.numpy as jnp
 import jax.random as jr
-from jax import Array
+from jax import Array, lax
 
 from ..core.constants import NumericalConstants
 from ..core.jit_decorator import jit_optimized
@@ -126,34 +126,38 @@ class Stiefel(Manifold):
         # Project to tangent space
         v_proj = self.proj(x, v)
 
-        # Handle near-zero tangent vector
+        # Handle near-zero tangent vector using JAX-compatible conditional
         v_norm = jnp.linalg.norm(v_proj)
-        if v_norm < NumericalConstants.EPSILON:
+
+        def small_tangent_case() -> Array:
             return x
 
-        # QR-based exponential map using geodesic computation
-        # More direct approach using matrix exponential
+        def normal_case() -> Array:
+            # QR-based exponential map using geodesic computation
+            # More direct approach using matrix exponential
 
-        # Construct the generator matrix A = [0, X^T V; -V^T X, 0]
-        xtv = x.T @ v_proj
-        skew_part = xtv - xtv.T  # Skew-symmetric part
+            # Construct the generator matrix A = [0, X^T V; -V^T X, 0]
+            xtv = x.T @ v_proj
+            skew_part = xtv - xtv.T  # Skew-symmetric part
 
-        # Use Cayley transform as approximation to matrix exponential
-        # For better numerical stability
-        I = jnp.eye(self.p)
-        cayley_factor = jnp.linalg.solve(I + skew_part / 2, I - skew_part / 2)
+            # Use Cayley transform as approximation to matrix exponential
+            # For better numerical stability
+            I = jnp.eye(self.p)
+            cayley_factor = jnp.linalg.solve(I + skew_part / 2, I - skew_part / 2)
 
-        # Apply to get result on manifold
-        result = x @ cayley_factor + v_proj @ jnp.linalg.solve(I + skew_part.T @ skew_part / 4, I)
+            # Apply to get result on manifold
+            result = x @ cayley_factor + v_proj @ jnp.linalg.solve(I + skew_part.T @ skew_part / 4, I)
 
-        # Final QR to ensure orthogonality
-        Q, R = jnp.linalg.qr(result, mode="reduced")
+            # Final QR to ensure orthogonality
+            Q, R = jnp.linalg.qr(result, mode="reduced")
 
-        # Ensure positive diagonal for uniqueness
-        d = jnp.sign(jnp.diag(R))
-        d = jnp.where(d == 0, 1, d)
+            # Ensure positive diagonal for uniqueness
+            d = jnp.sign(jnp.diag(R))
+            d = jnp.where(d == 0, 1, d)
 
-        return Q @ jnp.diag(d)
+            return Q @ jnp.diag(d)
+
+        return jnp.asarray(lax.cond(v_norm < NumericalConstants.EPSILON, small_tangent_case, normal_case))
 
     @jit_optimized(static_args=(0,))
     def retr(self, x: Array, v: Array) -> Array:
@@ -257,7 +261,7 @@ class Stiefel(Manifold):
         else:
             return jnp.asarray(self.proj(x, v))
 
-    def validate_point(self, x: Array, atol: float = 1e-6) -> bool:
+    def validate_point(self, x: Array, atol: float = 1e-6) -> bool | Array:
         """Validate that X has orthonormal columns."""
         if x.shape != (self.n, self.p):
             return False
@@ -265,19 +269,31 @@ class Stiefel(Manifold):
         # Check orthonormality: X^T X = I
         should_be_identity = x.T @ x
         identity = jnp.eye(self.p)
-        return bool(jnp.allclose(should_be_identity, identity, atol=atol))
+        result = jnp.allclose(should_be_identity, identity, atol=atol)
+        # Return JAX array directly if in traced context to avoid TracerBoolConversionError
+        try:
+            return bool(result)
+        except TypeError:
+            # In JAX traced context, return the array directly
+            return result
 
-    def validate_tangent(self, x: ManifoldPoint, v: TangentVector, atol: float = 1e-6) -> bool:
+    def validate_tangent(self, x: ManifoldPoint, v: TangentVector, atol: float = 1e-6) -> bool | Array:
         """Validate that V is in tangent space: X^T V + V^T X = 0."""
-        if not self.validate_point(x, atol):
-            return False
+        point_valid = self.validate_point(x, atol)
         if v.shape != (self.n, self.p):
             return False
 
         # Check tangent space condition: skew-symmetry of X^T V
         xtv = x.T @ v
         should_be_skew = xtv + xtv.T
-        return bool(jnp.allclose(should_be_skew, 0.0, atol=atol))
+        tangent_valid = jnp.allclose(should_be_skew, 0.0, atol=atol)
+        result = jnp.logical_and(point_valid, tangent_valid)
+        # Return JAX array directly if in traced context to avoid TracerBoolConversionError
+        try:
+            return bool(result)
+        except TypeError:
+            # In JAX traced context, return the array directly
+            return result
 
     def sectional_curvature(self, x: Array, u: Array, v: Array) -> Array:
         """Compute sectional curvature (constant for Stiefel manifolds)."""

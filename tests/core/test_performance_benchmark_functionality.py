@@ -204,7 +204,7 @@ class TestPerformanceBenchmarkFunctionality:
 
         report = benchmark.generate_performance_report(
             results=mock_results,
-            format="markdown"
+            output_format="markdown"
         )
 
         assert isinstance(report, str)

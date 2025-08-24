@@ -236,19 +236,31 @@ class Sphere(Manifold):
 
         return jnp.asarray(tangent_vectors)
 
-    def validate_point(self, x: ManifoldPoint, atol: float = 1e-6) -> bool:
+    def validate_point(self, x: ManifoldPoint, atol: float = 1e-6) -> bool | Array:
         """Validate that x is a valid point on the sphere."""
         # Check that x is a unit vector
         norm = jnp.linalg.norm(x)
-        return bool(jnp.allclose(norm, 1.0, atol=atol))
+        result = jnp.allclose(norm, 1.0, atol=atol)
+        # Return JAX array directly if in traced context to avoid TracerBoolConversionError
+        try:
+            return bool(result)
+        except TypeError:
+            # In JAX traced context, return the array directly
+            return result
 
-    def validate_tangent(self, x: ManifoldPoint, v: TangentVector, atol: float = 1e-6) -> bool:
+    def validate_tangent(self, x: ManifoldPoint, v: TangentVector, atol: float = 1e-6) -> bool | Array:
         """Validate that v is in the tangent space at x."""
-        if not self.validate_point(x, atol):
-            return False
+        point_valid = self.validate_point(x, atol)
         # Check that v is orthogonal to x
         dot_product = jnp.dot(x, v)
-        return bool(jnp.allclose(dot_product, 0.0, atol=atol))
+        tangent_valid = jnp.allclose(dot_product, 0.0, atol=atol)
+        result = jnp.logical_and(point_valid, tangent_valid)
+        # Return JAX array directly if in traced context to avoid TracerBoolConversionError
+        try:
+            return bool(result)
+        except TypeError:
+            # In JAX traced context, return the array directly
+            return result
 
     @property
     def dimension(self) -> int:

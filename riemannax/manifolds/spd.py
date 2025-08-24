@@ -247,7 +247,7 @@ class SymmetricPositiveDefinite(Manifold):
 
             return jax.vmap(proj_single)(v_raw)
 
-    def _is_in_manifold(self, x: Array, tolerance: float = 1e-6) -> bool:
+    def _is_in_manifold(self, x: Array, tolerance: float = 1e-6) -> bool | Array:
         """Check if a matrix is in the SPD manifold.
 
         Args:
@@ -264,18 +264,25 @@ class SymmetricPositiveDefinite(Manifold):
         eigenvals = jnp.linalg.eigvals(x)
         is_positive_definite = jnp.all(eigenvals > tolerance)
 
-        return bool(is_symmetric and is_positive_definite)
+        result = jnp.logical_and(is_symmetric, is_positive_definite)
+        # Return JAX array directly if in traced context to avoid TracerBoolConversionError
+        try:
+            return bool(result)
+        except TypeError:
+            # In JAX traced context, return the array directly
+            return result
 
-    def validate_point(self, x: Array) -> bool:
+    def validate_point(self, x: Array, atol: float = 1e-6) -> bool | Array:
         """Validate that x is a valid point on the SPD manifold.
 
         Args:
             x: Point to validate.
+            atol: Absolute tolerance for validation.
 
         Returns:
             True if x is on the manifold (symmetric positive definite), False otherwise.
         """
-        return self._is_in_manifold(x)
+        return self._is_in_manifold(x, atol)
 
     # JIT-optimized implementation methods
 
