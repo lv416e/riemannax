@@ -41,7 +41,7 @@ class MomentumState(OptState):
         return children, aux_data
 
     @classmethod
-    def tree_unflatten(cls, aux_data: dict[str, Any], children: tuple[Any, Any]) -> 'MomentumState':
+    def tree_unflatten(cls, aux_data: dict[str, Any], children: tuple[Any, Any]) -> "MomentumState":
         """Unflatten the MomentumState for JAX."""
         return cls(x=children[0], momentum=children[1])
 
@@ -50,7 +50,9 @@ class MomentumState(OptState):
 tree_util.register_pytree_node_class(MomentumState)
 
 
-def riemannian_momentum(learning_rate: float = 0.1, momentum: float = 0.9, use_retraction: bool = False) -> tuple[Any, Any]:
+def riemannian_momentum(
+    learning_rate: float = 0.1, momentum: float = 0.9, use_retraction: bool = False
+) -> tuple[Any, Any]:
     """Riemannian gradient descent with momentum.
 
     Implements Riemannian gradient descent with momentum, where the momentum
@@ -120,9 +122,11 @@ def riemannian_momentum(learning_rate: float = 0.1, momentum: float = 0.9, use_r
             # Fallback to retraction if exponential map fails
             x_new = manifold.retr(x, step_direction)
 
-        # Ensure the new point is on the manifold (only for sphere-like manifolds)
-        if hasattr(manifold, "proj") and hasattr(manifold, "__class__") and "Sphere" in manifold.__class__.__name__:
-            x_new = manifold.proj(x_new, jnp.zeros_like(x_new))  # Project to manifold
+        # Ensure the new point is on the manifold
+        if hasattr(manifold, "__class__") and "Sphere" in manifold.__class__.__name__:
+            # For sphere manifolds, normalize to ensure unit length
+            x_norm = jnp.linalg.norm(x_new)
+            x_new = jnp.where(x_norm > 1e-8, x_new / x_norm, x)  # Fallback to original if norm too small
 
         # Transport momentum to new point
         m_transported = manifold.transp(x, x_new, m_new)

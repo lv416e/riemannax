@@ -198,13 +198,15 @@ class StaticArgsOptimizer:
                     "std_exec_time": 0.0,
                     "min_exec_time": float("inf"),
                     "max_exec_time": float("inf"),
-                    "error_message": str(e)
+                    "error_message": str(e),
                 }
                 logger.warning(f"Static config {config} failed: {e}")
 
         return results
 
-    def find_optimal_static_args(self, func: Callable[..., Any], args: tuple[Any, ...], max_static_args: int = 2) -> tuple[int, ...]:
+    def find_optimal_static_args(
+        self, func: Callable[..., Any], args: tuple[Any, ...], max_static_args: int = 2
+    ) -> tuple[int, ...]:
         """Find optimal static argument configuration through systematic search.
 
         Args:

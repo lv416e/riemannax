@@ -61,7 +61,11 @@ class PerformanceBenchmark:
         }
 
     def compare_jit_performance(
-        self, func: Callable[..., Any], args: tuple[Any, ...], static_argnums: tuple[int, ...] | None = None, num_runs: int = 10
+        self,
+        func: Callable[..., Any],
+        args: tuple[Any, ...],
+        static_argnums: tuple[int, ...] | None = None,
+        num_runs: int = 10,
     ) -> dict[str, float | dict[str, Any]]:
         """Compare JIT vs non-JIT performance.
 
@@ -100,7 +104,9 @@ class PerformanceBenchmark:
             "jit_stats": jit_results,
         }
 
-    def measure_cache_performance(self, func: Callable[..., Any], args: tuple[Any, ...], num_cache_hits: int = 5) -> dict[str, Any]:
+    def measure_cache_performance(
+        self, func: Callable[..., Any], args: tuple[Any, ...], num_cache_hits: int = 5
+    ) -> dict[str, Any]:
         """Measure cache performance improvements.
 
         Args:
@@ -223,7 +229,12 @@ class PerformanceBenchmark:
         return results
 
     def compare_batch_performance(
-        self, single_func: Callable[..., Any], single_args: tuple[Any, ...], batch_func: Callable[..., Any], batch_args: tuple[Any, ...], batch_size: int
+        self,
+        single_func: Callable[..., Any],
+        single_args: tuple[Any, ...],
+        batch_func: Callable[..., Any],
+        batch_args: tuple[Any, ...],
+        batch_size: int,
     ) -> dict[str, Any]:
         """Compare batch vs single operation performance.
 

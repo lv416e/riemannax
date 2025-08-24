@@ -130,7 +130,9 @@ class BatchJITOptimizer:
 
         return monitored_op
 
-    def dynamic_batch_compilation(self, manifold: Any, operation: str, *input_shapes: tuple[int, ...]) -> Callable[..., Any]:
+    def dynamic_batch_compilation(
+        self, manifold: Any, operation: str, *input_shapes: tuple[int, ...]
+    ) -> Callable[..., Any]:
         """Compile function dynamically based on batch shapes.
 
         Args:

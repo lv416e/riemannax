@@ -306,37 +306,80 @@ class SymmetricPositiveDefinite(Manifold):
         return self._exp_impl_eigen(x, v)
 
     def _exp_impl_eigen(self, x: Array, v: Array) -> Array:
-        """Eigendecomposition-based exponential map fallback with batch support."""
-        # Compute matrix square root via eigendecomposition (batch-aware)
+        """Eigendecomposition-based exponential map with enhanced numerical stability."""
+        # Compute eigendecomposition with robust error handling
         eigenvals_x, eigenvecs_x = jnp.linalg.eigh(x)
-        # Ensure positive eigenvalues for numerical stability
-        eigenvals_x = jnp.maximum(eigenvals_x, 1e-12)
+
+        # Enhanced numerical stability: use larger epsilon and condition number control
+        min_eigenval = jnp.maximum(jnp.min(eigenvals_x), NumericalConstants.HIGH_PRECISION_EPSILON)
+        max_eigenval = jnp.maximum(jnp.max(eigenvals_x), NumericalConstants.HIGH_PRECISION_EPSILON)
+        condition_number = max_eigenval / min_eigenval
+
+        # Apply stronger regularization for ill-conditioned matrices
+        regularization_eps = jnp.where(condition_number > 1e6, 1e-6, 1e-10)
+        eigenvals_x = jnp.maximum(eigenvals_x, regularization_eps)
+
         sqrt_eigenvals_x = jnp.sqrt(eigenvals_x)
-
-        # x^(1/2) and x^(-1/2) (batch-aware diagonal operations)
-        sqrt_diag = (
-            jnp.apply_along_axis(jnp.diag, -1, sqrt_eigenvals_x)
-            if len(sqrt_eigenvals_x.shape) > 1
-            else jnp.diag(sqrt_eigenvals_x)
-        )
-        x_sqrt = eigenvecs_x @ sqrt_diag @ jnp.swapaxes(eigenvecs_x, -2, -1)
-
         inv_sqrt_eigenvals_x = 1.0 / sqrt_eigenvals_x
-        inv_sqrt_diag = (
-            jnp.apply_along_axis(jnp.diag, -1, inv_sqrt_eigenvals_x)
-            if len(inv_sqrt_eigenvals_x.shape) > 1
-            else jnp.diag(inv_sqrt_eigenvals_x)
-        )
-        x_inv_sqrt = eigenvecs_x @ inv_sqrt_diag @ jnp.swapaxes(eigenvecs_x, -2, -1)
 
-        # Transform tangent vector (batch-aware)
+        # Batch-aware matrix construction with improved stability
+        # More robust batch detection based on input shapes
+        is_batch = x.ndim > 2 or (eigenvals_x.ndim > 1 and eigenvals_x.shape[0] != self.n)
+
+        if is_batch:  # Batch case
+            sqrt_diag = jnp.apply_along_axis(jnp.diag, -1, sqrt_eigenvals_x)
+            inv_sqrt_diag = jnp.apply_along_axis(jnp.diag, -1, inv_sqrt_eigenvals_x)
+            transpose_axes = (-2, -1)
+        else:  # Single matrix case
+            sqrt_diag = jnp.diag(sqrt_eigenvals_x)
+            inv_sqrt_diag = jnp.diag(inv_sqrt_eigenvals_x)
+            transpose_axes = (-2, -1)
+
+        # Compute matrix square root and inverse square root
+        x_sqrt = eigenvecs_x @ sqrt_diag @ jnp.swapaxes(eigenvecs_x, *transpose_axes)
+        x_inv_sqrt = eigenvecs_x @ inv_sqrt_diag @ jnp.swapaxes(eigenvecs_x, *transpose_axes)
+
+        # Transform tangent vector with numerical stability checks
         v_transformed = x_inv_sqrt @ v @ x_inv_sqrt
+
+        # Check for NaN/inf in transformed tangent vector
+        v_transformed = jnp.where(jnp.isfinite(v_transformed), v_transformed, 0.0)
 
         # Apply matrix exponential
         exp_v = expm(v_transformed)
 
-        # Transform back (batch-aware)
-        return jnp.asarray(x_sqrt @ exp_v @ x_sqrt)
+        # Check for NaN/inf in matrix exponential result - create identity with correct shape
+        if is_batch:  # Batch case
+            batch_shape = v_transformed.shape[:-2]
+            eye_batch = jnp.tile(jnp.eye(self.n), (*batch_shape, 1, 1))
+        else:  # Single matrix case
+            eye_batch = jnp.eye(self.n)
+
+        exp_v = jnp.where(jnp.isfinite(exp_v), exp_v, eye_batch)
+
+        # Transform back to manifold
+        result = x_sqrt @ exp_v @ x_sqrt
+
+        # Final SPD constraint enforcement: ensure positive definiteness
+        # Re-eigendecompose result and clamp eigenvalues with more aggressive thresholding
+        result_eigenvals, result_eigenvecs = jnp.linalg.eigh(result)
+
+        # Use more aggressive minimum eigenvalue based on the scale of the matrix
+        max_result_eigenval = jnp.max(jnp.abs(result_eigenvals))
+        # Scale-aware minimum eigenvalue: at least 1e-12 times the maximum eigenvalue
+        min_eigenval_threshold = jnp.maximum(
+            max_result_eigenval * 1e-12,
+            1e-6,  # Absolute minimum threshold for very extreme cases
+        )
+
+        result_eigenvals = jnp.maximum(result_eigenvals, min_eigenval_threshold)
+
+        # Use the same batch detection logic
+        result_diag = jnp.apply_along_axis(jnp.diag, -1, result_eigenvals) if is_batch else jnp.diag(result_eigenvals)
+
+        result = result_eigenvecs @ result_diag @ jnp.swapaxes(result_eigenvecs, *transpose_axes)
+
+        return jnp.asarray(result)
 
     def _log_impl(self, x: Array, y: Array) -> Array:
         """JIT-optimized logarithmic map implementation.
@@ -349,31 +392,56 @@ class SymmetricPositiveDefinite(Manifold):
         return self._log_impl_eigen(x, y)
 
     def _log_impl_eigen(self, x: Array, y: Array) -> Array:
-        """Eigendecomposition-based logarithmic map fallback."""
-        # Compute matrix square root via eigendecomposition
+        """Eigendecomposition-based logarithmic map with enhanced numerical stability."""
+        # Compute eigendecomposition with robust error handling
         eigenvals_x, eigenvecs_x = jnp.linalg.eigh(x)
-        eigenvals_x = jnp.maximum(eigenvals_x, 1e-12)
+
+        # Enhanced numerical stability: condition number control
+        min_eigenval_x = jnp.maximum(jnp.min(eigenvals_x), NumericalConstants.HIGH_PRECISION_EPSILON)
+        max_eigenval_x = jnp.maximum(jnp.max(eigenvals_x), NumericalConstants.HIGH_PRECISION_EPSILON)
+        condition_number_x = max_eigenval_x / min_eigenval_x
+
+        # Apply stronger regularization for ill-conditioned matrices
+        regularization_eps = jnp.where(condition_number_x > 1e6, 1e-6, 1e-10)
+        eigenvals_x = jnp.maximum(eigenvals_x, regularization_eps)
+
         sqrt_eigenvals_x = jnp.sqrt(eigenvals_x)
+        inv_sqrt_eigenvals_x = 1.0 / sqrt_eigenvals_x
 
         # x^(1/2) and x^(-1/2)
         x_sqrt = eigenvecs_x @ jnp.diag(sqrt_eigenvals_x) @ eigenvecs_x.T
-        inv_sqrt_eigenvals_x = 1.0 / sqrt_eigenvals_x
         x_inv_sqrt = eigenvecs_x @ jnp.diag(inv_sqrt_eigenvals_x) @ eigenvecs_x.T
 
-        # Transform y
+        # Transform y with numerical stability checks
         y_transformed = x_inv_sqrt @ y @ x_inv_sqrt
+        y_transformed = jnp.where(jnp.isfinite(y_transformed), y_transformed, jnp.eye(self.n))
 
-        # Apply matrix logarithm
+        # Apply matrix logarithm with enhanced stability
         eigenvals_y, eigenvecs_y = jnp.linalg.eigh(y_transformed)
-        eigenvals_y = jnp.maximum(eigenvals_y, 1e-12)
+
+        # Ensure eigenvalues are positive for logarithm
+        eigenvals_y = jnp.maximum(eigenvals_y, NumericalConstants.HIGH_PRECISION_EPSILON)
+
+        # Check for very small eigenvalues that could cause log instability
+        eigenvals_y = jnp.where(eigenvals_y < 1e-12, 1e-12, eigenvals_y)
+
         log_eigenvals_y = jnp.log(eigenvals_y)
+
+        # Check for NaN/inf in log eigenvalues
+        log_eigenvals_y = jnp.where(jnp.isfinite(log_eigenvals_y), log_eigenvals_y, 0.0)
+
         log_y = eigenvecs_y @ jnp.diag(log_eigenvals_y) @ eigenvecs_y.T
 
         # Transform back
-        return jnp.asarray(x_sqrt @ log_y @ x_sqrt)
+        result = x_sqrt @ log_y @ x_sqrt
+
+        # Final check for numerical stability
+        result = jnp.where(jnp.isfinite(result), result, jnp.zeros_like(result))
+
+        return jnp.asarray(result)
 
     def _inner_impl(self, x: Array, u: Array, v: Array) -> Array:
-        """JIT-optimized inner product implementation.
+        """JIT-optimized inner product implementation with enhanced numerical stability.
 
         Affine-invariant inner product on SPD manifold
         Batch processing support
@@ -384,13 +452,55 @@ class SymmetricPositiveDefinite(Manifold):
         eye_shape = (*batch_shape, self.n, self.n)
         identity = jnp.broadcast_to(jnp.eye(self.n), eye_shape)
 
-        x_inv = solve(x, identity, assume_a="pos")
+        # Add small regularization to x for numerical stability
+        x_regularized = x + NumericalConstants.HIGH_PRECISION_EPSILON * identity
 
-        # Compute <u, v>_x = tr(x^(-1) @ u @ x^(-1) @ v) (batch-aware)
+        # Check if matrix is well-conditioned enough for direct solve
+        eigenvals = jnp.linalg.eigvals(x_regularized)
+        min_eigenval = jnp.min(jnp.real(eigenvals))
+        max_eigenval = jnp.max(jnp.real(eigenvals))
+        condition_number = max_eigenval / jnp.maximum(min_eigenval, NumericalConstants.HIGH_PRECISION_EPSILON)
+
+        def stable_solve() -> Array:
+            # Direct solve for well-conditioned matrices
+            return solve(x_regularized, identity, assume_a="pos")
+
+        def eigendecomposition_fallback() -> Any:
+            # Eigendecomposition fallback for ill-conditioned matrices
+            eigenvals, eigenvecs = jnp.linalg.eigh(x_regularized)
+            eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
+            inv_eigenvals = 1.0 / eigenvals
+
+            # Use robust batch detection
+            is_batch_inner = x.ndim > 2 or (eigenvals.ndim > 1 and eigenvals.shape[0] != self.n)
+
+            if is_batch_inner:  # Batch case
+                inv_diag = jnp.apply_along_axis(jnp.diag, -1, inv_eigenvals)
+                transpose_axes = (-2, -1)
+            else:  # Single matrix case
+                inv_diag = jnp.diag(inv_eigenvals)
+                transpose_axes = (-2, -1)
+
+            return eigenvecs @ inv_diag @ jnp.swapaxes(eigenvecs, *transpose_axes)
+
+        # Choose method based on condition number
+        x_inv = jax.lax.cond(condition_number < 1e10, stable_solve, eigendecomposition_fallback)
+
+        # Check for NaN/inf in the inverse
+        x_inv = jnp.where(jnp.isfinite(x_inv), x_inv, identity)
+
+        # Compute <u, v>_x = tr(x^(-1) @ u @ x^(-1) @ v) with numerical stability
         temp = x_inv @ u @ x_inv @ v
+
+        # Check for NaN/inf in intermediate computation
+        temp = jnp.where(jnp.isfinite(temp), temp, 0.0)
+
         # Use jnp.trace with axis specification for batch processing
         inner_product = jnp.trace(temp, axis1=-2, axis2=-1)
-        return jnp.clip(inner_product, -1e15, 1e15)  # Numerical stability  # Numerical stability
+
+        # Enhanced numerical clipping
+        inner_product = jnp.where(jnp.isfinite(inner_product), inner_product, 0.0)
+        return jnp.clip(inner_product, -1e15, 1e15)
 
     def _dist_impl(self, x: Array, y: Array) -> Array:
         """JIT-optimized distance calculation implementation.

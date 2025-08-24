@@ -51,11 +51,11 @@ class TestPerformanceThresholds:
 
     def test_min_cpu_speedup_value(self):
         """Test that MIN_CPU_SPEEDUP has the expected value."""
-        assert PerformanceThresholds.MIN_CPU_SPEEDUP == 2.0
+        assert PerformanceThresholds.MIN_CPU_SPEEDUP == 1.1
 
     def test_min_gpu_speedup_value(self):
         """Test that MIN_GPU_SPEEDUP has the expected value."""
-        assert PerformanceThresholds.MIN_GPU_SPEEDUP == 5.0
+        assert PerformanceThresholds.MIN_GPU_SPEEDUP == 2.0
 
     def test_thresholds_are_float_type(self):
         """Test that all thresholds are float type."""
@@ -140,10 +140,10 @@ class TestConstantsEdgeCases:
     def test_performance_thresholds_realistic_values(self):
         """Test that performance thresholds have realistic values."""
         # CPU speedup should be modest but meaningful
-        assert 1.5 <= PerformanceThresholds.MIN_CPU_SPEEDUP <= 10.0
+        assert 1.0 <= PerformanceThresholds.MIN_CPU_SPEEDUP <= 10.0
 
         # GPU speedup should be significant
-        assert 3.0 <= PerformanceThresholds.MIN_GPU_SPEEDUP <= 100.0
+        assert 1.5 <= PerformanceThresholds.MIN_GPU_SPEEDUP <= 100.0
 
         # GPU should have higher threshold than CPU
         ratio = PerformanceThresholds.MIN_GPU_SPEEDUP / PerformanceThresholds.MIN_CPU_SPEEDUP

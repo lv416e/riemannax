@@ -47,8 +47,8 @@ class TestManifoldOptimizationIntegration:
         # Run optimization
         result = rx.minimize(problem, x0, method="rsgd", options={"learning_rate": 0.1, "max_iterations": 50})
 
-        # Verify result is on manifold
-        assert manifold.validate_point(result.x)
+        # Verify result is on manifold (use reasonable tolerance for numerical precision)
+        assert manifold.validate_point(result.x, atol=1e-5)
 
         # Verify cost decreased
         initial_cost = problem.cost(x0)

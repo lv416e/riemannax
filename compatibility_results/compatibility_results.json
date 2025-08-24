@@ -486,8 +486,8 @@
       "passed": true,
       "error_type": "",
       "error_message": "",
-      "max_absolute_diff": 1.1920928955078125e-07,
-      "max_relative_diff": 1.1653592224547538e-07,
+      "max_absolute_diff": 4.76837158203125e-06,
+      "max_relative_diff": 1.9986944153060904e-06,
       "numerical_instability": false
     },
     {

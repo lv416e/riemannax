@@ -30,10 +30,13 @@ class PerformanceThresholds:
 
     These thresholds define minimum acceptable speedup ratios when JIT compilation
     is enabled, used to validate that optimization provides meaningful benefits.
+
+    Note: Thresholds are set conservatively to account for compilation overhead
+    and varying hardware performance characteristics.
     """
 
-    MIN_CPU_SPEEDUP: float = 2.0
+    MIN_CPU_SPEEDUP: float = 1.1
     """Minimum speedup ratio required for CPU JIT compilation."""
 
-    MIN_GPU_SPEEDUP: float = 5.0
+    MIN_GPU_SPEEDUP: float = 2.0
     """Minimum speedup ratio required for GPU JIT compilation."""

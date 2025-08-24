@@ -584,11 +584,13 @@ class SpecialOrthogonal(Manifold):
             # Scale to pi magnitude
             return jnp.pi * antisym / safe_norm
 
-        return jnp.asarray(lax.cond(
-            very_small_angle,
-            very_small_angle_case,
-            lambda: lax.cond(small_angle, small_angle_case, lambda: lax.cond(pi_angle, pi_angle_case, normal_case)),
-        ))
+        return jnp.asarray(
+            lax.cond(
+                very_small_angle,
+                very_small_angle_case,
+                lambda: lax.cond(small_angle, small_angle_case, lambda: lax.cond(pi_angle, pi_angle_case, normal_case)),
+            )
+        )
 
     def _logm_general_jit(self, rot: jnp.ndarray) -> jnp.ndarray:
         """JIT-optimized general matrix logarithm calculation."""

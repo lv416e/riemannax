@@ -47,7 +47,7 @@ class AdamState(OptState):
         return children, aux_data
 
     @classmethod
-    def tree_unflatten(cls, aux_data: dict[str, Any], children: tuple[Any, Any, Any, int]) -> 'AdamState':
+    def tree_unflatten(cls, aux_data: dict[str, Any], children: tuple[Any, Any, Any, int]) -> "AdamState":
         """Unflatten the AdamState for JAX."""
         return cls(x=children[0], m=children[1], v=children[2], step=children[3])
 
@@ -56,7 +56,13 @@ class AdamState(OptState):
 tree_util.register_pytree_node_class(AdamState)
 
 
-def riemannian_adam(learning_rate: float = 0.001, beta1: float = 0.9, beta2: float = 0.999, eps: float = 1e-8, use_retraction: bool = False) -> tuple[Any, Any]:
+def riemannian_adam(
+    learning_rate: float = 0.001,
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    eps: float = 1e-8,
+    use_retraction: bool = False,
+) -> tuple[Any, Any]:
     """Riemannian Adam optimizer.
 
     Implements the Riemannian Adam algorithm, which adapts the Adam optimizer
@@ -142,9 +148,11 @@ def riemannian_adam(learning_rate: float = 0.001, beta1: float = 0.9, beta2: flo
             # Fallback to retraction if exponential map fails
             x_new = manifold.retr(x, v)
 
-        # Ensure the new point is on the manifold (only for sphere-like manifolds)
-        if hasattr(manifold, "proj") and hasattr(manifold, "__class__") and "Sphere" in manifold.__class__.__name__:
-            x_new = manifold.proj(x_new, jnp.zeros_like(x_new))  # Project to manifold
+        # Ensure the new point is on the manifold
+        if hasattr(manifold, "__class__") and "Sphere" in manifold.__class__.__name__:
+            # For sphere manifolds, normalize to ensure unit length
+            x_norm = jnp.linalg.norm(x_new)
+            x_new = jnp.where(x_norm > 1e-8, x_new / x_norm, x)  # Fallback to original if norm too small
 
         # Transport momentum estimates to new point
         m_transported = manifold.transp(x, x_new, m_new)

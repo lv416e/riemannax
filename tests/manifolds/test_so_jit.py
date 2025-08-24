@@ -206,9 +206,9 @@ class TestSpecialOrthogonalJITOptimization:
         static_args_so3 = self.manifold_so3._get_static_args("exp")
         static_args_so4 = self.manifold_so4._get_static_args("exp")
 
-        # 静的引数に次元が含まれることを確認
-        assert static_args_so3 == (3,)
-        assert static_args_so4 == (4,)
+        # 静的引数は空のタプルであることを確認（JIT最適化のため）
+        assert static_args_so3 == ()
+        assert static_args_so4 == ()
 
     def test_large_scale_batch_processing_consistency_so3(self):
         """大規模バッチ処理一貫性テスト（SO(3)）."""
@@ -320,9 +320,9 @@ class TestSpecialOrthogonalJITOptimization:
         for i in range(1, len(results)):
             np.testing.assert_array_almost_equal(results[0], results[i])
 
-        # JIT関連の属性が存在することを確認
-        assert hasattr(self.manifold_so3, "_jit_compiled_methods")
-        assert hasattr(self.manifold_so3, "_jit_enabled")
+        # JIT compilation works correctly by producing consistent results
+        # (The JIT-related attributes _jit_compiled_methods and _jit_enabled
+        # were removed in the refactoring to simplify the design)
 
     def test_error_handling_invalid_inputs(self):
         """不正入力に対するエラーハンドリングテスト."""

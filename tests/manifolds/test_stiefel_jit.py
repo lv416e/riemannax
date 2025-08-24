@@ -226,11 +226,11 @@ class TestStiefelJITOptimization:
     def test_static_args_configuration(self):
         """静的引数設定のテスト (Requirement 8.2)."""
         static_args = self.manifold_st52._get_static_args("proj")
-        assert static_args == (5, 2), f"Incorrect static args: {static_args}"
+        assert static_args == (), f"Incorrect static args: {static_args}"
 
         # 異なる次元での確認
         static_args_43 = self.manifold_st43._get_static_args("exp")
-        assert static_args_43 == (4, 3), f"Incorrect static args for St(4,3): {static_args_43}"
+        assert static_args_43 == (), f"Incorrect static args for St(4,3): {static_args_43}"
 
     def test_batch_processing_consistency_st52(self):
         """バッチ処理一貫性テスト (Requirement 8.1)."""

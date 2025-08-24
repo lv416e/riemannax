@@ -191,9 +191,9 @@ class TestGrassmannJITOptimization:
         static_args_gr35 = self.manifold_gr35._get_static_args("exp")
         static_args_gr24 = self.manifold_gr24._get_static_args("exp")
 
-        # 静的引数に次元が含まれることを確認
-        assert static_args_gr35 == (5, 3)
-        assert static_args_gr24 == (4, 2)
+        # 静的引数は空のタプルであることを確認（JIT最適化のため）
+        assert static_args_gr35 == ()
+        assert static_args_gr24 == ()
 
     def test_batch_processing_consistency_gr35(self):
         """バッチ処理一貫性テスト（Gr(3,5)）."""
@@ -274,9 +274,9 @@ class TestGrassmannJITOptimization:
         for i in range(1, len(results)):
             np.testing.assert_array_almost_equal(results[0], results[i])
 
-        # JIT関連の属性が存在することを確認
-        assert hasattr(self.manifold_gr35, "_jit_compiled_methods")
-        assert hasattr(self.manifold_gr35, "_jit_enabled")
+        # JIT compilation works correctly by producing consistent results
+        # (The JIT-related attributes _jit_compiled_methods and _jit_enabled
+        # were removed in the refactoring to simplify the design)
 
     def test_error_handling_invalid_inputs(self):
         """不正入力に対するエラーハンドリングテスト."""
