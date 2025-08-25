@@ -64,13 +64,13 @@ Not equal to tolerance rtol=1e-05, atol=1e-07
   Max rel diff: 2.18e+02
 
 grassmann_5_3.exp (batch=5)
-  Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
+  Error: ValueError - Tangent vector must have shape (5, 3), got (5, 5, 3)
 
 grassmann_5_3.log (batch=5)
-  Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
+  Error: ValueError - Incompatible shapes for matmul arguments: (5, 5, 3) and (3, 5, 5)
 
 grassmann_5_3.proj (batch=5)
-  Error: ValueError - Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)
+  Error: ValueError - Tangent vector must have shape (5, 3), got (5, 5, 3)
 
 stiefel_5_3.exp (batch=1)
   Error: ToleranceError -

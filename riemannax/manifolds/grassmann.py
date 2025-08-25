@@ -59,6 +59,9 @@ class Grassmann(Manifold):
 
         Tangent space: T_X Gr(p,n) = {V ∈ R^{n * p} : X^T V = 0}.
         """
+        # Check dimensions
+        if v.shape != (self.n, self.p):
+            raise ValueError(f"Tangent vector must have shape ({self.n}, {self.p}), got {v.shape}")
         return v - x @ (x.T @ v)
 
     @jit_optimized(static_args=(0,))
@@ -183,56 +186,102 @@ class Grassmann(Manifold):
         return v - x @ (jnp.swapaxes(x, -2, -1) @ v)
 
     def _exp_impl(self, x: Array, v: Array) -> Array:
-        """JIT-optimized exponential map implementation.
+        """True SVD-based exponential map following Grassmann manifold theory.
 
-        For very small tangent vectors, uses linear approximation to ensure
-        exact numerical invertibility with logarithmic map.
+        Implements: z = p·V·cos(S)·V^T + U·sin(S)·V^T, then QR decomposition
+        where ξ = U·S·V^T is the SVD decomposition of the tangent vector.
         """
-        # Project to tangent space
-        v_proj = v - x @ (x.T @ v)
+        # Project to tangent space to ensure v is in tangent space
+        v_proj = self.proj(x, v)
 
-        # For very small tangent vectors (like in tests with 0.001 scale),
-        # use nearly-linear approximation for maximum precision
+        # Handle zero tangent vector
         v_norm = jnp.linalg.norm(v_proj)
 
-        def small_tangent_case() -> Array:
-            # Nearly linear approximation: exp_X(V) ≈ X + V
-            # For test purposes, this minimizes compounding numerical errors
-            # The logarithmic map can then exactly invert this
-            return x + v_proj
+        def zero_tangent_case() -> Array:
+            return x
 
-        def large_tangent_case() -> Array:
-            # For larger tangent vectors, use standard QR retraction
-            result = x + v_proj
-            Q, _ = jnp.linalg.qr(result, mode="reduced")
+        def nonzero_tangent_case() -> Array:
+            # Step 1: Compute SVD of tangent vector ξ = U·S·V^T
+            U, S, Vt = jnp.linalg.svd(v_proj, full_matrices=False)
+            V = Vt.T  # Convert V^T back to V
+
+            # Step 2: Apply trigonometric functions to singular values
+            cos_S = jnp.cos(S)
+            sin_S = jnp.sin(S)
+
+            # Step 3: Compute z = p·V·cos(S)·V^T + U·sin(S)·V^T
+            # First term: x @ V @ diag(cos_S) @ V^T
+            first_term = x @ V @ jnp.diag(cos_S) @ V.T
+
+            # Second term: U @ diag(sin_S) @ V^T
+            second_term = U @ jnp.diag(sin_S) @ V.T
+
+            # Combine terms
+            z = first_term + second_term
+
+            # Step 4: QR decomposition to ensure orthonormality
+            Q, _ = jnp.linalg.qr(z, mode="reduced")
+
             return Q
 
-        return jnp.asarray(jax.lax.cond(v_norm < 1e-3, small_tangent_case, large_tangent_case))
+        return jnp.asarray(jax.lax.cond(
+            v_norm < 1e-12,
+            zero_tangent_case,
+            nonzero_tangent_case
+        ))
 
     def _log_impl(self, x: Array, y: Array) -> Array:
-        """JIT-optimized logarithmic map implementation.
+        """True SVD-based logarithmic map following Grassmann manifold theory.
 
-        Exact inverse of the QR-based retraction. This ensures perfect
-        exp/log consistency by using the simple first-order inverse.
+        Implements: log_x(y) = V·atan(S)·U^T with proper numerical stability.
         """
-
         # Handle near-identical points
         def identical_points_case() -> Array:
             return jnp.zeros_like(x)
 
         def different_points_case() -> Array:
-            # Simple inverse of the QR retraction
-            # If Y = QR(X + V), then approximately V = Y - X projected to tangent space
-            # This is the exact inverse for small tangent vectors
-            diff = y - x
+            # Use the standard Grassmann logarithmic map approach
+            # Compute the orthogonal part of y relative to x
+            orthogonal_part = (jnp.eye(self.n) - x @ x.T) @ y
 
-            # Project to tangent space: T_X Gr(p,n) = {V : X^T V = 0}
-            log_result = diff - x @ (x.T @ diff)
+            # For small differences, use the direct tangent space projection
+            norm_orth = jnp.linalg.norm(orthogonal_part)
 
-            return log_result
+            def small_distance_case():
+                # For small distances, the log map is approximately the orthogonal projection
+                return orthogonal_part
 
-        are_close = jnp.allclose(x, y, atol=NumericalConstants.EPSILON)
+            def large_distance_case():
+                # For larger distances, we need to scale properly
+                # Compute SVD of orthogonal part
+                U_orth, S_orth, VT_orth = jnp.linalg.svd(orthogonal_part, full_matrices=False)
+
+                # Scale the singular values appropriately using arctan
+                # This handles the V·atan(S)·U^T formula properly
+                scaled_singular_values = jnp.where(
+                    S_orth > 1e-10,
+                    jnp.arctan(S_orth),  # Standard atan scaling
+                    S_orth  # For very small values, atan(x) ≈ x
+                )
+
+                # Reconstruct the tangent vector
+                return U_orth @ jnp.diag(scaled_singular_values) @ VT_orth
+
+            # Choose based on the magnitude of the orthogonal part
+            result = jax.lax.cond(
+                norm_orth < 0.1,  # Threshold for "small" vs "large" distance
+                small_distance_case,
+                large_distance_case
+            )
+
+            # Always project to tangent space to ensure X^T @ result = 0
+            return self.proj(x, result)
+
+        # Check if points are nearly identical
+        distance = jnp.linalg.norm(x - y)
+        are_close = distance < 1e-12
         return jnp.asarray(jax.lax.cond(are_close, identical_points_case, different_points_case))
+
 
     def _inner_impl(self, x: Array, u: Array, v: Array) -> Array:
         """JIT-optimized inner product implementation.
@@ -272,3 +321,20 @@ class Grassmann(Manifold):
         # Return empty tuple - no static arguments for safety
         # Future optimization could consider making 'self' parameter static (position 0)
         return ()
+
+    def _is_valid_point(self, x: Array) -> bool:
+        """Check if a point is valid on the Grassmann manifold.
+
+        Args:
+            x: Point to validate
+
+        Returns:
+            True if point has orthonormal columns, False otherwise
+        """
+        if x.shape != (self.n, self.p):
+            return False
+
+        # Check orthonormality: x^T @ x should be identity
+        gram = x.T @ x
+        identity = jnp.eye(self.p)
+        return bool(jnp.allclose(gram, identity, atol=1e-6))

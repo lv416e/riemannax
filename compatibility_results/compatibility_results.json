@@ -254,7 +254,7 @@
       "batch_size": 5,
       "passed": false,
       "error_type": "ValueError",
-      "error_message": "Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)",
+      "error_message": "Tangent vector must have shape (5, 3), got (5, 5, 3)",
       "max_absolute_diff": 0.0,
       "max_relative_diff": 0.0,
       "numerical_instability": false
@@ -276,7 +276,7 @@
       "batch_size": 5,
       "passed": false,
       "error_type": "ValueError",
-      "error_message": "Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)",
+      "error_message": "Incompatible shapes for matmul arguments: (5, 5, 3) and (3, 5, 5)",
       "max_absolute_diff": 0.0,
       "max_relative_diff": 0.0,
       "numerical_instability": false
@@ -298,7 +298,7 @@
       "batch_size": 5,
       "passed": false,
       "error_type": "ValueError",
-      "error_message": "Incompatible shapes for matmul arguments: (3, 5, 5) and (5, 5, 3)",
+      "error_message": "Tangent vector must have shape (5, 3), got (5, 5, 3)",
       "max_absolute_diff": 0.0,
       "max_relative_diff": 0.0,
       "numerical_instability": false

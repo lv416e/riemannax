@@ -97,3 +97,52 @@ def validate_dtype(array: Array, expected_dtype: type | jnp.dtype[Any]) -> bool:
 
     # Handle exact JAX dtype matching
     return bool(actual_dtype == expected_dtype)
+
+
+def validate_jaxtyping_annotation(array: Array, annotation: type) -> bool:
+    """Validate that an array matches a jaxtyping annotation.
+
+    Args:
+        array: JAX array to validate
+        annotation: Jaxtyping annotation (e.g., ManifoldPoint, TangentVector)
+
+    Returns:
+        True if array matches annotation, False otherwise
+
+    Examples:
+        >>> point = jnp.array([1.0, 2.0, 3.0])
+        >>> validate_jaxtyping_annotation(point, ManifoldPoint)
+        True
+        >>> validate_jaxtyping_annotation(5.0, ManifoldPoint)
+        False
+    """
+    # Basic array validation
+    if not isinstance(array, jnp.ndarray):
+        return False
+
+    # Check if it's a floating point array (requirement for manifold types)
+    # For now, basic validation - more sophisticated jaxtyping integration
+    # can be added when jaxtyping provides better runtime validation
+    return jnp.issubdtype(array.dtype, jnp.floating)
+
+
+def ensure_array_dtype(array: Array, target_dtype: jnp.dtype) -> Array:
+    """Ensure an array has the specified dtype, converting if necessary.
+
+    Args:
+        array: JAX array to convert
+        target_dtype: Target dtype for the array
+
+    Returns:
+        Array with the specified dtype
+
+    Examples:
+        >>> arr = jnp.array([1, 2, 3])
+        >>> result = ensure_array_dtype(arr, jnp.float32)
+        >>> result.dtype
+        dtype('float32')
+    """
+    if array.dtype == target_dtype:
+        return array
+
+    return array.astype(target_dtype)
