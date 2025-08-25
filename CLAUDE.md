@@ -15,8 +15,6 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 **Specs** (`.kiro/specs/`) - Formalize development process for individual features
 
 ### Active Specifications
-- **comprehensive-jit-optimization**: Comprehensive performance improvements through full JAX JIT optimization integration
-- **advanced-spd-optimizations**: Enhancement of SPD manifold with true parallel transport implementation and memory scaling optimizations for large matrices (n>1000)
 - Check `.kiro/specs/` for active specifications
 - Use `/kiro:spec-status [feature-name]` to check progress
 
