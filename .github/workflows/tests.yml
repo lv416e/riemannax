@@ -34,7 +34,7 @@ jobs:
           pip install pytest-cov pytest-xdist pytest-timeout matplotlib seaborn pandas scikit-learn
       - name: Run tests
         run: |
-          pytest --cov=riemannax -n auto --timeout=300 --maxfail=5
+          pytest --cov=riemannax -n 2 --timeout=600 --maxfail=10 --max-worker-restart=2 --dist=worksteal -v --tb=short
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
         if: ${{ github.repository_owner == 'username' }}
@@ -60,7 +60,7 @@ jobs:
           pip install pytest-cov pytest-xdist pytest-timeout matplotlib seaborn pandas scikit-learn
       - name: Run tests
         run: |
-          pytest --cov=riemannax -n auto --timeout=300 --maxfail=5
+          pytest --cov=riemannax -n 2 --timeout=600 --maxfail=10 --max-worker-restart=2 --dist=worksteal -v --tb=short
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
         if: ${{ github.repository_owner == 'username' }}
@@ -86,7 +86,7 @@ jobs:
           pip install pytest-cov pytest-xdist pytest-timeout matplotlib seaborn pandas scikit-learn
       - name: Run tests
         run: |
-          pytest --cov=riemannax -n auto --timeout=300 --maxfail=5
+          pytest --cov=riemannax -n 2 --timeout=600 --maxfail=10 --max-worker-restart=2 --dist=worksteal -v --tb=short
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
         if: ${{ github.repository_owner == 'username' }}

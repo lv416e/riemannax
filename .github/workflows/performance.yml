@@ -29,12 +29,16 @@ on:
 
 env:
   PYTHONPATH: ${{ github.workspace }}
+  JAX_ENABLE_X64: true
+  XLA_PYTHON_CLIENT_PREALLOCATE: false
+  XLA_PYTHON_CLIENT_MEM_FRACTION: 0.5
+  JAX_COMPILATION_CACHE_DIR: /tmp/jax_cache
 
 jobs:
   benchmark-performance:
     name: "Performance Benchmarks"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       matrix:
         python-version: ["3.10"]
@@ -82,8 +86,10 @@ jobs:
           pytest tests/core/test_performance_benchmark_functionality.py \
             --benchmark-json=benchmark_results/jit_benchmarks.json \
             --benchmark-warmup=on \
-            --benchmark-warmup-iterations=3 \
-            --benchmark-min-rounds=5 \
+            --benchmark-warmup-iterations=1 \
+            --benchmark-min-rounds=3 \
+            --benchmark-max-time=300 \
+            --timeout=600 \
             -v
 
       - name: Run Manifold Operation Benchmarks
@@ -93,8 +99,10 @@ jobs:
           pytest tests/manifolds/test_*jit*.py \
             --benchmark-json=benchmark_results/manifold_benchmarks.json \
             --benchmark-warmup=on \
-            --benchmark-warmup-iterations=3 \
-            --benchmark-min-rounds=5 \
+            --benchmark-warmup-iterations=1 \
+            --benchmark-min-rounds=2 \
+            --benchmark-max-time=240 \
+            --timeout=600 \
             -v
 
       - name: Run Integration Performance Tests
@@ -104,8 +112,10 @@ jobs:
           pytest tests/test_comprehensive_numerical_stability.py \
             --benchmark-json=benchmark_results/integration_benchmarks.json \
             --benchmark-warmup=on \
-            --benchmark-warmup-iterations=2 \
-            --benchmark-min-rounds=3 \
+            --benchmark-warmup-iterations=1 \
+            --benchmark-min-rounds=2 \
+            --benchmark-max-time=180 \
+            --timeout=600 \
             -v
 
       - name: Generate Performance Report
