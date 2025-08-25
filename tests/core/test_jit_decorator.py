@@ -90,6 +90,7 @@ class TestJITOptimizer:
         def make_func(multiplier):
             def func(x: Array) -> Array:
                 return x * multiplier
+
             func.__name__ = f"func_{multiplier}"
             return func
 
@@ -111,6 +112,7 @@ class TestJitOptimizedDecorator:
 
     def test_jit_optimized_decorator_basic(self):
         """Test basic jit_optimized decorator functionality."""
+
         @jit_optimized()
         def decorated_func(x: Array) -> Array:
             return x * 3
@@ -123,6 +125,7 @@ class TestJitOptimizedDecorator:
 
     def test_jit_optimized_decorator_with_static_args(self):
         """Test jit_optimized decorator with static arguments."""
+
         @jit_optimized(static_args=(1,))
         def decorated_func(x: Array, multiplier: float) -> Array:
             return x * multiplier
@@ -135,6 +138,7 @@ class TestJitOptimizedDecorator:
 
     def test_decorator_preserves_function_metadata(self):
         """Test that decorator preserves original function metadata."""
+
         @jit_optimized()
         def test_function(x: Array) -> Array:
             """Test function docstring."""
@@ -174,6 +178,7 @@ class TestJITOptimizationIntegration:
 
     def test_global_optimizer_instance(self):
         """Test that decorator uses global optimizer instance."""
+
         # This test ensures the decorator pattern works with a shared optimizer
         @jit_optimized()
         def func1(x: Array) -> Array:
@@ -206,6 +211,7 @@ class TestJITOptimizationIntegration:
 
     def test_performance_characteristics(self):
         """Test basic performance characteristics of JIT compilation."""
+
         @jit_optimized()
         def matrix_multiply(a: Array, b: Array) -> Array:
             return jnp.matmul(a, b)

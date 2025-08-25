@@ -6,10 +6,11 @@ This module tests the GeodesicConnection class that provides:
 - Geodesic computation on SPD manifolds with affine-invariant metric
 - Numerical stability for extreme cases
 """
-import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
+
 from riemannax.core.geodesic_connection import GeodesicConnection
 
 
@@ -25,20 +26,13 @@ class TestGeodesicConnection:
         self.spd_medium = jnp.array([[4.0, 1.0], [1.0, 3.0]])
 
         # 3x3 test matrices
-        self.spd_3x3_1 = jnp.array([[2.0, 0.5, 0.0],
-                                   [0.5, 3.0, 0.2],
-                                   [0.0, 0.2, 1.5]])
-        self.spd_3x3_2 = jnp.array([[3.5, 0.8, 0.1],
-                                   [0.8, 2.2, 0.3],
-                                   [0.1, 0.3, 2.8]])
+        self.spd_3x3_1 = jnp.array([[2.0, 0.5, 0.0], [0.5, 3.0, 0.2], [0.0, 0.2, 1.5]])
+        self.spd_3x3_2 = jnp.array([[3.5, 0.8, 0.1], [0.8, 2.2, 0.3], [0.1, 0.3, 2.8]])
 
         # Test tangent vector
-        self.tangent_vector = jnp.array([[0.1, 0.2],
-                                        [0.2, -0.1]])
+        self.tangent_vector = jnp.array([[0.1, 0.2], [0.2, -0.1]])
 
-        self.tangent_3x3 = jnp.array([[0.1, 0.05, 0.02],
-                                     [0.05, -0.1, 0.03],
-                                     [0.02, 0.03, 0.08]])
+        self.tangent_3x3 = jnp.array([[0.1, 0.05, 0.02], [0.05, -0.1, 0.03], [0.02, 0.03, 0.08]])
 
     def test_matrix_sqrt_spd_basic(self):
         """Test SPD matrix square root computation."""
@@ -250,9 +244,7 @@ class TestGeodesicConnection:
         ill_conditioned = Q @ jnp.diag(eigenvals) @ Q.T
 
         well_conditioned = jnp.eye(3) * 2.0
-        tangent = jnp.array([[0.1, 0.05, 0.02],
-                           [0.05, -0.1, 0.03],
-                           [0.02, 0.03, 0.08]])
+        tangent = jnp.array([[0.1, 0.05, 0.02], [0.05, -0.1, 0.03], [0.02, 0.03, 0.08]])
 
         # Should handle ill-conditioned matrices gracefully
         result = self.connection.parallel_transport(ill_conditioned, well_conditioned, tangent)
@@ -280,15 +272,15 @@ class TestGeodesicConnection:
 
         # Check parallel_transport signature
         sig = inspect.signature(self.connection.parallel_transport)
-        assert 'X' in sig.parameters
-        assert 'Y' in sig.parameters
-        assert 'V' in sig.parameters
+        assert "X" in sig.parameters
+        assert "Y" in sig.parameters
+        assert "V" in sig.parameters
 
         # Check geodesic signature
         sig = inspect.signature(self.connection.geodesic)
-        assert 'X' in sig.parameters
-        assert 'Y' in sig.parameters
-        assert 't' in sig.parameters
+        assert "X" in sig.parameters
+        assert "Y" in sig.parameters
+        assert "t" in sig.parameters
 
 
 class TestGeodesicConnectionIntegration:

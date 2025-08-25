@@ -74,20 +74,20 @@ class TestGrassmannJITOptimization:
         x = self.manifold_gr35.random_point(key1)
         y = self.manifold_gr35.random_point(key2)
 
-        # JIT実装の対数写像
+        # Logarithmic map JIT implementation
         log_result = self.manifold_gr35._log_impl(x, y)
 
-        # 結果が接空間に属することを確認
+        # Verify that result belongs to tangent space
         assert self.manifold_gr35.validate_tangent(x, log_result)
 
-        # 指数写像との一貫性確認（exp(log(x,y)) ≈ y となることを期待しないが、数学的性質を確認）
+        # Check consistency with exponential map (do not expect exp(log(x,y)) ≈ y, but verify mathematical properties)
         exp_log_result = self.manifold_gr35._exp_impl(x, log_result)
 
-        # 結果がGrassmann多様体上の点であることを確認
+        # Verify that result is a point on the Grassmann manifold
         assert self.manifold_gr35.validate_point(exp_log_result)
 
     def test_inner_jit_vs_original_equivalence_gr35(self):
-        """内積: JIT版と元の版の数値同等性テスト（Gr(3,5)）."""
+        """Test numerical equivalence of inner product: JIT vs original implementation (Gr(3,5))."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
@@ -95,71 +95,71 @@ class TestGrassmannJITOptimization:
         u = self.manifold_gr35.random_tangent(u_key, x)
         v = self.manifold_gr35.random_tangent(v_key, x)
 
-        # 元の実装
+        # Original implementation
         original_result = self.manifold_gr35.inner(x, u, v)
 
-        # JIT実装
+        # JIT implementation
         jit_result = self.manifold_gr35._inner_impl(x, u, v)
 
-        # 数値同等性確認
+        # Verify numerical equivalence
         np.testing.assert_almost_equal(jit_result, original_result, decimal=8)
 
     def test_dist_jit_vs_original_equivalence_gr35(self):
-        """距離計算: JIT版と元の版の数値同等性テスト（Gr(3,5)）."""
+        """Test numerical equivalence of distance computation: JIT vs original implementation (Gr(3,5))."""
         key1, key2 = jax.random.split(jax.random.PRNGKey(42))
         x = self.manifold_gr35.random_point(key1)
         y = self.manifold_gr35.random_point(key2)
 
-        # 元の実装
+        # Original implementation
         original_result = self.manifold_gr35.dist(x, y)
 
-        # JIT実装
+        # JIT implementation
         jit_result = self.manifold_gr35._dist_impl(x, y)
 
-        # 数値同等性確認
+        # Verify numerical equivalence
         np.testing.assert_almost_equal(jit_result, original_result, decimal=6)
 
     def test_subspace_constraints_preservation(self):
-        """部分空間制約保持の検証テスト."""
+        """Test verification of subspace constraint preservation."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
         v_key = jax.random.PRNGKey(43)
         v = self.manifold_gr35.random_tangent(v_key, x)
 
-        # JIT版指数写像の結果
+        # JIT exponential map result
         result = self.manifold_gr35._exp_impl(x, v)
 
-        # 直交性制約の確認: X^T @ X = I
+        # Verify orthogonality constraint: X^T @ X = I
         orthogonality_check = jnp.matmul(result.T, result)
         identity = jnp.eye(self.manifold_gr35.p)
         np.testing.assert_array_almost_equal(orthogonality_check, identity, decimal=6)
 
-        # 形状確認
+        # Shape verification
         assert result.shape == (self.manifold_gr35.n, self.manifold_gr35.p)
 
     def test_modified_exponential_map_correctness(self):
-        """修正された指数写像の数学的正確性確認."""
+        """Test mathematical correctness verification of modified exponential map."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
-        # ゼロベクトルでのテスト
+        # Test with zero vector
         zero_v = jnp.zeros((self.manifold_gr35.n, self.manifold_gr35.p))
         result_zero = self.manifold_gr35._exp_impl(x, zero_v)
 
-        # ゼロベクトルの場合、元の点が返されるべき
+        # For zero vector, the original point should be returned
         np.testing.assert_array_almost_equal(result_zero, x, decimal=8)
 
-        # 小さなベクトルでのテスト
+        # Test with small vector
         small_v = 0.01 * self.manifold_gr35.random_tangent(jax.random.PRNGKey(43), x)
         result_small = self.manifold_gr35._exp_impl(x, small_v)
 
-        # 結果が多様体制約を満たすことを確認
+        # Verify that result satisfies manifold constraints
         assert self.manifold_gr35.validate_point(result_small)
 
     def test_large_scale_matrix_numerical_stability(self):
-        """大規模行列での数値安定性テスト."""
-        # より大きな次元でのテスト
+        """Test numerical stability with large-scale matrices."""
+        # Test with larger dimensions
         large_manifold = Grassmann(n=50, p=10)
 
         key = jax.random.PRNGKey(42)
@@ -168,109 +168,109 @@ class TestGrassmannJITOptimization:
         v_key = jax.random.PRNGKey(43)
         v = large_manifold.random_tangent(v_key, x)
 
-        # JIT実装での計算
+        # Computation with JIT implementation
         proj_result = large_manifold._proj_impl(x, v)
         exp_result = large_manifold._exp_impl(x, v)
 
-        # 結果の検証
+        # Result verification
         assert proj_result.shape == (50, 10)
         assert exp_result.shape == (50, 10)
 
-        # 数値安定性確認
+        # Numerical stability verification
         assert not jnp.any(jnp.isnan(proj_result))
         assert not jnp.any(jnp.isnan(exp_result))
         assert not jnp.any(jnp.isinf(proj_result))
         assert not jnp.any(jnp.isinf(exp_result))
 
-        # 多様体制約確認
+        # Manifold constraint verification
         assert large_manifold.validate_point(exp_result)
 
     def test_static_args_configuration(self):
-        """静的引数設定テスト."""
-        # Gr(3,5)とGr(2,4)での静的引数設定確認
+        """Test static argument configuration."""
+        # Verify static argument configuration for Gr(3,5) and Gr(2,4)
         static_args_gr35 = self.manifold_gr35._get_static_args("exp")
         static_args_gr24 = self.manifold_gr24._get_static_args("exp")
 
-        # 静的引数は空のタプルであることを確認（JIT最適化のため）
+        # Verify that static arguments are empty tuples (for JIT optimization)
         assert static_args_gr35 == ()
         assert static_args_gr24 == ()
 
     def test_batch_processing_consistency_gr35(self):
-        """バッチ処理一貫性テスト（Gr(3,5)）."""
+        """Test batch processing consistency (Gr(3,5))."""
         batch_size = 10
         key = jax.random.PRNGKey(42)
 
-        # バッチデータの準備
+        # Prepare batch data
         keys = jax.random.split(key, batch_size)
         x_batch = jax.vmap(self.manifold_gr35.random_point)(keys)
 
         v_keys = jax.random.split(jax.random.PRNGKey(43), batch_size)
         v_batch = jax.vmap(self.manifold_gr35.random_tangent)(v_keys, x_batch)
 
-        # バッチ処理での射影操作
+        # Projection operation in batch processing
         proj_results = jax.vmap(self.manifold_gr35._proj_impl)(x_batch, v_batch)
 
-        # 結果の形状確認
+        # Shape verification of results
         assert proj_results.shape == (batch_size, 5, 3)
 
-        # 個別実行との一貫性確認
+        # Consistency check with individual execution
         individual_result = self.manifold_gr35._proj_impl(x_batch[0], v_batch[0])
         np.testing.assert_array_almost_equal(proj_results[0], individual_result)
 
     def test_svd_decomposition_numerical_stability(self):
-        """SVD分解による数値安定性確保テスト."""
+        """Test numerical stability assurance through SVD decomposition."""
         key1, key2 = jax.random.split(jax.random.PRNGKey(42))
         x = self.manifold_gr35.random_point(key1)
         self.manifold_gr35.random_point(key2)
 
-        # 条件数の悪い場合をシミュレート
-        # 非常に近い部分空間
+        # Simulate ill-conditioned case
+        # Very close subspaces
         epsilon = 1e-8
         y_close = x + epsilon * self.manifold_gr35.random_tangent(key2, x)
         Q_close, _ = jnp.linalg.qr(y_close, mode="reduced")
 
-        # SVDベースの距離計算
+        # SVD-based distance computation
         distance = self.manifold_gr35._dist_impl(x, Q_close)
 
-        # NaNやInfが発生しないことを確認
+        # Verify that NaN or Inf do not occur
         assert not jnp.any(jnp.isnan(distance))
         assert not jnp.any(jnp.isinf(distance))
         assert distance >= 0.0
 
     def test_principal_angles_computation_accuracy(self):
-        """主角計算の精度テスト."""
-        # 簡単なケース: 既知の主角を持つ部分空間
+        """Test accuracy of principal angles computation."""
+        # Simple case: subspaces with known principal angles
         manifold_gr24 = Grassmann(4, 2)
 
-        # 第1部分空間: span{(1,0,0,0), (0,1,0,0)} = x-y平面
+        # First subspace: span{(1,0,0,0), (0,1,0,0)} = x-y plane
         x = jnp.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]])
 
-        # 第2部分空間: span{(1,0,0,0), (0,0,1,0)} = x-z平面
-        # 主角は90度（π/2）
+        # Second subspace: span{(1,0,0,0), (0,0,1,0)} = x-z plane
+        # Principal angle is 90 degrees (π/2)
         y = jnp.array([[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [0.0, 0.0]])
 
-        # 距離計算
+        # Distance computation
         distance = manifold_gr24._dist_impl(x, y)
 
-        # 理論値: 1つの主角がπ/2、もう1つは0なので距離はπ/2
+        # Theoretical value: one principal angle is π/2, the other is 0, so distance is π/2
         expected_distance = jnp.pi / 2
         np.testing.assert_almost_equal(distance, expected_distance, decimal=4)
 
     def test_jit_compilation_caching(self):
-        """JITコンパイルとキャッシングのテスト."""
+        """Test JIT compilation and caching."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
         v_key = jax.random.PRNGKey(43)
         v = self.manifold_gr35.random_tangent(v_key, x)
 
-        # 複数回実行して一貫した結果が得られることを確認
+        # Verify consistent results across multiple executions
         results = []
         for _ in range(3):
             result = self.manifold_gr35.proj(x, v)
             results.append(result)
 
-        # 全ての結果が同等であることを確認
+        # Verify that all results are equivalent
         for i in range(1, len(results)):
             np.testing.assert_array_almost_equal(results[0], results[i])
 
@@ -279,76 +279,76 @@ class TestGrassmannJITOptimization:
         # were removed in the refactoring to simplify the design)
 
     def test_error_handling_invalid_inputs(self):
-        """不正入力に対するエラーハンドリングテスト."""
+        """Test error handling for invalid inputs."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
-        # NaN入力に対するハンドリング確認
+        # Verify handling of NaN inputs
         v_nan = jnp.full((5, 3), jnp.nan)
 
-        # JAXではNaNが伝播するか、適切に処理されることを確認
+        # Verify that NaN propagates or is handled appropriately in JAX
         result = self.manifold_gr35._proj_impl(x, v_nan)
 
-        # NaNが伝播している（正常な動作）か、適切に処理されていることを確認
+        # Verify that NaN propagates (normal behavior) or is handled appropriately
         has_nan = jnp.any(jnp.isnan(result))
         has_valid_result = not jnp.any(jnp.isnan(result))
 
-        # NaNが伝播するか、適切に処理されているかのいずれかであることを確認
+        # Verify that either NaN propagates or is handled appropriately
         assert has_nan or has_valid_result
 
     def test_orthonormal_columns_preservation(self):
-        """正規直交列の保持確認テスト."""
+        """Test verification of orthonormal column preservation."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
-        # 大きな接ベクトル
+        # Large tangent vector
         v_key = jax.random.PRNGKey(43)
         v_large = 5.0 * self.manifold_gr35.random_tangent(v_key, x)
 
-        # JIT版指数写像の実行
+        # Execute JIT exponential map
         result = self.manifold_gr35._exp_impl(x, v_large)
 
-        # 列が正規直交であることを確認
+        # Verify that columns are orthonormal
         gram_matrix = jnp.matmul(result.T, result)
         identity = jnp.eye(self.manifold_gr35.p)
 
         np.testing.assert_array_almost_equal(gram_matrix, identity, decimal=6)
 
     def test_integration_with_existing_methods(self):
-        """JIT統合と既存メソッドの互換性テスト."""
+        """Test compatibility of JIT integration with existing methods."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
         v_key = jax.random.PRNGKey(43)
         v = self.manifold_gr35.random_tangent(v_key, x)
 
-        # 既存メソッドとJIT版の組み合わせテスト
+        # Test combination of existing methods with JIT version
 
-        # validate_pointメソッド（直交性チェック）
+        # validate_point method (orthogonality check)
         is_valid_point = self.manifold_gr35.validate_point(x)
         assert is_valid_point
 
-        # validate_tangent メソッド（接空間チェック）
+        # validate_tangent method (tangent space check)
         is_valid_tangent = self.manifold_gr35.validate_tangent(x, v)
         assert is_valid_tangent
 
     def test_mathematical_correctness_exp_log_consistency(self):
-        """数学的正確性：指数・対数写像の一貫性テスト."""
+        """Test mathematical correctness: exponential-logarithmic map consistency."""
         key = jax.random.PRNGKey(42)
         x = self.manifold_gr35.random_point(key)
 
-        # 小さな接ベクトル（線形化が有効な範囲）
+        # Small tangent vector (range where linearization is valid)
         v_key = jax.random.PRNGKey(43)
         v_small = 0.1 * self.manifold_gr35.random_tangent(v_key, x)
 
-        # exp -> log の一貫性確認
+        # Check exp -> log consistency
         y = self.manifold_gr35._exp_impl(x, v_small)
         v_recovered = self.manifold_gr35._log_impl(x, y)
 
-        # 完全に一致しないかもしれないが、同じ方向であることを確認
-        # （Grassmann多様体の場合、局所的な一貫性）
+        # May not match perfectly, but verify they are in the same direction
+        # (For Grassmann manifold, local consistency)
         inner_original = self.manifold_gr35.inner(x, v_small, v_small)
         inner_recovered = self.manifold_gr35.inner(x, v_recovered, v_recovered)
 
-        # ノルムが大きく異ならないことを確認
+        # Verify that norms do not differ significantly
         assert jnp.abs(inner_original - inner_recovered) < 0.5

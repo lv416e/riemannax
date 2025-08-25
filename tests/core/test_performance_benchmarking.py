@@ -7,8 +7,6 @@ Following TDD methodology - these tests define expected behavior for
 the performance measurement system.
 """
 
-import time
-from unittest.mock import MagicMock, patch
 
 import jax
 import jax.numpy as jnp
@@ -40,12 +38,13 @@ class TestPerformanceBenchmarking:
         assert benchmark is not None
 
         # Verify key methods exist
-        assert hasattr(benchmark, 'compare_jit_performance')
-        assert hasattr(benchmark, 'measure_cache_performance')
-        assert hasattr(benchmark, 'benchmark_manifold_operations')
+        assert hasattr(benchmark, "compare_jit_performance")
+        assert hasattr(benchmark, "measure_cache_performance")
+        assert hasattr(benchmark, "benchmark_manifold_operations")
 
     def test_benchmark_jit_vs_no_jit_performance(self):
         """Test benchmarking JIT vs non-JIT performance comparison."""
+
         def matrix_computation(A, B, C):
             # More complex computation to benefit from JIT compilation
             result = A
@@ -65,10 +64,7 @@ class TestPerformanceBenchmarking:
 
         benchmark = PerformanceBenchmark()
         results = benchmark.compare_jit_performance(
-            func=matrix_computation,
-            args=(A, B, C),
-            static_argnums=None,
-            num_runs=10
+            func=matrix_computation, args=(A, B, C), static_argnums=None, num_runs=10
         )
 
         # Should show measurable speedup with JIT (1.2x is reasonable for simple operations)
@@ -77,6 +73,7 @@ class TestPerformanceBenchmarking:
 
     def test_benchmark_cache_performance_improvement(self):
         """Test benchmarking cache hit vs cache miss performance."""
+
         def expensive_function(x):
             # Simulate expensive computation
             result = x
@@ -90,11 +87,7 @@ class TestPerformanceBenchmarking:
         benchmark = PerformanceBenchmark()
         data = jnp.ones(1000)
 
-        results = benchmark.measure_cache_performance(
-            func=expensive_function,
-            args=(data,),
-            num_cache_hits=5
-        )
+        results = benchmark.measure_cache_performance(func=expensive_function, args=(data,), num_cache_hits=5)
 
         # Cache hits should be much faster than initial compilation
         assert results["avg_cache_hit_time"] < results["initial_compile_time"] * 0.1
@@ -102,8 +95,9 @@ class TestPerformanceBenchmarking:
 
     def test_benchmark_different_static_argnums_configurations(self):
         """Test benchmarking different static_argnums configurations."""
+
         def parameterized_function(x, power, scale):
-            return scale * (x ** power)
+            return scale * (x**power)
 
         # Implementation exists - test the functionality
         from riemannax.core.performance_benchmark import PerformanceBenchmark
@@ -121,7 +115,7 @@ class TestPerformanceBenchmarking:
             func=parameterized_function,
             args=(data, 2, 1.5),
             configurations=configs,
-            num_runs=3  # Fewer runs for testing
+            num_runs=3,  # Fewer runs for testing
         )
 
         # Should provide performance comparison across configurations
@@ -134,8 +128,8 @@ class TestPerformanceBenchmarking:
     def test_benchmark_manifold_operations_performance(self):
         """Test benchmarking performance of manifold operations."""
         # Implementation exists - test the functionality
-        from riemannax.core.performance_benchmark import PerformanceBenchmark
         import riemannax as rieax
+        from riemannax.core.performance_benchmark import PerformanceBenchmark
 
         benchmark = PerformanceBenchmark()
 
@@ -149,18 +143,18 @@ class TestPerformanceBenchmarking:
             "exp": (sphere.exp, (point, tangent)),
             "log": (sphere.log, (point, point)),  # log of same point should be zero
             "proj": (sphere.proj, (point, tangent)),
-            "inner": (sphere.inner, (point, tangent, tangent))
+            "inner": (sphere.inner, (point, tangent, tangent)),
         }
 
         results = benchmark.benchmark_manifold_operations(
             manifold_name="Sphere",
             operations=operations,
-            num_runs=5  # Fewer runs for testing
+            num_runs=5,  # Fewer runs for testing
         )
 
         # Should provide performance data for each operation
         assert len(results) == len(operations)
-        for op_name, result in results.items():
+        for _op_name, result in results.items():
             assert "jit_speedup" in result
             assert "compilation_overhead" in result
             assert result["jit_speedup"] > 0  # JIT speedup should be positive (can be less than 1.0)
@@ -169,8 +163,8 @@ class TestPerformanceBenchmarking:
     def test_benchmark_batch_operation_performance(self):
         """Test benchmarking batch vs single operation performance."""
         # Implementation exists - test the functionality
-        from riemannax.core.performance_benchmark import PerformanceBenchmark
         import riemannax as rieax
+        from riemannax.core.performance_benchmark import PerformanceBenchmark
 
         benchmark = PerformanceBenchmark()
         sphere = rieax.Sphere()
@@ -190,7 +184,7 @@ class TestPerformanceBenchmarking:
             single_args=(single_point, single_tangent),
             batch_func=sphere.exp,
             batch_args=(batch_points, batch_tangents),
-            batch_size=batch_size
+            batch_size=batch_size,
         )
 
         # Results should be meaningful
@@ -211,12 +205,10 @@ class TestPerformanceBenchmarking:
 
             def memory_intensive_function(size):
                 large_matrix = jnp.ones((size, size))
-                return jnp.sum(large_matrix ** 2)
+                return jnp.sum(large_matrix**2)
 
             results = benchmark.measure_memory_usage(
-                func=memory_intensive_function,
-                args=(1000,),
-                track_compilation_memory=True
+                func=memory_intensive_function, args=(1000,), track_compilation_memory=True
             )
 
             # Should track memory during compilation and execution
@@ -238,7 +230,7 @@ class TestPerformanceBenchmarking:
             benchmark = PerformanceBenchmark()
 
             def device_computation(x):
-                return jnp.sum(x ** 2 + jnp.sin(x))
+                return jnp.sum(x**2 + jnp.sin(x))
 
             data = jnp.ones(10000)
 
@@ -246,7 +238,7 @@ class TestPerformanceBenchmarking:
                 func=device_computation,
                 args=(data,),
                 devices=["cpu", "gpu"],  # Only test available devices
-                num_runs=10
+                num_runs=10,
             )
 
             # Should provide comparison across available devices
@@ -276,7 +268,7 @@ class TestPerformanceBenchmarking:
             func=test_function,
             args=(A, B),
             num_cache_tests=5,  # Fewer for testing
-            cache_clear_interval=2
+            cache_clear_interval=2,
         )
 
         # Should show caching benefits
@@ -297,7 +289,7 @@ class TestPerformanceBenchmarking:
         benchmark = PerformanceBenchmark()
 
         def simple_computation(x):
-            return jnp.sum(x ** 2)
+            return jnp.sum(x**2)
 
         data = jnp.ones(1000)
 
@@ -305,7 +297,7 @@ class TestPerformanceBenchmarking:
             func=simple_computation,
             args=(data,),
             num_runs=10,  # Fewer runs for testing
-            confidence_level=0.95
+            confidence_level=0.95,
         )
 
         # Should provide statistical measures
@@ -327,13 +319,11 @@ class TestPerformanceBenchmarking:
             "jit_speedup": 3.5,
             "cache_efficiency": 0.85,
             "memory_usage": {"peak": 1024, "avg": 512},
-            "device_comparison": {"cpu": 1.0, "gpu": 0.3}
+            "device_comparison": {"cpu": 1.0, "gpu": 0.3},
         }
 
         report = benchmark.generate_performance_report(
-            results=mock_results,
-            include_plots=False,
-            output_format="markdown"
+            results=mock_results, include_plots=False, output_format="markdown"
         )
 
         # Should generate formatted report
@@ -353,20 +343,12 @@ class TestPerformanceBenchmarking:
             "min_jit_speedup": 2.0,
             "max_compilation_time": 5.0,
             "min_cache_hit_ratio": 0.8,
-            "max_memory_overhead": 2.0
+            "max_memory_overhead": 2.0,
         }
 
-        mock_results = {
-            "jit_speedup": 3.0,
-            "compilation_time": 3.5,
-            "cache_hit_ratio": 0.9,
-            "memory_overhead": 1.5
-        }
+        mock_results = {"jit_speedup": 3.0, "compilation_time": 3.5, "cache_hit_ratio": 0.9, "memory_overhead": 1.5}
 
-        validation = benchmark.validate_performance_thresholds(
-            results=mock_results,
-            thresholds=thresholds
-        )
+        validation = benchmark.validate_performance_thresholds(results=mock_results, thresholds=thresholds)
 
         # Should validate all thresholds
         assert "all_passed" in validation

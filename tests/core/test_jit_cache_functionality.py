@@ -14,9 +14,7 @@ Key functionality being tested:
 import time
 from unittest.mock import MagicMock, patch
 
-import jax
 import jax.numpy as jnp
-import pytest
 
 from riemannax.core.jit_manager import JITManager
 
@@ -38,6 +36,7 @@ class TestJITManagerCacheFunctionality:
 
     def test_cache_key_generation_with_no_parameters(self):
         """Test cache key generation for functions with no JIT parameters."""
+
         def simple_func(x):
             return x * 2
 
@@ -50,8 +49,9 @@ class TestJITManagerCacheFunctionality:
 
     def test_cache_key_generation_with_static_argnums(self):
         """Test cache key generation with static_argnums parameter."""
+
         def func_with_static(x, n):
-            return x ** n
+            return x**n
 
         # Test cache key generation with different static_argnums
         cache_key1 = JITManager._get_cache_key(func_with_static.__name__, static_argnums=(1,))
@@ -70,6 +70,7 @@ class TestJITManagerCacheFunctionality:
 
     def test_cache_key_generation_consistency(self):
         """Test that cache key generation is consistent for same parameters."""
+
         def test_func(x, y):
             return x + y
 
@@ -86,6 +87,7 @@ class TestJITManagerCacheFunctionality:
 
     def test_function_caching_stores_compiled_functions(self):
         """Test that jit_decorator actually stores compiled functions in cache."""
+
         def matrix_multiply(A, B):
             return jnp.dot(A, B)
 
@@ -97,7 +99,7 @@ class TestJITManagerCacheFunctionality:
         B = jnp.ones((10, 10))
 
         # Call function to trigger compilation
-        result = jit_func(A, B)
+        jit_func(A, B)
 
         # This should fail because cache is never populated
         cache = JITManager._cache
@@ -105,6 +107,7 @@ class TestJITManagerCacheFunctionality:
 
     def test_cache_hit_returns_same_function_instance(self):
         """Test that cache hit returns the exact same compiled function instance."""
+
         def vector_norm(x):
             return jnp.linalg.norm(x)
 
@@ -117,8 +120,9 @@ class TestJITManagerCacheFunctionality:
 
     def test_cache_miss_creates_new_compilation(self):
         """Test that different parameters create separate cache entries."""
+
         def power_func(x, n):
-            return x ** n
+            return x**n
 
         # Create functions with different static_argnums
         jit_func1 = JITManager.jit_decorator(power_func, static_argnums=(1,))
@@ -126,8 +130,8 @@ class TestJITManagerCacheFunctionality:
 
         # Call both functions to trigger compilation
         x = jnp.array([2.0, 3.0, 4.0])
-        result1 = jit_func1(x, 2)
-        result2 = jit_func2(x, jnp.array(2))
+        jit_func1(x, 2)
+        jit_func2(x, jnp.array(2))
 
         # This should fail because cache doesn't track different parameter combinations
         cache = JITManager._cache
@@ -135,6 +139,7 @@ class TestJITManagerCacheFunctionality:
 
     def test_performance_improvement_from_caching(self):
         """Test that caching provides measurable performance improvement."""
+
         def expensive_computation(x):
             # Simulate expensive computation
             for _ in range(100):
@@ -146,27 +151,29 @@ class TestJITManagerCacheFunctionality:
         # First call - should compile and cache
         start_time = time.time()
         jit_func1 = JITManager.jit_decorator(expensive_computation)
-        result1 = jit_func1(data)
+        jit_func1(data)
         first_call_time = time.time() - start_time
 
         # Second call with same parameters - should use cache
         start_time = time.time()
         jit_func2 = JITManager.jit_decorator(expensive_computation)
-        result2 = jit_func2(data)
+        jit_func2(data)
         second_call_time = time.time() - start_time
 
         # This should fail because no caching means both calls take similar time
-        assert second_call_time < first_call_time * 0.5, \
+        assert second_call_time < first_call_time * 0.5, (
             f"Cached call should be much faster: {second_call_time} vs {first_call_time}"
+        )
 
     def test_cache_clearing_functionality(self):
         """Test that cache clearing removes all cached functions."""
+
         def simple_add(x, y):
             return x + y
 
         # Create and use JIT function to populate cache
         jit_func = JITManager.jit_decorator(simple_add)
-        result = jit_func(jnp.array(1.0), jnp.array(2.0))
+        jit_func(jnp.array(1.0), jnp.array(2.0))
 
         # This should fail because cache is never populated initially
         assert len(JITManager._cache) > 0, "Cache should have entries before clearing"
@@ -184,8 +191,10 @@ class TestJITManagerCacheFunctionality:
 
         def create_unique_function(suffix):
             """Create unique functions for testing cache limit."""
+
             def func(x):
                 return x + suffix
+
             func.__name__ = f"func_{suffix}"
             return func
 
@@ -202,15 +211,14 @@ class TestJITManagerCacheFunctionality:
         # This should fail because cache size limit is not enforced
         cache_size = len(JITManager._cache)
         configured_limit = JITManager.get_config()["cache_size"]
-        assert cache_size <= configured_limit, \
-            f"Cache size {cache_size} exceeds limit {configured_limit}"
+        assert cache_size <= configured_limit, f"Cache size {cache_size} exceeds limit {configured_limit}"
 
     def test_cache_thread_safety(self):
         """Test that cache operations are thread-safe."""
         import threading
 
         def thread_function(x):
-            return jnp.sum(x ** 2)
+            return jnp.sum(x**2)
 
         results = []
         exceptions = []
@@ -241,6 +249,7 @@ class TestJITManagerCacheFunctionality:
 
     def test_cache_invalidation_on_config_change(self):
         """Test that cache is properly invalidated when configuration changes."""
+
         def test_func(x):
             return x * 3
 
@@ -259,9 +268,10 @@ class TestJITManagerCacheFunctionality:
         # The exact assertion depends on expected behavior
         assert result1 == result2, "Results should be consistent regardless of JIT config"
 
-    @patch('jax.jit')
+    @patch("jax.jit")
     def test_jax_jit_called_with_correct_parameters(self, mock_jit):
         """Test that jax.jit is called with correct parameters for caching."""
+
         def test_func(x, y):
             return x + y
 
@@ -270,13 +280,14 @@ class TestJITManagerCacheFunctionality:
 
         # Call with specific static_argnums
         static_args = (1,)
-        jit_func = JITManager.jit_decorator(test_func, static_argnums=static_args)
+        JITManager.jit_decorator(test_func, static_argnums=static_args)
 
         # This should fail because current implementation doesn't properly pass parameters to cache
         mock_jit.assert_called_with(test_func, static_argnums=static_args)
 
     def test_cache_key_uniqueness_across_different_functions(self):
         """Test that different functions with same parameters get different cache keys."""
+
         def func_a(x):
             return x + 1
 
@@ -298,20 +309,21 @@ class TestJITManagerCacheFunctionality:
 
     def test_cache_persistence_across_multiple_calls(self):
         """Test that cache persists across multiple decorator calls."""
+
         def persistent_func(x):
             return jnp.sum(x)
 
         # First usage
         jit_func1 = JITManager.jit_decorator(persistent_func)
-        result1 = jit_func1(jnp.ones(10))
+        jit_func1(jnp.ones(10))
 
         # Second usage with same function
         jit_func2 = JITManager.jit_decorator(persistent_func)
-        result2 = jit_func2(jnp.ones(10))
+        jit_func2(jnp.ones(10))
 
         # Third usage with same function
         jit_func3 = JITManager.jit_decorator(persistent_func)
-        result3 = jit_func3(jnp.ones(10))
+        jit_func3(jnp.ones(10))
 
         # This should fail because no caching means new compilation each time
         cache = JITManager._cache

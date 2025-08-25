@@ -277,14 +277,14 @@ class TestSPDJITOptimization(SPDCompatibilityMixin):
             assert not jnp.any(severe_violations), f"Batch result {i} has severe SPD violations: {eigenvals}"
 
     def test_condition_number_controlled_operations(self):
-        """条件数制御による安定性テスト (Requirement 6.4)."""
+        """Stability test through condition number control (Requirement 6.4)."""
         key1, key2 = jr.split(self.key)
 
-        # 異なる条件数の行列でテスト（数値安定性を考慮）
+        # Test with matrices of different condition numbers (considering numerical stability)
         condition_numbers = [1e2, 1e3, 1e4]
 
         for cond_num in condition_numbers:
-            # 指定された条件数の行列を作成
+            # Create matrix with specified condition number
             A = jr.normal(key1, (3, 3))
             U, _, Vt = jnp.linalg.svd(A)
             s = jnp.array([cond_num, 10.0, 1.0])
@@ -293,15 +293,15 @@ class TestSPDJITOptimization(SPDCompatibilityMixin):
 
             v = self.manifold_spd3.random_tangent(key2, x)
 
-            # 指数写像と対数写像の動作確認
+            # Verify operation of exponential and logarithmic maps
             y = self.manifold_spd3._exp_impl(x, v)
             log_result = self.manifold_spd3._log_impl(x, y)
 
-            # 結果が数値的に安定であることを確認
+            # Verify results are numerically stable
             assert not jnp.any(jnp.isnan(y)), f"NaN in exp result for condition number {cond_num}"
             assert not jnp.any(jnp.isnan(log_result)), f"NaN in log result for condition number {cond_num}"
 
-            # SPD性の保持（数値的許容度を考慮）
+            # SPD preservation (considering numerical tolerance)
             # For high condition number matrices, allow small numerical violations due to precision limits
             eigenvals_y = jnp.real(jnp.linalg.eigvals(y))
             max_eigenval_y = jnp.max(jnp.abs(eigenvals_y))
@@ -314,131 +314,133 @@ class TestSPDJITOptimization(SPDCompatibilityMixin):
                 severe_negative_threshold = -1e-6
 
             severe_violations = eigenvals_y < severe_negative_threshold
-            assert not jnp.any(severe_violations), f"Severe SPD violation for condition number {cond_num}: {eigenvals_y}"
+            assert not jnp.any(severe_violations), (
+                f"Severe SPD violation for condition number {cond_num}: {eigenvals_y}"
+            )
 
     def test_affine_invariant_metric_properties(self):
-        """Affine-invariant計量の性質テスト."""
+        """Test properties of affine-invariant metric."""
         key1, key2, key3 = jr.split(self.key, 3)
         x = self.manifold_spd3.random_point(key1)
         y = self.manifold_spd3.random_point(key2)
 
-        # GL変換行列
+        # GL transformation matrix
         A = jr.normal(key3, (3, 3))
-        while jnp.abs(jnp.linalg.det(A)) < 1e-6:  # 正則性を確保
+        while jnp.abs(jnp.linalg.det(A)) < 1e-6:  # Ensure regularity
             key3, subkey = jr.split(key3)
             A = jr.normal(subkey, (3, 3))
 
-        # 変換後の点
+        # Transformed points
         x_transformed = A @ x @ A.T
         y_transformed = A @ y @ A.T
 
-        # Affine-invariant性の確認（距離が保存される）
+        # Verify affine-invariance (distance preservation)
         dist_original = self.manifold_spd3._dist_impl(x, y)
 
         manifold_transformed = SymmetricPositiveDefinite(3)
         dist_transformed = manifold_transformed._dist_impl(x_transformed, y_transformed)
 
-        # 数値的にほぼ等しいことを確認
+        # Verify numerical near-equality
         np.testing.assert_allclose(dist_original, dist_transformed, rtol=1e-4, atol=1e-6)
 
     def test_jit_compilation_caching(self):
-        """JITコンパイルとキャッシングのテスト (Requirement 8.2)."""
+        """JIT compilation and caching test (Requirement 8.2)."""
         key1, key2 = jr.split(self.key)
         x = self.manifold_spd3.random_point(key1)
         v = self.manifold_spd3.random_tangent(key2, x)
 
-        # 最初の呼び出し（コンパイル発生）
+        # First call (compilation occurs)
         result1 = self.manifold_spd3._exp_impl(x, v)
 
-        # 2回目の呼び出し（キャッシュ利用）
+        # Second call (uses cache)
         result2 = self.manifold_spd3._exp_impl(x, v)
 
-        # 結果の一致確認
+        # Verify result consistency
         np.testing.assert_allclose(result1, result2, rtol=1e-12, atol=1e-12)
 
     def test_error_handling_invalid_inputs(self):
-        """不正入力でのエラーハンドリング (Requirement 8.2)."""
+        """Error handling for invalid inputs (Requirement 8.2)."""
         key = jr.PRNGKey(42)
         x = self.manifold_spd3.random_point(key)
 
-        # 間違った形状の入力
+        # Input with wrong shape
         v_wrong_shape = jnp.ones((2, 2))  # Should be (3, 3)
 
-        # エラーが適切にハンドリングされることを確認
+        # Verify errors are properly handled
         try:
             self.manifold_spd3._proj_impl(x, v_wrong_shape)
-            # 形状が合わない場合はJAXがエラーを出すか、計算が失敗する
+            # If shapes don't match, JAX will throw an error or computation will fail
         except (ValueError, TypeError):
-            pass  # 期待される動作
+            pass  # Expected behavior
 
     def test_integration_with_existing_methods(self):
-        """既存メソッドとの統合テスト (Requirement 8.2)."""
+        """Integration test with existing methods (Requirement 8.2)."""
         key1, key2 = jr.split(self.key)
         x = self.manifold_spd3.random_point(key1)
         v = self.manifold_spd3.random_tangent(key2, x)
 
-        # JIT対応後も既存のAPIが機能することを確認
+        # Verify existing API still functions after JIT support
         y = self.manifold_spd3.exp(x, v)
         self.manifold_spd3.log(x, y)
 
-        # SPD制約の検証
+        # SPD constraint verification
         assert self.manifold_spd3._is_in_manifold(x)
         assert self.manifold_spd3._is_in_manifold(y)
 
-        # 一貫性の基本チェック
+        # Basic consistency checks
         distance = self.manifold_spd3.dist(x, y)
         assert distance >= 0
 
         inner_prod = self.manifold_spd3.inner(x, v, v)
-        assert inner_prod >= -1e-10  # 数値誤差を考慮した非負性
+        assert inner_prod >= -1e-10  # Non-negativity considering numerical error
 
     def test_mathematical_correctness_exp_log_consistency(self):
-        """数学的正確性: exp-log一貫性テスト (Requirement 6.4)."""
+        """Mathematical correctness: exp-log consistency test (Requirement 6.4)."""
         key1, key2 = jr.split(self.key)
         x = self.manifold_spd3.random_point(key1)
 
-        # 小さな接ベクトル（局所的な exp-log 逆性が成り立つ範囲）
+        # Small tangent vector (range where local exp-log invertibility holds)
         v_small = 0.01 * self.manifold_spd3.random_tangent(key2, x)
 
-        # exp -> log -> exp サイクル
+        # exp -> log -> exp cycle
         y = self.manifold_spd3._exp_impl(x, v_small)
         v_recovered = self.manifold_spd3._log_impl(x, y)
         y_recovered = self.manifold_spd3._exp_impl(x, v_recovered)
 
-        # 小さなベクトルに対する一貫性（数値誤差を考慮）
+        # Consistency for small vectors (considering numerical error)
         v_error = jnp.linalg.norm(v_recovered - v_small)
         y_error = jnp.linalg.norm(y_recovered - y)
 
         v_norm = jnp.linalg.norm(v_small)
 
-        # 相対誤差が許容範囲内であることを確認
+        # Verify relative error is within tolerance
         assert v_error <= 0.1 * v_norm, f"exp-log inconsistency in tangent space: {v_error / v_norm}"
         assert y_error <= 1e-3, f"exp-log inconsistency on manifold: {y_error}"
 
-        # 全結果がSPD制約を満たすことを確認
+        # Verify all results satisfy SPD constraints
         assert self.manifold_spd3._is_in_manifold(y, tolerance=1e-8)
         assert self.manifold_spd3._is_in_manifold(y_recovered, tolerance=1e-8)
 
     def test_eigenvalue_based_operations(self):
-        """固有値ベース操作の数値安定性テスト."""
+        """Numerical stability test for eigenvalue-based operations."""
         key1, key2 = jr.split(self.key)
 
-        # 重複固有値を持つ行列でのテスト
-        eigenvals = jnp.array([1.0, 1.0, 2.0])  # 重複固有値
-        Q = jr.orthogonal(key1, 3)  # ランダム直交行列
+        # Test with matrix having duplicate eigenvalues
+        eigenvals = jnp.array([1.0, 1.0, 2.0])  # Duplicate eigenvalues
+        Q = jr.orthogonal(key1, 3)  # Random orthogonal matrix
         x = Q @ jnp.diag(eigenvals) @ Q.T
 
         v = self.manifold_spd3.random_tangent(key2, x)
 
-        # 指数写像と対数写像が安定動作することを確認
+        # Verify exponential and logarithmic maps operate stably
         y = self.manifold_spd3._exp_impl(x, v)
         log_result = self.manifold_spd3._log_impl(x, y)
 
-        # 結果の数値安定性確認
+        # Verify numerical stability of results
         assert not jnp.any(jnp.isnan(y))
         assert not jnp.any(jnp.isnan(log_result))
 
-        # SPD性の保持確認
+        # Verify SPD preservation
         eigenvals_y = jnp.linalg.eigvals(y)
         assert jnp.all(eigenvals_y > 1e-12), "SPD constraint violated with duplicate eigenvalues"
 

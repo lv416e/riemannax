@@ -52,8 +52,10 @@ class TestCrossManifoldIntegration:
 
     def create_quadratic_cost(self, manifold, target_point):
         """Create a quadratic cost function for testing convergence."""
+
         def cost_fn(x):
             return 0.5 * manifold.dist(x, target_point) ** 2
+
         return cost_fn
 
     def test_all_manifolds_work_with_all_optimizers(self):
@@ -73,7 +75,7 @@ class TestCrossManifoldIntegration:
             # Create optimization problem with smaller scale for numerical stability
             def robust_cost_fn(x):
                 dist_val = manifold.dist(x, target_point)
-                return 0.1 * dist_val ** 2  # Smaller scale for better numerical stability
+                return 0.1 * dist_val**2  # Smaller scale for better numerical stability
 
             problem = RiemannianProblem(manifold, robust_cost_fn)
 
@@ -85,7 +87,7 @@ class TestCrossManifoldIntegration:
 
                     # Initialize optimizer state
                     state = init_fn(initial_point)
-                    assert hasattr(state, 'x'), f"Optimizer {optimizer_name} state missing 'x' attribute"
+                    assert hasattr(state, "x"), f"Optimizer {optimizer_name} state missing 'x' attribute"
 
                     # Check if initial state is reasonable
                     if not jnp.allclose(state.x, initial_point, atol=1e-6):
@@ -102,7 +104,7 @@ class TestCrossManifoldIntegration:
                     new_state = update_fn(grad, state, manifold)
 
                     # Verify state update
-                    assert hasattr(new_state, 'x'), f"Updated state missing 'x' for {optimizer_name}-{manifold_name}"
+                    assert hasattr(new_state, "x"), f"Updated state missing 'x' for {optimizer_name}-{manifold_name}"
 
                     # Check for numerical issues in updated state
                     if not jnp.all(jnp.isfinite(new_state.x)):
@@ -123,20 +125,20 @@ class TestCrossManifoldIntegration:
                     updated_cost = problem.cost(new_state.x)
 
                     convergence_results[manifold_name][optimizer_name] = {
-                        'initial_cost': float(initial_cost),
-                        'updated_cost': float(updated_cost),
-                        'converged': updated_cost < initial_cost or jnp.abs(updated_cost - initial_cost) < 1e-8,
-                        'numerical_issues': False
+                        "initial_cost": float(initial_cost),
+                        "updated_cost": float(updated_cost),
+                        "converged": updated_cost < initial_cost or jnp.abs(updated_cost - initial_cost) < 1e-8,
+                        "numerical_issues": False,
                     }
 
                 except Exception as e:
                     # Log the issue but don't fail the test - some combinations might have issues
                     convergence_results[manifold_name][optimizer_name] = {
-                        'initial_cost': 0.0,
-                        'updated_cost': 0.0,
-                        'converged': False,
-                        'numerical_issues': True,
-                        'error': str(e)
+                        "initial_cost": 0.0,
+                        "updated_cost": 0.0,
+                        "converged": False,
+                        "numerical_issues": True,
+                        "error": str(e),
                     }
 
         # Verify that most combinations work (allow some failures for numerical issues)
@@ -147,15 +149,16 @@ class TestCrossManifoldIntegration:
             for optimizer_name in convergence_results[manifold_name]:
                 total_combinations += 1
                 result = convergence_results[manifold_name][optimizer_name]
-                if not result['numerical_issues'] and result['converged']:
+                if not result["numerical_issues"] and result["converged"]:
                     working_combinations += 1
-                elif result['numerical_issues']:
+                elif result["numerical_issues"]:
                     print(f"Numerical issue for {optimizer_name}-{manifold_name}: {result.get('error', 'Unknown')}")
 
         # Require at least 70% of combinations to work (allows for some numerical issues)
         success_rate = working_combinations / total_combinations
-        assert success_rate >= 0.7, \
+        assert success_rate >= 0.7, (
             f"Too many failed combinations: {working_combinations}/{total_combinations} ({success_rate:.1%})"
+        )
 
     def test_problem_definition_compatibility(self):
         """Test that RiemannianProblem works correctly with all manifolds."""
@@ -181,10 +184,10 @@ class TestCrossManifoldIntegration:
 
             # Test gradient computation (autodiff + projection)
             grad1 = problem1.grad(test_point)
-            assert grad1.shape == test_point.shape, \
+            assert grad1.shape == test_point.shape, (
                 f"Gradient shape mismatch for {manifold_name}: {grad1.shape} vs {test_point.shape}"
-            assert manifold.validate_tangent(test_point, grad1), \
-                f"Gradient not in tangent space for {manifold_name}"
+            )
+            assert manifold.validate_tangent(test_point, grad1), f"Gradient not in tangent space for {manifold_name}"
 
             # 2. Cost + Euclidean gradient function
             def euclidean_grad(x):
@@ -195,10 +198,10 @@ class TestCrossManifoldIntegration:
             cost2 = problem2.cost(test_point)
             grad2 = problem2.grad(test_point)
 
-            assert jnp.allclose(cost1, cost2, atol=1e-10), \
-                f"Cost mismatch for {manifold_name}: {cost1} vs {cost2}"
-            assert manifold.validate_tangent(test_point, grad2), \
+            assert jnp.allclose(cost1, cost2, atol=1e-10), f"Cost mismatch for {manifold_name}: {cost1} vs {cost2}"
+            assert manifold.validate_tangent(test_point, grad2), (
                 f"Euclidean gradient not properly projected for {manifold_name}"
+            )
 
             # 3. Cost + Riemannian gradient function
             def riemannian_grad(x):
@@ -210,22 +213,20 @@ class TestCrossManifoldIntegration:
             cost3 = problem3.cost(test_point)
             grad3 = problem3.grad(test_point)
 
-            assert jnp.allclose(cost2, cost3, atol=1e-10), \
-                f"Cost mismatch for {manifold_name}: {cost2} vs {cost3}"
-            assert jnp.allclose(grad2, grad3, atol=1e-8), \
-                f"Gradient mismatch for {manifold_name}"
+            assert jnp.allclose(cost2, cost3, atol=1e-10), f"Cost mismatch for {manifold_name}: {cost2} vs {cost3}"
+            assert jnp.allclose(grad2, grad3, atol=1e-8), f"Gradient mismatch for {manifold_name}"
 
             problem_results[manifold_name] = {
-                'cost_consistency': True,
-                'gradient_validity': True,
-                'all_approaches_work': True
+                "cost_consistency": True,
+                "gradient_validity": True,
+                "all_approaches_work": True,
             }
 
         # Verify all manifolds support all problem definition approaches
         for manifold_name, results in problem_results.items():
-            assert results['cost_consistency'], f"Cost inconsistency for {manifold_name}"
-            assert results['gradient_validity'], f"Invalid gradients for {manifold_name}"
-            assert results['all_approaches_work'], f"Problem definition issues for {manifold_name}"
+            assert results["cost_consistency"], f"Cost inconsistency for {manifold_name}"
+            assert results["gradient_validity"], f"Invalid gradients for {manifold_name}"
+            assert results["all_approaches_work"], f"Problem definition issues for {manifold_name}"
 
     def test_solver_convergence_integration(self):
         """Test that the minimize solver works with all manifold-optimizer combinations."""
@@ -244,7 +245,7 @@ class TestCrossManifoldIntegration:
             def cost_fn(x):
                 # Use a more robust cost function that's less likely to cause numerical issues
                 diff = x - target_point
-                return 0.01 * jnp.sum(diff ** 2)  # Much smaller scale
+                return 0.01 * jnp.sum(diff**2)  # Much smaller scale
 
             problem = RiemannianProblem(manifold, cost_fn)
             initial_cost = problem.cost(initial_point)
@@ -259,31 +260,31 @@ class TestCrossManifoldIntegration:
                         options = {
                             "max_iterations": 20,  # Shorter for stability
                             "learning_rate": 0.001,  # Very conservative
-                            "tolerance": 1e-4
+                            "tolerance": 1e-4,
                         }
                     else:
                         options = {
                             "max_iterations": 30,
                             "learning_rate": 0.01,  # Conservative learning rate
-                            "tolerance": 1e-4
+                            "tolerance": 1e-4,
                         }
 
                     result = minimize(problem, initial_point, method=method, options=options)
 
                     # Verify result structure
-                    assert hasattr(result, 'x'), f"Result missing 'x' for {method}-{manifold_name}"
-                    assert hasattr(result, 'fun'), f"Result missing 'fun' for {method}-{manifold_name}"
-                    assert hasattr(result, 'niter'), f"Result missing 'niter' for {method}-{manifold_name}"
+                    assert hasattr(result, "x"), f"Result missing 'x' for {method}-{manifold_name}"
+                    assert hasattr(result, "fun"), f"Result missing 'fun' for {method}-{manifold_name}"
+                    assert hasattr(result, "niter"), f"Result missing 'niter' for {method}-{manifold_name}"
 
                     # Check for numerical issues in final result
                     if not jnp.all(jnp.isfinite(result.x)):
                         convergence_results[manifold_name][method] = {
-                            'initial_cost': float(initial_cost),
-                            'final_cost': float('nan'),
-                            'cost_reduction': 0.0,
-                            'converged': False,
-                            'iterations': result.niter,
-                            'numerical_issues': True
+                            "initial_cost": float(initial_cost),
+                            "final_cost": float("nan"),
+                            "cost_reduction": 0.0,
+                            "converged": False,
+                            "iterations": result.niter,
+                            "numerical_issues": True,
                         }
                         continue
 
@@ -293,12 +294,12 @@ class TestCrossManifoldIntegration:
                         if not is_valid:
                             # Mark as numerical issue rather than hard failure
                             convergence_results[manifold_name][method] = {
-                                'initial_cost': float(initial_cost),
-                                'final_cost': float(result.fun),
-                                'cost_reduction': 0.0,
-                                'converged': False,
-                                'iterations': result.niter,
-                                'numerical_issues': True
+                                "initial_cost": float(initial_cost),
+                                "final_cost": float(result.fun),
+                                "cost_reduction": 0.0,
+                                "converged": False,
+                                "iterations": result.niter,
+                                "numerical_issues": True,
                             }
                             continue
                     except NotImplementedError:
@@ -313,24 +314,24 @@ class TestCrossManifoldIntegration:
                         cost_reduction = 0.0
 
                     convergence_results[manifold_name][method] = {
-                        'initial_cost': float(initial_cost),
-                        'final_cost': float(final_cost),
-                        'cost_reduction': float(cost_reduction),
-                        'converged': cost_reduction > -0.1,  # Allow for small increase due to numerical issues
-                        'iterations': result.niter,
-                        'numerical_issues': False
+                        "initial_cost": float(initial_cost),
+                        "final_cost": float(final_cost),
+                        "cost_reduction": float(cost_reduction),
+                        "converged": cost_reduction > -0.1,  # Allow for small increase due to numerical issues
+                        "iterations": result.niter,
+                        "numerical_issues": False,
                     }
 
                 except Exception as e:
                     # Record the failure but don't crash the test
                     convergence_results[manifold_name][method] = {
-                        'initial_cost': float(initial_cost) if jnp.isfinite(initial_cost) else 0.0,
-                        'final_cost': float('nan'),
-                        'cost_reduction': 0.0,
-                        'converged': False,
-                        'iterations': 0,
-                        'numerical_issues': True,
-                        'error': str(e)
+                        "initial_cost": float(initial_cost) if jnp.isfinite(initial_cost) else 0.0,
+                        "final_cost": float("nan"),
+                        "cost_reduction": 0.0,
+                        "converged": False,
+                        "iterations": 0,
+                        "numerical_issues": True,
+                        "error": str(e),
                     }
 
         # Verify convergence for most combinations (allow some failures)
@@ -341,15 +342,18 @@ class TestCrossManifoldIntegration:
             for method in convergence_results[manifold_name]:
                 total_combinations += 1
                 result = convergence_results[manifold_name][method]
-                if result['converged'] and not result.get('numerical_issues', False):
+                if result["converged"] and not result.get("numerical_issues", False):
                     successful_combinations += 1
-                elif result.get('numerical_issues', False):
-                    print(f"Numerical issues for {method}-{manifold_name}: {result.get('error', 'Convergence problem')}")
+                elif result.get("numerical_issues", False):
+                    print(
+                        f"Numerical issues for {method}-{manifold_name}: {result.get('error', 'Convergence problem')}"
+                    )
 
         # Require at least 60% success rate (allowing for numerical challenges)
         success_rate = successful_combinations / total_combinations
-        assert success_rate >= 0.6, \
+        assert success_rate >= 0.6, (
             f"Too many convergence failures: {successful_combinations}/{total_combinations} ({success_rate:.1%})"
+        )
 
     def test_batch_processing_integration(self):
         """Test that batch processing works across all manifolds."""
@@ -368,10 +372,10 @@ class TestCrossManifoldIntegration:
 
             # Test batch cost evaluation
             batch_costs = batch_cost(batch_points)
-            assert batch_costs.shape == (batch_size,), \
+            assert batch_costs.shape == (batch_size,), (
                 f"Batch cost shape mismatch for {manifold_name}: {batch_costs.shape}"
-            assert jnp.all(jnp.isfinite(batch_costs)), \
-                f"Invalid batch costs for {manifold_name}"
+            )
+            assert jnp.all(jnp.isfinite(batch_costs)), f"Invalid batch costs for {manifold_name}"
 
             # Test batch gradient computation
             def single_cost(x):
@@ -380,25 +384,27 @@ class TestCrossManifoldIntegration:
             batch_grads = jax.vmap(jax.grad(single_cost))(batch_points)
             batch_grads_projected = jax.vmap(manifold.proj)(batch_points, batch_grads)
 
-            assert batch_grads_projected.shape == batch_points.shape, \
+            assert batch_grads_projected.shape == batch_points.shape, (
                 f"Batch gradient shape mismatch for {manifold_name}"
+            )
 
             # Verify all gradients are in tangent space
             for i in range(batch_size):
-                assert manifold.validate_tangent(batch_points[i], batch_grads_projected[i]), \
+                assert manifold.validate_tangent(batch_points[i], batch_grads_projected[i]), (
                     f"Batch gradient {i} not in tangent space for {manifold_name}"
+                )
 
             batch_results[manifold_name] = {
-                'batch_cost_valid': True,
-                'batch_gradient_valid': True,
-                'all_tangent_vectors_valid': True
+                "batch_cost_valid": True,
+                "batch_gradient_valid": True,
+                "all_tangent_vectors_valid": True,
             }
 
         # Verify batch processing works for all manifolds
         for manifold_name, results in batch_results.items():
-            assert results['batch_cost_valid'], f"Batch cost issues for {manifold_name}"
-            assert results['batch_gradient_valid'], f"Batch gradient issues for {manifold_name}"
-            assert results['all_tangent_vectors_valid'], f"Tangent vector issues for {manifold_name}"
+            assert results["batch_cost_valid"], f"Batch cost issues for {manifold_name}"
+            assert results["batch_gradient_valid"], f"Batch gradient issues for {manifold_name}"
+            assert results["all_tangent_vectors_valid"], f"Tangent vector issues for {manifold_name}"
 
     def test_numerical_stability_integration(self):
         """Test numerical stability across manifold-optimizer combinations."""
@@ -414,7 +420,7 @@ class TestCrossManifoldIntegration:
             # Create a cost function with potential numerical issues
             def challenging_cost(x):
                 # Add small regularization to avoid exact zeros
-                return jnp.sum(x ** 2) + 1e-12
+                return jnp.sum(x**2) + 1e-12
 
             problem = RiemannianProblem(manifold, challenging_cost)
 
@@ -429,23 +435,26 @@ class TestCrossManifoldIntegration:
                         grad = problem.grad(state.x)
 
                         # Check for NaN/Inf in gradient
-                        assert jnp.all(jnp.isfinite(grad)), \
+                        assert jnp.all(jnp.isfinite(grad)), (
                             f"Non-finite gradient at step {step} for {optimizer_name}-{manifold_name}"
+                        )
 
                         state = update_fn(grad, state, manifold)
 
                         # Check for NaN/Inf in updated point
-                        assert jnp.all(jnp.isfinite(state.x)), \
+                        assert jnp.all(jnp.isfinite(state.x)), (
                             f"Non-finite state at step {step} for {optimizer_name}-{manifold_name}"
+                        )
 
                         # Verify point remains on manifold
-                        assert manifold.validate_point(state.x), \
+                        assert manifold.validate_point(state.x), (
                             f"Point left manifold at step {step} for {optimizer_name}-{manifold_name}"
+                        )
 
                     stability_results[manifold_name][optimizer_name] = {
-                        'numerically_stable': True,
-                        'stayed_on_manifold': True,
-                        'no_nan_inf': True
+                        "numerically_stable": True,
+                        "stayed_on_manifold": True,
+                        "no_nan_inf": True,
                     }
 
                 except Exception as e:
@@ -455,12 +464,9 @@ class TestCrossManifoldIntegration:
         for manifold_name in stability_results:
             for optimizer_name in stability_results[manifold_name]:
                 result = stability_results[manifold_name][optimizer_name]
-                assert result['numerically_stable'], \
-                    f"Numerical instability for {optimizer_name}-{manifold_name}"
-                assert result['stayed_on_manifold'], \
-                    f"Left manifold for {optimizer_name}-{manifold_name}"
-                assert result['no_nan_inf'], \
-                    f"NaN/Inf values for {optimizer_name}-{manifold_name}"
+                assert result["numerically_stable"], f"Numerical instability for {optimizer_name}-{manifold_name}"
+                assert result["stayed_on_manifold"], f"Left manifold for {optimizer_name}-{manifold_name}"
+                assert result["no_nan_inf"], f"NaN/Inf values for {optimizer_name}-{manifold_name}"
 
     def test_performance_consistency_integration(self):
         """Test that performance is consistent across manifold-optimizer combinations."""
@@ -479,7 +485,7 @@ class TestCrossManifoldIntegration:
 
             problem = RiemannianProblem(manifold, cost_fn)
 
-            for optimizer_name in self.optimizers.keys():
+            for optimizer_name in self.optimizers:
                 # Skip problematic combinations that have numerical instability
                 if optimizer_name == "radam" and manifold_name in ["grassmann", "stiefel", "so"]:
                     continue  # Skip this combination due to numerical instability with complex manifolds
@@ -490,7 +496,7 @@ class TestCrossManifoldIntegration:
                 # Adam-based optimizers typically need much smaller learning rates
                 if optimizer_name == "radam":
                     learning_rate = 0.001  # Much smaller for Adam to avoid instability
-                    max_iterations = 20    # More iterations to ensure progress
+                    max_iterations = 20  # More iterations to ensure progress
                 else:
                     learning_rate = 0.1
                     max_iterations = 5
@@ -507,8 +513,9 @@ class TestCrossManifoldIntegration:
                 execution_time = end_time - start_time
 
                 # Verify reasonable performance (should complete quickly after JIT)
-                assert execution_time < 5.0, \
+                assert execution_time < 5.0, (
                     f"Slow execution for {optimizer_name}-{manifold_name}: {execution_time:.3f}s"
+                )
 
                 # Verify optimization made progress
                 initial_cost = problem.cost(initial_point)
@@ -520,20 +527,20 @@ class TestCrossManifoldIntegration:
                 made_reasonable_progress = (cost_reduction > 0) or (final_cost < 0.01)
 
                 performance_results[manifold_name][optimizer_name] = {
-                    'execution_time': execution_time,
-                    'cost_reduction': float(cost_reduction),
-                    'reasonable_time': execution_time < 5.0,
-                    'made_progress': made_reasonable_progress
+                    "execution_time": execution_time,
+                    "cost_reduction": float(cost_reduction),
+                    "reasonable_time": execution_time < 5.0,
+                    "made_progress": made_reasonable_progress,
                 }
 
         # Verify performance consistency
         for manifold_name in performance_results:
             for optimizer_name in performance_results[manifold_name]:
                 result = performance_results[manifold_name][optimizer_name]
-                assert result['reasonable_time'], \
+                assert result["reasonable_time"], (
                     f"Slow performance for {optimizer_name}-{manifold_name}: {result['execution_time']:.3f}s"
-                assert result['made_progress'], \
-                    f"No optimization progress for {optimizer_name}-{manifold_name}"
+                )
+                assert result["made_progress"], f"No optimization progress for {optimizer_name}-{manifold_name}"
 
 
 class TestEndToEndWorkflows:
@@ -579,10 +586,7 @@ class TestEndToEndWorkflows:
         results = {}
 
         for method in methods:
-            options = {
-                "max_iterations": 100,
-                "learning_rate": 0.1 if method == "rsgd" else 0.01
-            }
+            options = {"max_iterations": 100, "learning_rate": 0.1 if method == "rsgd" else 0.01}
 
             result = minimize(problem, initial_w, method=method, options=options)
 
@@ -594,19 +598,13 @@ class TestEndToEndWorkflows:
 
             # Check alignment with true principal component
             alignment = jnp.abs(jnp.dot(final_w, true_pc))
-            results[method] = {
-                'final_cost': float(result.fun),
-                'alignment': float(alignment),
-                'solution': final_w
-            }
+            results[method] = {"final_cost": float(result.fun), "alignment": float(alignment), "solution": final_w}
 
         # Verify all methods found reasonable solutions
         # Use very lenient alignment threshold - focus on integration, not optimization quality
         for method, result in results.items():
-            assert result['alignment'] > 0.1, \
-                f"Poor alignment for {method}: {result['alignment']:.3f}"
-            assert result['final_cost'] < 0.0, \
-                f"Poor final cost for {method}: {result['final_cost']:.3f}"
+            assert result["alignment"] > 0.1, f"Poor alignment for {method}: {result['alignment']:.3f}"
+            assert result["final_cost"] < 0.0, f"Poor final cost for {method}: {result['final_cost']:.3f}"
 
     def test_multi_manifold_optimization_pipeline(self):
         """Test an optimization pipeline involving multiple manifold types."""
@@ -628,14 +626,13 @@ class TestEndToEndWorkflows:
             projected_data = data @ U
             # Use more stable variance calculation
             centered_data = projected_data - jnp.mean(projected_data, axis=0, keepdims=True)
-            variance = jnp.sum(centered_data ** 2) / (projected_data.shape[0] - 1)
+            variance = jnp.sum(centered_data**2) / (projected_data.shape[0] - 1)
             return -variance  # Maximize variance by minimizing negative
 
         problem1 = RiemannianProblem(grassmann, subspace_objective)
         initial_U = grassmann.random_point(key2)
 
-        result1 = minimize(problem1, initial_U, method="rsgd",
-                          options={"max_iterations": 50, "learning_rate": 0.05})
+        result1 = minimize(problem1, initial_U, method="rsgd", options={"max_iterations": 50, "learning_rate": 0.05})
 
         optimal_subspace = result1.x
 
@@ -658,8 +655,7 @@ class TestEndToEndWorkflows:
         problem2 = RiemannianProblem(so3, rotation_objective)
         initial_R = so3.random_point(key2)
 
-        result2 = minimize(problem2, initial_R, method="rsgd",
-                          options={"max_iterations": 100, "learning_rate": 0.05})
+        result2 = minimize(problem2, initial_R, method="rsgd", options={"max_iterations": 100, "learning_rate": 0.05})
 
         optimal_rotation = result2.x
 
@@ -679,13 +675,12 @@ class TestEndToEndWorkflows:
         assert reconstruction_error < 10.0, f"Poor reconstruction: {reconstruction_error:.3f}"
 
         # Verify transformations preserve expected properties
-        original_norms = jnp.linalg.norm(data, axis=1)
+        jnp.linalg.norm(data, axis=1)
         reduced_norms = jnp.linalg.norm(reduced_data, axis=1)
         final_norms = jnp.linalg.norm(final_data, axis=1)
 
         # Norms should be preserved through rotation (but not subspace projection)
-        assert jnp.allclose(reduced_norms, final_norms, atol=1e-6), \
-            "Rotation changed norms"
+        assert jnp.allclose(reduced_norms, final_norms, atol=1e-6), "Rotation changed norms"
 
     def test_optimization_with_constraints_validation(self):
         """Test optimization with explicit constraint validation throughout."""
@@ -731,13 +726,11 @@ class TestEndToEndWorkflows:
             min_eigenval = jnp.min(eigenvals)
 
             # Verify positive definiteness
-            assert min_eigenval > -1e-10, \
-                f"Lost positive definiteness at step {i}: min_eigenval={min_eigenval}"
+            assert min_eigenval > -1e-10, f"Lost positive definiteness at step {i}: min_eigenval={min_eigenval}"
 
             # Verify symmetry (use reasonable tolerance for numerical precision)
             symmetry_error = jnp.max(jnp.abs(state.x - state.x.T))
-            assert symmetry_error < 1e-6, \
-                f"Lost symmetry at step {i}: error={symmetry_error}"
+            assert symmetry_error < 1e-6, f"Lost symmetry at step {i}: error={symmetry_error}"
 
         # Verify final solution
         final_X = state.x
@@ -747,9 +740,9 @@ class TestEndToEndWorkflows:
         final_distance = problem.cost(final_X)
         initial_distance = problem.cost(initial_X)
 
-        assert final_distance < initial_distance, \
+        assert final_distance < initial_distance, (
             f"No convergence: initial={initial_distance:.6f}, final={final_distance:.6f}"
+        )
 
         # No constraint violations should occur
-        assert constraint_violations == 0, \
-            f"Constraint violations during optimization: {constraint_violations}"
+        assert constraint_violations == 0, f"Constraint violations during optimization: {constraint_violations}"

@@ -6,11 +6,10 @@ manifold types to achieve optimal JIT compilation performance.
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 import riemannax as rieax
-from riemannax.core.performance_benchmark import PerformanceBenchmark
 from riemannax.core.jit_manager import JITManager
+from riemannax.core.performance_benchmark import PerformanceBenchmark
 
 
 class TestStaticArgsOptimization:
@@ -24,7 +23,7 @@ class TestStaticArgsOptimization:
     def test_sphere_static_args_optimization(self):
         """Test optimization of Sphere manifold static arguments."""
         sphere = rieax.Sphere()
-        key = jax.random.key(42)
+        jax.random.key(42)
 
         # Test current configuration (no static args)
         current_static_args = sphere._get_static_args("exp")
@@ -45,10 +44,7 @@ class TestStaticArgsOptimization:
         results = []
         for config in configs:
             result = benchmark.compare_jit_performance(
-                func=sphere.exp,
-                args=(point, tangent),
-                static_argnums=config["static_argnums"],
-                num_runs=3
+                func=sphere.exp, args=(point, tangent), static_argnums=config["static_argnums"], num_runs=3
             )
             result["config_name"] = config["name"]
             results.append(result)
@@ -72,8 +68,9 @@ class TestStaticArgsOptimization:
 
         for manifold, expected_args in manifolds_and_expected:
             static_args = manifold._get_static_args("exp")
-            assert static_args == expected_args, \
+            assert static_args == expected_args, (
                 f"{type(manifold).__name__} static args mismatch: got {static_args}, expected {expected_args}"
+            )
 
             # Verify that returned static args are argument position indices (integers)
             assert isinstance(static_args, tuple), f"Static args should be tuple, got {type(static_args)}"
@@ -99,10 +96,7 @@ class TestStaticArgsOptimization:
         ]
 
         results = benchmark.compare_static_argnums_performance(
-            func=spd.exp,
-            args=(point, tangent),
-            configurations=configs,
-            num_runs=3
+            func=spd.exp, args=(point, tangent), configurations=configs, num_runs=3
         )
 
         assert len(results) == 3
@@ -127,10 +121,10 @@ class TestStaticArgsOptimization:
             # For manifolds, dimension parameters are typically good static args
             suggested_static_args = []
 
-            if hasattr(manifold, 'n'):
-                suggested_static_args.append('n')
-            if hasattr(manifold, 'p'):
-                suggested_static_args.append('p')
+            if hasattr(manifold, "n"):
+                suggested_static_args.append("n")
+            if hasattr(manifold, "p"):
+                suggested_static_args.append("p")
 
             return suggested_static_args
 
@@ -147,8 +141,7 @@ class TestStaticArgsOptimization:
 
             # Should detect the expected dimension parameters
             for param in expected_params:
-                assert param in detected_params, \
-                    f"Failed to detect {param} parameter for {type(manifold).__name__}"
+                assert param in detected_params, f"Failed to detect {param} parameter for {type(manifold).__name__}"
 
     def test_batch_operation_static_args_optimization(self):
         """Test static argument optimization for batch operations."""
@@ -171,7 +164,7 @@ class TestStaticArgsOptimization:
             single_args=(single_point, single_tangent),
             batch_func=sphere.exp,  # Same function, different input shapes
             batch_args=(points, tangents),
-            batch_size=batch_size
+            batch_size=batch_size,
         )
 
         # Batch operations should complete successfully
@@ -191,10 +184,7 @@ class TestStaticArgsOptimization:
 
         # Test caching efficiency with static arguments
         results = benchmark.analyze_compilation_caching(
-            func=stiefel.exp,
-            args=(point, tangent),
-            num_cache_tests=6,
-            cache_clear_interval=2
+            func=stiefel.exp, args=(point, tangent), num_cache_tests=6, cache_clear_interval=2
         )
 
         # Static arguments should improve caching efficiency
@@ -214,9 +204,7 @@ class TestStaticArgsOptimization:
 
         # Test memory usage with static arguments
         results = benchmark.measure_memory_usage(
-            func=grassmann.exp,
-            args=(point, tangent),
-            track_compilation_memory=True
+            func=grassmann.exp, args=(point, tangent), track_compilation_memory=True
         )
 
         # Should have reasonable memory efficiency
@@ -237,7 +225,7 @@ class TestStaticArgsOptimization:
         results = {}
         key = jax.random.key(222)
 
-        for name, manifold, point_key, tangent_key in manifold_configs:
+        for name, manifold, _point_key, _tangent_key in manifold_configs:
             try:
                 # Generate test data
                 point = manifold.random_point(key)
@@ -248,13 +236,13 @@ class TestStaticArgsOptimization:
                     func=manifold.exp,
                     args=(point, tangent),
                     static_argnums=manifold._get_static_args("exp"),
-                    num_runs=2
+                    num_runs=2,
                 )
 
                 results[name] = {
                     "jit_speedup": perf_result["jit_speedup"],
                     "compilation_time": perf_result["compilation_time"],
-                    "static_args": manifold._get_static_args("exp")
+                    "static_args": manifold._get_static_args("exp"),
                 }
 
             except Exception as e:
@@ -280,14 +268,14 @@ class TestStaticArgsOptimization:
             recommendations = {
                 "current_config": current_config,
                 "is_optimized": len(current_config) > 0,
-                "recommendations": []
+                "recommendations": [],
             }
 
             # Check for dimension parameters that could be static
-            if hasattr(manifold, 'n') and manifold.n not in current_config:
+            if hasattr(manifold, "n") and manifold.n not in current_config:
                 recommendations["recommendations"].append(f"Consider adding dimension n={manifold.n} as static arg")
 
-            if hasattr(manifold, 'p') and hasattr(manifold, 'n') and manifold.p not in current_config:
+            if hasattr(manifold, "p") and hasattr(manifold, "n") and manifold.p not in current_config:
                 recommendations["recommendations"].append(f"Consider adding dimension p={manifold.p} as static arg")
 
             return recommendations

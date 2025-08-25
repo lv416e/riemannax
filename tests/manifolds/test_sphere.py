@@ -21,25 +21,30 @@ def sphere():
     """Create a sphere manifold instance for testing."""
     return rieax.Sphere()
 
+
 @pytest.fixture(params=[2, 3, 5, 10])
 def dynamic_sphere(request):
     """Create sphere manifolds with different dimensions for testing."""
     return rieax.Sphere(n=request.param)
+
 
 @pytest.fixture
 def sphere_dim_2():
     """Create a 2D sphere (S^2) for testing."""
     return rieax.Sphere(n=2)
 
+
 @pytest.fixture
 def sphere_dim_3():
     """Create a 3D sphere (S^3) for testing."""
     return rieax.Sphere(n=3)
 
+
 @pytest.fixture
 def sphere_dim_5():
     """Create a 5D sphere (S^5) for testing."""
     return rieax.Sphere(n=5)
+
 
 @pytest.fixture
 def sphere_dim_10():

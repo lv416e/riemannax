@@ -15,7 +15,6 @@ failures due to known precision issues in certain manifold operations.
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 import pytest
 
 import riemannax as rieax
@@ -25,14 +24,16 @@ FLOAT32_RTOL = 1e-6
 FLOAT32_ATOL = 1e-7
 STRICT_ATOL = 1e-6
 
+
 def safe_validate_point(manifold, point):
     """Safely validate a point, handling missing implementations."""
-    if hasattr(manifold, 'validate_point'):
+    if hasattr(manifold, "validate_point"):
         try:
             return manifold.validate_point(point)
         except NotImplementedError:
             return True  # Assume valid if validation not implemented
     return True
+
 
 def has_required_methods(manifold, methods):
     """Check if manifold has all required methods."""
@@ -80,9 +81,7 @@ class TestComprehensiveNumericalStability:
         """Test SPD manifold with near-singular matrices."""
         # Create moderately ill-conditioned matrix (condition number ~ 1e6 for float32)
         eigenvals = jnp.array([1e-3, 1e-2, 1.0])
-        Q = jnp.array([[1.0, 0.0, 0.0],
-                       [0.0, 1.0, 0.0],
-                       [0.0, 0.0, 1.0]])
+        Q = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
         ill_conditioned = Q @ jnp.diag(eigenvals) @ Q.T
         assert safe_validate_point(self.spd, ill_conditioned)
@@ -220,7 +219,7 @@ class TestComprehensiveNumericalStability:
 
         for manifold in manifolds:
             # Skip if manifold doesn't support these operations
-            if not all(hasattr(manifold, method) for method in ['random_point', 'random_tangent', 'exp', 'norm']):
+            if not all(hasattr(manifold, method) for method in ["random_point", "random_tangent", "exp", "norm"]):
                 continue
 
             X = manifold.random_point(self.keys[0])
@@ -232,7 +231,7 @@ class TestComprehensiveNumericalStability:
             try:
                 Y_tiny = manifold.exp(X, V_tiny)
                 # Should be very close to original point
-                if hasattr(manifold, 'dist'):
+                if hasattr(manifold, "dist"):
                     dist_tiny = manifold.dist(X, Y_tiny)
                     assert dist_tiny < STRICT_ATOL
             except Exception as e:
@@ -288,7 +287,7 @@ class TestComprehensiveNumericalStability:
         test_cases = [
             (self.sphere, lambda x: jnp.linalg.norm(x) - 1.0, "Unit norm"),
             (self.so3, lambda R: jnp.linalg.det(R) - 1.0, "Determinant = 1"),
-            (self.stiefel, lambda X: jnp.max(jnp.abs(X.T @ X - jnp.eye(X.shape[1]))), "Orthonormality")
+            (self.stiefel, lambda X: jnp.max(jnp.abs(X.T @ X - jnp.eye(X.shape[1]))), "Orthonormality"),
         ]
 
         for manifold, invariant_func, invariant_name in test_cases:

@@ -1,6 +1,5 @@
 """Test module for configuration constants."""
 
-import pytest
 from riemannax.core.constants import NumericalConstants, PerformanceThresholds
 
 
@@ -130,9 +129,7 @@ class TestConstantsEdgeCases:
     def test_constants_mathematical_relationships(self):
         """Test mathematical relationships between constants."""
         # Test ordering of precision constants
-        assert (NumericalConstants.HIGH_PRECISION_EPSILON <
-                NumericalConstants.EPSILON <
-                NumericalConstants.RTOL)
+        assert NumericalConstants.HIGH_PRECISION_EPSILON < NumericalConstants.EPSILON < NumericalConstants.RTOL
 
         # Test absolute and relative tolerances relationship
         assert NumericalConstants.ATOL <= NumericalConstants.RTOL
@@ -165,8 +162,8 @@ class TestConstantsEdgeCases:
         import riemannax.core.constants as constants_module
 
         # Check that main classes are available at module level
-        assert hasattr(constants_module, 'NumericalConstants')
-        assert hasattr(constants_module, 'PerformanceThresholds')
+        assert hasattr(constants_module, "NumericalConstants")
+        assert hasattr(constants_module, "PerformanceThresholds")
 
         # Check that classes are actually classes
         assert isinstance(constants_module.NumericalConstants, type)

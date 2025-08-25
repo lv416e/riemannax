@@ -15,11 +15,11 @@ References:
 - Pennec, X. (2006). Intrinsic Statistics on Riemannian Manifolds
 - Arsigny, V. et al. (2007). Geometric Means in a Novel Vector Space Structure
 """
-import pytest
-import jax
+
 import jax.numpy as jnp
 import numpy as np
-from hypothesis import given, strategies as st, settings
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from riemannax.core.geodesic_connection import GeodesicConnection
 
@@ -74,7 +74,7 @@ class TestMathematicalProperties:
         tangents = [self.tangent_small, self.tangent_large]
 
         for X in matrices:
-            for V in tangents[:len(matrices)]:  # Match dimensions
+            for V in tangents[: len(matrices)]:  # Match dimensions
                 if X.shape[0] == V.shape[0]:  # Ensure compatible dimensions
                     transported = self.connection.parallel_transport(X, X, V)
 
@@ -188,7 +188,7 @@ class TestMathematicalProperties:
         transported = self.connection.parallel_transport(X, Y, V)
 
         # The transported vector should maintain the diagonal structure
-        off_diagonal_error = abs(transported[0,1]) + abs(transported[1,0])
+        off_diagonal_error = abs(transported[0, 1]) + abs(transported[1, 0])
         assert off_diagonal_error < 1e-12, "Diagonal structure not preserved"
 
         # Check that diagonal elements follow the expected scaling relationship
@@ -296,7 +296,7 @@ class TestAnalyticalVerification:
         np.testing.assert_allclose(transported, transported.T, rtol=1e-6, atol=1e-8)
 
         # Should preserve the trace relationship (specific to this case)
-        original_trace = jnp.trace(V)
+        jnp.trace(V)
         transported_trace = jnp.trace(transported)
 
         # For affine-invariant metric, trace should scale in a predictable way
@@ -324,8 +324,7 @@ class TestAnalyticalVerification:
         """Test invariance under orthogonal transformations."""
         # Create orthogonal matrix
         theta = jnp.pi / 6  # 30 degrees
-        Q = jnp.array([[jnp.cos(theta), -jnp.sin(theta)],
-                       [jnp.sin(theta), jnp.cos(theta)]])
+        Q = jnp.array([[jnp.cos(theta), -jnp.sin(theta)], [jnp.sin(theta), jnp.cos(theta)]])
 
         X = jnp.eye(2)
         Y = 2.0 * jnp.eye(2)

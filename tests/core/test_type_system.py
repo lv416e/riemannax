@@ -2,10 +2,8 @@
 
 import jax.numpy as jnp
 import numpy as np
-import pytest
-from jax import Array
 
-from riemannax.core.type_system import ManifoldPoint, TangentVector, RiemannianMetric, validate_shape, validate_dtype
+from riemannax.core.type_system import ManifoldPoint, RiemannianMetric, TangentVector, validate_dtype, validate_shape
 
 
 class TestTypeAliases:
@@ -88,7 +86,7 @@ class TestValidateDtype:
 
     def test_validate_dtype_complex_array(self):
         """Test dtype validation for complex array."""
-        array = jnp.array([1+2j, 3+4j])
+        array = jnp.array([1 + 2j, 3 + 4j])
         assert validate_dtype(array, complex)
 
 
@@ -217,7 +215,7 @@ class TestTypeSystemEdgeCases:
 
     def test_type_aliases_consistency(self):
         """Test that type aliases are properly defined and consistent."""
-        from riemannax.core.type_system import ManifoldPoint, TangentVector, RiemannianMetric
+        from riemannax.core.type_system import ManifoldPoint, RiemannianMetric, TangentVector
 
         # Type aliases should be importable and have expected attributes
         # This is mainly a structural test to ensure the aliases exist
@@ -269,7 +267,7 @@ class TestTypeSystemEdgeCases:
         """Test realistic integration scenarios."""
         # Scenario: Sphere manifold validation
         sphere_point = jnp.array([1.0, 0.0, 0.0])  # Unit vector
-        tangent_vec = jnp.array([0.0, 0.1, 0.2])   # Tangent vector
+        tangent_vec = jnp.array([0.0, 0.1, 0.2])  # Tangent vector
 
         # Both should be 3D float vectors
         assert validate_shape(sphere_point, "3")
@@ -299,6 +297,7 @@ class TestTypeSystemEdgeCases:
 
         # Validation should be fast and not materialize the array
         import time
+
         start_time = time.time()
         result = validate_shape(large_array, "1000 1000")
         end_time = time.time()

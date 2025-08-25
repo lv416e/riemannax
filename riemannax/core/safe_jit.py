@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class FailureRecord:
-    """JIT実行失敗の記録."""
+    """Record of JIT execution failure."""
 
     timestamp: datetime
     function_name: str
@@ -29,7 +29,7 @@ class FailureRecord:
 
 @dataclass
 class CompilationStats:
-    """コンパイル統計情報."""
+    """Compilation statistics information."""
 
     total_compilations: int = 0
     total_compilation_time: float = 0.0
@@ -39,9 +39,9 @@ class CompilationStats:
 
 
 class SafeJITWrapper:
-    """安全なJIT実行ラッパーシステム."""
+    """Safe JIT execution wrapper system."""
 
-    # クラス変数で失敗ログを管理
+    # Manage failure logs with class variables
     _global_failure_logs: ClassVar[list[FailureRecord]] = []
 
     def __init__(
@@ -52,14 +52,14 @@ class SafeJITWrapper:
         performance_monitoring: bool = False,
         debug_mode: bool = False,
     ):
-        """SafeJITWrapperの初期化.
+        """Initialize SafeJITWrapper.
 
         Args:
-            fallback_enabled: フォールバック機能の有効化
-            max_retries: 最大リトライ回数
-            track_compilation_time: コンパイル時間追跡
-            performance_monitoring: パフォーマンス監視
-            debug_mode: デバッグモード
+            fallback_enabled: Enable fallback functionality
+            max_retries: Maximum number of retries
+            track_compilation_time: Track compilation time
+            performance_monitoring: Performance monitoring
+            debug_mode: Debug mode
         """
         self.fallback_enabled = fallback_enabled
         self.max_retries = max_retries
@@ -80,34 +80,34 @@ class SafeJITWrapper:
         static_argnums: tuple[int, ...] | None = None,
         **jit_kwargs: Any,
     ) -> Callable[..., Any]:
-        """安全なJITデコレータ.
+        """Safe JIT decorator.
 
         Args:
-            func: JIT対象関数
-            fallback_func: フォールバック関数
-            static_argnums: 静的引数インデックス
-            **jit_kwargs: 追加JIT引数
+            func: Function to be JIT-compiled
+            fallback_func: Fallback function
+            static_argnums: Static argument indices
+            **jit_kwargs: Additional JIT arguments
 
         Returns:
-            安全JIT関数
+            Safe JIT function
         """
         if fallback_func is None:
             fallback_func = func
 
         func_name = getattr(func, "__name__", "anonymous")
 
-        # JIT設定準備
+        # Prepare JIT configuration
         jit_options = {}
         if static_argnums is not None:
             jit_options["static_argnums"] = static_argnums
         jit_options.update(jit_kwargs)
 
-        # コンパイル時間追跡用
+        # For compilation time tracking
         if self.track_compilation_time:
             compile_start_time = time.time()
 
         try:
-            # JIT最適化関数の作成
+            # Create JIT-optimized function
             jit_func = jax.jit(func, static_argnums=static_argnums)
 
             if self.track_compilation_time:
@@ -134,21 +134,21 @@ class SafeJITWrapper:
 
             while retry_count <= self.max_retries:
                 try:
-                    # パフォーマンス監視
+                    # Performance monitoring
                     if self.performance_monitoring:
                         start_time = time.time()
 
-                    # デバッグモード
+                    # Debug mode
                     if self.debug_mode:
                         self.debug_info[func_name] = {
                             "args_shapes": [getattr(arg, "shape", None) for arg in args if hasattr(arg, "shape")],
                             "execution_attempt": retry_count + 1,
                         }
 
-                    # JIT実行
+                    # JIT execution
                     result = jit_func(*args, **kwargs)
 
-                    # パフォーマンス記録
+                    # Performance recording
                     if self.performance_monitoring:
                         execution_time = time.time() - start_time
                         if func_name not in self.performance_data:
@@ -167,11 +167,11 @@ class SafeJITWrapper:
                     if retry_count > self.max_retries:
                         break
 
-                    # リトライ前の短い待機
+                    # Short wait before retry
                     if retry_count < self.max_retries:
                         time.sleep(0.01 * retry_count)
 
-            # 最終的にフォールバック実行
+            # Final fallback execution
             if self.fallback_enabled:
                 logger.warning(f"JIT execution failed for {func_name} after {self.max_retries} retries, using fallback")
                 return fallback_func(*args, **kwargs)
@@ -184,7 +184,7 @@ class SafeJITWrapper:
         return safe_wrapper
 
     def _create_fallback_wrapper(self, fallback_func: Callable[..., Any], func_name: str) -> Callable[..., Any]:
-        """フォールバック関数のラッパー作成."""
+        """Create wrapper for fallback function."""
 
         @wraps(fallback_func)
         def fallback_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -204,7 +204,7 @@ class SafeJITWrapper:
         return fallback_wrapper
 
     def _categorize_error(self, error: Exception) -> str:
-        """エラーの分類."""
+        """Categorize error."""
         type(error).__name__.lower()
         error_message = str(error).lower()
 
@@ -220,7 +220,7 @@ class SafeJITWrapper:
             return "unknown"
 
     def _log_failure(self, func_name: str, error: Exception, category: str, retry_count: int) -> None:
-        """失敗の記録."""
+        """Record failure."""
         failure_record = FailureRecord(
             timestamp=datetime.now(),
             function_name=func_name,
@@ -235,7 +235,7 @@ class SafeJITWrapper:
         SafeJITWrapper._global_failure_logs.append(failure_record)
 
     def _update_compilation_stats(self, compile_time: float, success: bool) -> None:
-        """コンパイル統計の更新."""
+        """Update compilation statistics."""
         self.compilation_stats.total_compilations += 1
         self.compilation_stats.total_compilation_time += compile_time
 
@@ -250,10 +250,10 @@ class SafeJITWrapper:
             )
 
     def get_failure_report(self) -> dict[str, Any]:
-        """失敗レポート生成.
+        """Generate failure report.
 
         Returns:
-            失敗レポート辞書
+            Failure report dictionary
         """
         total_failures = len(self.failure_logs)
         recent_failures = [
@@ -265,10 +265,10 @@ class SafeJITWrapper:
                 "category": record.error_category,
                 "retry_count": record.retry_count,
             }
-            for record in self.failure_logs[-10:]  # 最新10件
+            for record in self.failure_logs[-10:]  # Latest 10 records
         ]
 
-        # エラーカテゴリ別の統計
+        # Statistics by error category
         category_counts: dict[str, int] = {}
         for record in self.failure_logs:
             category = record.error_category
@@ -282,10 +282,10 @@ class SafeJITWrapper:
         }
 
     def get_compilation_statistics(self) -> dict[str, Any]:
-        """コンパイル統計取得.
+        """Get compilation statistics.
 
         Returns:
-            コンパイル統計辞書
+            Compilation statistics dictionary
         """
         return {
             "total_compilations": self.compilation_stats.total_compilations,
@@ -296,10 +296,10 @@ class SafeJITWrapper:
         }
 
     def get_performance_statistics(self) -> dict[str, Any]:
-        """パフォーマンス統計取得.
+        """Get performance statistics.
 
         Returns:
-            パフォーマンス統計辞書
+            Performance statistics dictionary
         """
         return {
             "execution_times": self.performance_data.copy(),
@@ -308,10 +308,10 @@ class SafeJITWrapper:
         }
 
     def get_debug_info(self) -> dict[str, Any]:
-        """デバッグ情報取得.
+        """Get debug information.
 
         Returns:
-            デバッグ情報辞書
+            Debug information dictionary
         """
         return {
             "jit_trace_info": self.debug_info.copy(),
@@ -323,23 +323,23 @@ class SafeJITWrapper:
         }
 
     def is_closed(self) -> bool:
-        """クローズ状態確認.
+        """Check if closed.
 
         Returns:
-            クローズ状態
+            Closed state
         """
         return self._closed
 
     def __enter__(self) -> "SafeJITWrapper":
-        """コンテキストマネージャー開始."""
+        """Context manager entry."""
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Literal[False]:
-        """コンテキストマネージャー終了."""
+        """Context manager exit."""
         self._closed = True
         return False
 
     @classmethod
     def reset_failure_logs(cls) -> None:
-        """グローバル失敗ログの初期化."""
+        """Reset global failure logs."""
         cls._global_failure_logs.clear()

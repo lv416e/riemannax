@@ -6,10 +6,12 @@ This module tests the NumericalStabilityLayer class that provides:
 - SPD property validation
 - Numerical stability for extreme cases
 """
-import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
+
 from riemannax.core.numerical_stability import NumericalStabilityLayer
 
 
@@ -25,20 +27,14 @@ class TestNumericalStabilityLayer:
 
         # Ill-conditioned SPD matrix
         eigenvals = jnp.array([1e-12, 1e-6, 1.0])
-        Q = jnp.array([[1.0, 0.0, 0.0],
-                       [0.0, 1.0, 0.0],
-                       [0.0, 0.0, 1.0]])
+        Q = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
         self.ill_conditioned = Q @ jnp.diag(eigenvals) @ Q.T
 
         # Non-SPD matrix (not symmetric)
-        self.non_spd = jnp.array([[1.0, 2.0, 0.0],
-                                 [0.5, 1.0, 0.0],
-                                 [0.0, 0.0, 1.0]])
+        self.non_spd = jnp.array([[1.0, 2.0, 0.0], [0.5, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
         # Nearly singular matrix (very high condition number)
-        self.singular = jnp.array([[1.0, 1.0, 0.0],
-                                  [1.0, 1.0 + 1e-15, 0.0],
-                                  [0.0, 0.0, 1.0]])
+        self.singular = jnp.array([[1.0, 1.0, 0.0], [1.0, 1.0 + 1e-15, 0.0], [0.0, 0.0, 1.0]])
 
     def test_estimate_condition_number_well_conditioned(self):
         """Test condition number estimation for well-conditioned matrix."""
@@ -67,16 +63,12 @@ class TestNumericalStabilityLayer:
 
     def test_validate_spd_properties_valid_spd(self):
         """Test SPD validation for valid SPD matrix."""
-        is_spd = self.stability.validate_spd_properties(
-            self.well_conditioned, tolerance=1e-8
-        )
+        is_spd = self.stability.validate_spd_properties(self.well_conditioned, tolerance=1e-8)
         assert is_spd is True
 
     def test_validate_spd_properties_non_symmetric(self):
         """Test SPD validation for non-symmetric matrix."""
-        is_spd = self.stability.validate_spd_properties(
-            self.non_spd, tolerance=1e-8
-        )
+        is_spd = self.stability.validate_spd_properties(self.non_spd, tolerance=1e-8)
         assert is_spd is False
 
     def test_validate_spd_properties_negative_eigenvalue(self):
@@ -86,27 +78,19 @@ class TestNumericalStabilityLayer:
         Q = jnp.eye(3)
         negative_matrix = Q @ jnp.diag(eigenvals) @ Q.T
 
-        is_spd = self.stability.validate_spd_properties(
-            negative_matrix, tolerance=1e-8
-        )
+        is_spd = self.stability.validate_spd_properties(negative_matrix, tolerance=1e-8)
         assert is_spd is False
 
     def test_regularize_matrix_no_regularization_needed(self):
         """Test regularization when matrix is well-conditioned."""
-        regularized = self.stability.regularize_matrix(
-            self.well_conditioned, condition_threshold=1e10
-        )
+        regularized = self.stability.regularize_matrix(self.well_conditioned, condition_threshold=1e10)
 
         # Should be nearly identical to original
-        np.testing.assert_allclose(
-            regularized, self.well_conditioned, rtol=1e-10
-        )
+        np.testing.assert_allclose(regularized, self.well_conditioned, rtol=1e-10)
 
     def test_regularize_matrix_ill_conditioned(self):
         """Test regularization for ill-conditioned matrix."""
-        regularized = self.stability.regularize_matrix(
-            self.ill_conditioned, condition_threshold=1e6
-        )
+        regularized = self.stability.regularize_matrix(self.ill_conditioned, condition_threshold=1e6)
 
         # Regularized matrix should have better condition number
         orig_cond = self.stability.estimate_condition_number(self.ill_conditioned)
@@ -120,9 +104,7 @@ class TestNumericalStabilityLayer:
 
     def test_regularize_matrix_singular(self):
         """Test regularization for singular matrix."""
-        regularized = self.stability.regularize_matrix(
-            self.singular, condition_threshold=1e6
-        )
+        regularized = self.stability.regularize_matrix(self.singular, condition_threshold=1e6)
 
         # Regularized matrix should be non-singular
         reg_cond = self.stability.estimate_condition_number(regularized)
@@ -139,8 +121,8 @@ class TestNumericalStabilityLayer:
         cond1 = 1e8
         cond2 = 1e12
 
-        eigenvals1 = jnp.array([1.0/cond1, 1.0, 1.0])
-        eigenvals2 = jnp.array([1.0/cond2, 1.0, 1.0])
+        eigenvals1 = jnp.array([1.0 / cond1, 1.0, 1.0])
+        eigenvals2 = jnp.array([1.0 / cond2, 1.0, 1.0])
 
         Q = jnp.eye(3)
         matrix1 = Q @ jnp.diag(eigenvals1) @ Q.T
@@ -171,11 +153,7 @@ class TestNumericalStabilityLayer:
     def test_vmap_compatibility(self):
         """Test that methods work with vmap for batch processing."""
         # Create batch of matrices
-        batch_matrices = jnp.stack([
-            self.well_conditioned,
-            self.well_conditioned * 0.5,
-            self.well_conditioned * 2.0
-        ])
+        batch_matrices = jnp.stack([self.well_conditioned, self.well_conditioned * 0.5, self.well_conditioned * 2.0])
 
         # Test batch condition number estimation
         batch_cond = jax.vmap(self.stability.estimate_condition_number)(batch_matrices)
@@ -183,9 +161,7 @@ class TestNumericalStabilityLayer:
         assert jnp.all(jnp.isfinite(batch_cond))
 
         # Test batch regularization (Note: may not trigger regularization for well-conditioned matrices)
-        batch_reg = jax.vmap(
-            self.stability.regularize_matrix, in_axes=(0, None)
-        )(batch_matrices, 1e10)
+        batch_reg = jax.vmap(self.stability.regularize_matrix, in_axes=(0, None))(batch_matrices, 1e10)
         assert batch_reg.shape == batch_matrices.shape
 
     def test_edge_cases_nan_inf(self):
@@ -213,14 +189,10 @@ class TestNumericalStabilityLayer:
         matrix = Q @ jnp.diag(eigenvals) @ Q.T
 
         # Test with strict tolerance
-        is_spd_strict = self.stability.validate_spd_properties(
-            matrix, tolerance=1e-8
-        )
+        is_spd_strict = self.stability.validate_spd_properties(matrix, tolerance=1e-8)
 
         # Test with loose tolerance
-        is_spd_loose = self.stability.validate_spd_properties(
-            matrix, tolerance=1e-12
-        )
+        is_spd_loose = self.stability.validate_spd_properties(matrix, tolerance=1e-12)
 
         # Strict tolerance should reject, loose should accept
         assert is_spd_strict is False
@@ -230,25 +202,17 @@ class TestNumericalStabilityLayer:
         """Test symmetry checking with numerical tolerance."""
         # Approximately symmetric matrix
         eps = 1e-14
-        approx_symmetric = jnp.array([[1.0, 0.5, 0.0],
-                                     [0.5 + eps, 1.0, 0.0],
-                                     [0.0, 0.0, 1.0]])
+        approx_symmetric = jnp.array([[1.0, 0.5, 0.0], [0.5 + eps, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
         # Should pass symmetry check with reasonable tolerance
-        is_spd = self.stability.validate_spd_properties(
-            approx_symmetric, tolerance=1e-8
-        )
+        is_spd = self.stability.validate_spd_properties(approx_symmetric, tolerance=1e-8)
         assert is_spd is True
 
         # But fail with very strict tolerance on asymmetry
         large_eps = 1e-6
-        not_symmetric = jnp.array([[1.0, 0.5, 0.0],
-                                  [0.5 + large_eps, 1.0, 0.0],
-                                  [0.0, 0.0, 1.0]])
+        not_symmetric = jnp.array([[1.0, 0.5, 0.0], [0.5 + large_eps, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
-        is_spd = self.stability.validate_spd_properties(
-            not_symmetric, tolerance=1e-8
-        )
+        is_spd = self.stability.validate_spd_properties(not_symmetric, tolerance=1e-8)
         assert is_spd is False
 
     def test_type_annotations(self):
@@ -257,17 +221,17 @@ class TestNumericalStabilityLayer:
 
         # Check estimate_condition_number signature
         sig = inspect.signature(self.stability.estimate_condition_number)
-        assert 'x' in sig.parameters
+        assert "x" in sig.parameters
 
         # Check regularize_matrix signature
         sig = inspect.signature(self.stability.regularize_matrix)
-        assert 'x' in sig.parameters
-        assert 'condition_threshold' in sig.parameters
+        assert "x" in sig.parameters
+        assert "condition_threshold" in sig.parameters
 
         # Check validate_spd_properties signature
         sig = inspect.signature(self.stability.validate_spd_properties)
-        assert 'x' in sig.parameters
-        assert 'tolerance' in sig.parameters
+        assert "x" in sig.parameters
+        assert "tolerance" in sig.parameters
 
 
 class TestNumericalStabilityIntegration:
@@ -292,18 +256,14 @@ class TestNumericalStabilityIntegration:
         assert needs_reg is True
 
         # Apply regularization
-        regularized = self.stability.regularize_matrix(
-            problematic, condition_threshold=1e10
-        )
+        regularized = self.stability.regularize_matrix(problematic, condition_threshold=1e10)
 
         # Verify improvement
         new_cond = self.stability.estimate_condition_number(regularized)
         assert new_cond < orig_cond
 
         # Verify SPD properties maintained
-        is_spd = self.stability.validate_spd_properties(
-            regularized, tolerance=1e-12
-        )
+        is_spd = self.stability.validate_spd_properties(regularized, tolerance=1e-12)
         assert is_spd is True
 
     def test_error_conditions(self):
@@ -314,11 +274,10 @@ class TestNumericalStabilityIntegration:
 
         # Negative tolerance
         with pytest.raises(AssertionError):
-            self.stability.validate_spd_properties(
-                jnp.eye(3), tolerance=-1.0
-            )
+            self.stability.validate_spd_properties(jnp.eye(3), tolerance=-1.0)
 
         # Test validation in convenience functions (JIT-safe methods don't validate)
         from riemannax.core.numerical_stability import regularize_matrix_func
+
         with pytest.raises(AssertionError):
             regularize_matrix_func(jnp.eye(3), condition_threshold=-1.0)

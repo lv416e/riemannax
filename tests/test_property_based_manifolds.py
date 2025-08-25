@@ -13,21 +13,17 @@ Property tests cover:
 - Invariance properties under manifold operations
 """
 
-import jax
+
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from hypothesis import given, strategies as st, assume, settings, reproduce_failure, HealthCheck
-from hypothesis import Verbosity
-from typing import Any, Tuple, Union
-import math
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
-from riemannax.manifolds.sphere import Sphere
-from riemannax.manifolds.grassmann import Grassmann
-from riemannax.manifolds.stiefel import Stiefel
-from riemannax.manifolds.so import SpecialOrthogonal
-from riemannax.manifolds.spd import SymmetricPositiveDefinite
 from riemannax.core.constants import NumericalConstants
+from riemannax.manifolds.so import SpecialOrthogonal
+from riemannax.manifolds.sphere import Sphere
+from riemannax.manifolds.stiefel import Stiefel
 
 
 # Hypothesis strategies for generating test data
@@ -35,10 +31,13 @@ from riemannax.core.constants import NumericalConstants
 def sphere_point_and_tangent(draw, n=3):
     """Generate a point on the sphere and a tangent vector."""
     # Generate a random point and normalize to sphere
-    coords = draw(st.lists(
-        st.floats(min_value=-10.0, max_value=10.0, allow_nan=False, allow_infinity=False),
-        min_size=n+1, max_size=n+1
-    ))
+    coords = draw(
+        st.lists(
+            st.floats(min_value=-10.0, max_value=10.0, allow_nan=False, allow_infinity=False),
+            min_size=n + 1,
+            max_size=n + 1,
+        )
+    )
     point_array = jnp.array(coords)
 
     # Normalize to ensure it's on the sphere
@@ -47,10 +46,13 @@ def sphere_point_and_tangent(draw, n=3):
     point = point_array / point_norm
 
     # Generate tangent vector
-    tangent_coords = draw(st.lists(
-        st.floats(min_value=-5.0, max_value=5.0, allow_nan=False, allow_infinity=False),
-        min_size=n+1, max_size=n+1
-    ))
+    tangent_coords = draw(
+        st.lists(
+            st.floats(min_value=-5.0, max_value=5.0, allow_nan=False, allow_infinity=False),
+            min_size=n + 1,
+            max_size=n + 1,
+        )
+    )
     tangent_raw = jnp.array(tangent_coords)
 
     # Project to tangent space (orthogonal to point)
@@ -63,13 +65,15 @@ def sphere_point_and_tangent(draw, n=3):
 def matrix_manifold_data(draw, p, n, manifold_type="stiefel"):
     """Generate data for matrix manifolds (Stiefel, Grassmann)."""
     # Generate random matrix
-    matrix_data = draw(st.lists(
+    matrix_data = draw(
         st.lists(
-            st.floats(min_value=-3.0, max_value=3.0, allow_nan=False, allow_infinity=False),
-            min_size=n, max_size=n
-        ),
-        min_size=p, max_size=p
-    ))
+            st.lists(
+                st.floats(min_value=-3.0, max_value=3.0, allow_nan=False, allow_infinity=False), min_size=n, max_size=n
+            ),
+            min_size=p,
+            max_size=p,
+        )
+    )
 
     raw_matrix = jnp.array(matrix_data)
 
@@ -81,13 +85,15 @@ def matrix_manifold_data(draw, p, n, manifold_type="stiefel"):
     assume(jnp.linalg.matrix_rank(point) == p)
 
     # Generate tangent vector in the tangent space
-    tangent_data = draw(st.lists(
+    tangent_data = draw(
         st.lists(
-            st.floats(min_value=-2.0, max_value=2.0, allow_nan=False, allow_infinity=False),
-            min_size=n, max_size=n
-        ),
-        min_size=p, max_size=p
-    ))
+            st.lists(
+                st.floats(min_value=-2.0, max_value=2.0, allow_nan=False, allow_infinity=False), min_size=n, max_size=n
+            ),
+            min_size=p,
+            max_size=p,
+        )
+    )
     tangent_raw = jnp.array(tangent_data)
 
     return point, tangent_raw
@@ -97,13 +103,15 @@ def matrix_manifold_data(draw, p, n, manifold_type="stiefel"):
 def so_matrix_and_tangent(draw, n=3):
     """Generate SO(n) matrix and tangent vector."""
     # Generate random matrix
-    matrix_data = draw(st.lists(
+    matrix_data = draw(
         st.lists(
-            st.floats(min_value=-2.0, max_value=2.0, allow_nan=False, allow_infinity=False),
-            min_size=n, max_size=n
-        ),
-        min_size=n, max_size=n
-    ))
+            st.lists(
+                st.floats(min_value=-2.0, max_value=2.0, allow_nan=False, allow_infinity=False), min_size=n, max_size=n
+            ),
+            min_size=n,
+            max_size=n,
+        )
+    )
 
     raw_matrix = jnp.array(matrix_data)
 
@@ -118,13 +126,15 @@ def so_matrix_and_tangent(draw, n=3):
     point = Q
 
     # Generate skew-symmetric tangent vector
-    skew_data = draw(st.lists(
+    skew_data = draw(
         st.lists(
-            st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False),
-            min_size=n, max_size=n
-        ),
-        min_size=n, max_size=n
-    ))
+            st.lists(
+                st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False), min_size=n, max_size=n
+            ),
+            min_size=n,
+            max_size=n,
+        )
+    )
 
     skew_raw = jnp.array(skew_data)
     tangent = (skew_raw - skew_raw.T) / 2  # Make it skew-symmetric
@@ -140,7 +150,7 @@ class TestSpherePropertyBased:
     def test_sphere_point_constraint(self, data):
         """Property: Points on sphere have unit norm."""
         point, _ = data
-        manifold = Sphere(n=2)
+        Sphere(n=2)
 
         # Verify point is on the sphere
         norm = jnp.linalg.norm(point)
@@ -158,8 +168,9 @@ class TestSpherePropertyBased:
 
         # Verify orthogonality
         inner_product = jnp.dot(point, projected_tangent)
-        assert jnp.allclose(inner_product, 0.0, atol=1e-6), \
+        assert jnp.allclose(inner_product, 0.0, atol=1e-6), (
             f"Tangent should be orthogonal to point: dot product = {inner_product}"
+        )
 
     @given(sphere_point_and_tangent(n=2))
     @settings(max_examples=30, deadline=None)
@@ -180,8 +191,7 @@ class TestSpherePropertyBased:
 
         # Verify result is on sphere
         exp_norm = jnp.linalg.norm(exp_point)
-        assert jnp.allclose(exp_norm, 1.0, atol=1e-6), \
-            f"Exponential map result norm {exp_norm} should be 1.0"
+        assert jnp.allclose(exp_norm, 1.0, atol=1e-6), f"Exponential map result norm {exp_norm} should be 1.0"
 
     @given(sphere_point_and_tangent(n=2))
     @settings(max_examples=30, deadline=None)
@@ -206,8 +216,9 @@ class TestSpherePropertyBased:
         # 2. Symmetry: <u, v> = <v, u>
         metric_uv = manifold.inner(point, u, v)
         metric_vu = manifold.inner(point, v, u)
-        assert jnp.allclose(metric_uv, metric_vu, atol=NumericalConstants.ATOL), \
+        assert jnp.allclose(metric_uv, metric_vu, atol=NumericalConstants.ATOL), (
             f"Metric should be symmetric: <u,v>={metric_uv}, <v,u>={metric_vu}"
+        )
 
     @given(sphere_point_and_tangent(n=2))
     @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
@@ -257,13 +268,13 @@ class TestSpherePropertyBased:
         d23 = manifold.dist(point2, point3)
 
         # Symmetry: d(x,y) = d(y,x)
-        assert jnp.allclose(d12, d21, atol=NumericalConstants.ATOL), \
+        assert jnp.allclose(d12, d21, atol=NumericalConstants.ATOL), (
             f"Distance should be symmetric: d12={d12}, d21={d21}"
+        )
 
         # Triangle inequality: d(x,z) ≤ d(x,y) + d(y,z)
         triangle_violation = d13 - (d12 + d23)
-        assert triangle_violation <= 1e-5, \
-            f"Triangle inequality violated: d13={d13}, d12+d23={d12+d23}"
+        assert triangle_violation <= 1e-5, f"Triangle inequality violated: d13={d13}, d12+d23={d12 + d23}"
 
 
 class TestStiefelPropertyBased:
@@ -274,13 +285,13 @@ class TestStiefelPropertyBased:
     def test_stiefel_orthogonality_constraint(self, data):
         """Property: Points on Stiefel manifold satisfy X^T X = I."""
         point, _ = data
-        manifold = Stiefel(p=2, n=4)
+        Stiefel(p=2, n=4)
 
         # Verify orthogonality constraint
         product = jnp.dot(point, point.T)
         identity = jnp.eye(point.shape[0])
 
-        error = jnp.linalg.norm(product - identity, ord='fro')
+        error = jnp.linalg.norm(product - identity, ord="fro")
         assert error < 1e-4, f"Stiefel constraint violated: ||X^T X - I||_F = {error}"
 
     @given(matrix_manifold_data(p=2, n=3))
@@ -303,10 +314,9 @@ class TestStiefelPropertyBased:
 
         # Check tangent space constraint: X V^T + V X^T = 0 (should be p×p matrix)
         constraint = point @ tangent.T + tangent @ point.T
-        constraint_error = jnp.linalg.norm(constraint, ord='fro')
+        constraint_error = jnp.linalg.norm(constraint, ord="fro")
 
-        assert constraint_error < 3e-6, \
-            f"Tangent space constraint violated: ||X V^T + V X^T||_F = {constraint_error}"
+        assert constraint_error < 3e-6, f"Tangent space constraint violated: ||X V^T + V X^T||_F = {constraint_error}"
 
 
 class TestSpecialOrthogonalPropertyBased:
@@ -317,18 +327,17 @@ class TestSpecialOrthogonalPropertyBased:
     def test_so_orthogonality_and_determinant(self, data):
         """Property: SO(n) matrices are orthogonal with determinant 1."""
         point, _ = data
-        manifold = SpecialOrthogonal(n=3)
+        SpecialOrthogonal(n=3)
 
         # Test orthogonality: R^T R = I
         product = jnp.dot(point.T, point)
         identity = jnp.eye(point.shape[0])
-        orthogonality_error = jnp.linalg.norm(product - identity, ord='fro')
+        orthogonality_error = jnp.linalg.norm(product - identity, ord="fro")
         assert orthogonality_error < 1e-6, f"Orthogonality violated: error = {orthogonality_error}"
 
         # Test determinant: det(R) = 1
         det_point = jnp.linalg.det(point)
-        assert jnp.allclose(det_point, 1.0, atol=NumericalConstants.ATOL), \
-            f"Determinant should be 1: det = {det_point}"
+        assert jnp.allclose(det_point, 1.0, atol=NumericalConstants.ATOL), f"Determinant should be 1: det = {det_point}"
 
     @given(so_matrix_and_tangent(n=3))
     @settings(max_examples=30, deadline=None)
@@ -344,10 +353,11 @@ class TestSpecialOrthogonalPropertyBased:
         # For general points, R * skew = tangent where skew is skew-symmetric
         try:
             skew = jnp.dot(point.T, tangent)
-            skew_symmetry_error = jnp.linalg.norm(skew + skew.T, ord='fro')
+            skew_symmetry_error = jnp.linalg.norm(skew + skew.T, ord="fro")
             # Allow some tolerance for numerical precision
-            assert skew_symmetry_error < 1e-4, \
+            assert skew_symmetry_error < 1e-4, (
                 f"Tangent space element should correspond to skew-symmetric: error = {skew_symmetry_error}"
+            )
         except Exception:
             # If computation fails, it's acceptable to skip this specific case
             assume(False)
@@ -373,8 +383,9 @@ class TestNumericalStabilityPropertyBased:
 
         # Result should still be on the sphere
         exp_norm = jnp.linalg.norm(exp_result)
-        assert jnp.allclose(exp_norm, 1.0, atol=NumericalConstants.ATOL), \
+        assert jnp.allclose(exp_norm, 1.0, atol=NumericalConstants.ATOL), (
             f"Small tangent vector exp result not on sphere: norm = {exp_norm}"
+        )
 
     @given(st.floats(min_value=2.0, max_value=10.0))
     @settings(max_examples=20)
@@ -393,8 +404,9 @@ class TestNumericalStabilityPropertyBased:
 
         # Result should still be on the sphere
         exp_norm = jnp.linalg.norm(exp_result)
-        assert jnp.allclose(exp_norm, 1.0, atol=1e-6), \
+        assert jnp.allclose(exp_norm, 1.0, atol=1e-6), (
             f"Large tangent vector exp result not on sphere: norm = {exp_norm}"
+        )
 
     @given(st.floats(min_value=-1.0 + 1e-6, max_value=1.0 - 1e-6))
     def test_sphere_antipodal_points_stability(self, perturbation):
@@ -420,10 +432,13 @@ class TestNumericalStabilityPropertyBased:
 class TestManifoldUniversalProperties:
     """Universal property tests that should hold for all manifolds."""
 
-    @pytest.mark.parametrize("manifold,test_data", [
-        (Sphere(n=2), ([1.0, 0.0, 0.0], [0.0, 0.1, 0.2])),
-        (SpecialOrthogonal(n=3), (jnp.eye(3), jnp.array([[0, 0.1, 0], [-0.1, 0, 0], [0, 0, 0]]))),
-    ])
+    @pytest.mark.parametrize(
+        "manifold,test_data",
+        [
+            (Sphere(n=2), ([1.0, 0.0, 0.0], [0.0, 0.1, 0.2])),
+            (SpecialOrthogonal(n=3), (jnp.eye(3), jnp.array([[0, 0.1, 0], [-0.1, 0, 0], [0, 0, 0]]))),
+        ],
+    )
     def test_projection_idempotency(self, manifold, test_data):
         """Property: Projection is idempotent: proj(x, proj(x, v)) = proj(x, v)."""
         point, tangent_raw = test_data
@@ -439,9 +454,12 @@ class TestManifoldUniversalProperties:
         error = jnp.linalg.norm(v1 - v2)
         assert error < 1e-10, f"Projection not idempotent: error = {error}"
 
-    @pytest.mark.parametrize("manifold,test_data", [
-        (Sphere(n=2), ([1.0, 0.0, 0.0], [0.0, 0.1, 0.0], [0.0, 0.0, 0.1])),
-    ])
+    @pytest.mark.parametrize(
+        "manifold,test_data",
+        [
+            (Sphere(n=2), ([1.0, 0.0, 0.0], [0.0, 0.1, 0.0], [0.0, 0.0, 0.1])),
+        ],
+    )
     def test_metric_bilinearity(self, manifold, test_data):
         """Property: Metric is bilinear in both arguments."""
         point, u_raw, v_raw = test_data
@@ -474,7 +492,7 @@ class TestManifoldUniversalProperties:
 # Configuration for property-based testing
 def pytest_configure(config):
     """Configure Hypothesis settings for property-based tests."""
-    from hypothesis import settings, Verbosity
+    from hypothesis import settings
 
     # Set global test settings
     settings.register_profile("dev", max_examples=20, deadline=None)

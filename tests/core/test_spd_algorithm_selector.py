@@ -5,7 +5,6 @@ Tests verify that the selector chooses appropriate algorithms based on matrix si
 and condition number.
 """
 
-import jax.numpy as jnp
 import pytest
 
 from riemannax.core.spd_algorithm_selector import SPDAlgorithmSelector

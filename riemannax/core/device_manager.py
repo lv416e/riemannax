@@ -11,18 +11,18 @@ logger = logging.getLogger(__name__)
 
 
 class DeviceManager:
-    """ハードウェア最適化デバイス管理システム."""
+    """Hardware optimization device management system."""
 
-    # クラス変数でデバイス情報と設定を管理
+    # Manage device information and configuration through class variables
     _device_info: ClassVar[dict[str, Any]] = {}
     _current_config: ClassVar[dict[str, Any]] = {}
     _initialized: ClassVar[bool] = False
 
     @classmethod
     def initialize(cls) -> None:
-        """デバイス情報の初期化と自動検出."""
+        """Initialize device information and automatic detection."""
         try:
-            # JAXデバイスの検出
+            # JAX device detection
             devices = jax.devices()
 
             cls._device_info = {
@@ -37,7 +37,7 @@ class DeviceManager:
 
         except Exception as e:
             logger.warning(f"Device initialization failed: {e}")
-            # フォールバック: 最小限の構成
+            # Fallback: minimal configuration
             cls._device_info = {
                 "available_devices": [],
                 "current_device": None,
@@ -48,10 +48,10 @@ class DeviceManager:
 
     @classmethod
     def get_device_info(cls) -> dict[str, Any]:
-        """デバイス情報取得.
+        """Get device information.
 
         Returns:
-            デバイス情報辞書
+            Device information dictionary
         """
         if not cls._initialized:
             cls.initialize()
@@ -59,10 +59,10 @@ class DeviceManager:
 
     @classmethod
     def set_default_device(cls, device: str) -> None:
-        """デフォルトデバイスの設定.
+        """Set default device.
 
         Args:
-            device: デバイス種別 ('cpu', 'gpu', 'auto')
+            device: Device type ('cpu', 'gpu', 'auto')
         """
         if not cls._initialized:
             cls.initialize()
@@ -70,14 +70,14 @@ class DeviceManager:
         available_devices = cls._device_info.get("available_devices", [])
 
         if device.lower() == "auto":
-            # 自動選択: 最適なデバイスを選択
+            # Automatic selection: select optimal device
             preferred = cls.get_preferred_device()
             if preferred:
                 cls._device_info["current_device"] = preferred
                 logger.info(f"Auto-selected device: {preferred.platform}")
 
         elif device.lower() == "cpu":
-            # CPU強制選択
+            # Force CPU selection
             cpu_device = None
             for dev in available_devices:
                 if dev.platform.lower() == "cpu":
@@ -91,7 +91,7 @@ class DeviceManager:
                 logger.warning("CPU device not found, using first available device")
 
         elif device.lower() in ["gpu", "cuda"]:
-            # GPU強制選択
+            # Force GPU selection
             gpu_device = None
             for dev in available_devices:
                 if dev.platform.lower() in ["gpu", "cuda"]:
@@ -109,15 +109,15 @@ class DeviceManager:
             logger.warning(f"Unknown device type '{device}', using auto selection")
             cls.set_default_device("auto")
 
-        # 設定適用
+        # Apply configuration
         cls.configure_for_device()
 
     @classmethod
     def has_gpu(cls) -> bool:
-        """GPU利用可能性チェック.
+        """Check GPU availability.
 
         Returns:
-            GPU利用可能の可否
+            Whether GPU is available
         """
         if not cls._initialized:
             cls.initialize()
@@ -128,10 +128,10 @@ class DeviceManager:
 
     @classmethod
     def has_tpu(cls) -> bool:
-        """TPU利用可能性チェック.
+        """Check TPU availability.
 
         Returns:
-            TPU利用可能の可否
+            Whether TPU is available
         """
         if not cls._initialized:
             cls.initialize()
@@ -140,10 +140,10 @@ class DeviceManager:
 
     @classmethod
     def get_optimal_compilation_config(cls) -> dict[str, Any]:
-        """最適コンパイル設定取得.
+        """Get optimal compilation configuration.
 
         Returns:
-            最適化設定辞書
+            Optimization configuration dictionary
         """
         if not cls._initialized:
             cls.initialize()
@@ -151,7 +151,7 @@ class DeviceManager:
         current_device = cls._device_info.get("current_device")
         device_platform = getattr(current_device, "platform", "cpu").lower()
 
-        # デバイス別最適化設定
+        # Device-specific optimization settings
         base_config: dict[str, Any] = {"device": device_platform, "backend": device_platform, "xla_options": {}}
 
         if device_platform in ["gpu", "cuda"]:
@@ -159,7 +159,7 @@ class DeviceManager:
                 {"memory_optimization": True, "gpu_memory_fraction": 0.9, "allow_growth": True}
             )
 
-            # 複数GPU検出時の設定
+            # Configuration for multiple GPU detection
             gpu_count = sum(
                 1 for d in cls._device_info.get("available_devices", []) if d.platform.lower() in ["gpu", "cuda"]
             )
@@ -169,14 +169,14 @@ class DeviceManager:
         elif device_platform == "tpu":
             base_config["xla_options"].update({"tpu_optimization": True, "sharding_strategy": "auto"})
         else:
-            # CPU設定
+            # CPU configuration
             base_config["xla_options"].update({"cpu_parallel": True, "vectorization": True})
 
         return base_config
 
     @classmethod
     def configure_for_device(cls) -> None:
-        """選択デバイス用の設定適用."""
+        """Apply configuration for selected device."""
         if not cls._initialized:
             cls.initialize()
 
@@ -192,19 +192,19 @@ class DeviceManager:
 
     @classmethod
     def get_current_config(cls) -> dict[str, Any] | None:
-        """現在の設定取得.
+        """Get current configuration.
 
         Returns:
-            現在の設定辞書
+            Current configuration dictionary
         """
         return cls._current_config.copy() if cls._current_config else None
 
     @classmethod
     def get_device_capabilities(cls) -> dict[str, Any]:
-        """デバイス機能取得.
+        """Get device capabilities.
 
         Returns:
-            デバイス機能辞書
+            Device capabilities dictionary
         """
         if not cls._initialized:
             cls.initialize()
@@ -212,8 +212,8 @@ class DeviceManager:
         current_device = cls._device_info.get("current_device")
 
         capabilities = {
-            "supports_jit": True,  # JAXは常にJIT対応
-            "supports_vmap": True,  # JAXは常にvmap対応
+            "supports_jit": True,  # JAX always supports JIT
+            "supports_vmap": True,  # JAX always supports vmap
             "max_memory": cls._estimate_device_memory(),
             "compute_units": getattr(current_device, "core_count", 1) if current_device else 1,
             "precision_support": ["float32", "float64", "bfloat16"],
@@ -223,32 +223,32 @@ class DeviceManager:
 
     @classmethod
     def estimate_memory_usage(cls, array_shape: tuple[int, ...], dtype: Any = jnp.float32) -> int:
-        """メモリ使用量推定.
+        """Estimate memory usage.
 
         Args:
-            array_shape: 配列形状
-            dtype: データ型
+            array_shape: Array shape
+            dtype: Data type
 
         Returns:
-            推定メモリ使用量(バイト)
+            Estimated memory usage in bytes
         """
-        # 要素数計算
+        # Calculate number of elements
         num_elements = 1
         for dim in array_shape:
             num_elements *= dim
 
-        # データ型別バイト数
+        # Bytes per data type
         dtype_sizes = {jnp.float32: 4, jnp.float64: 8, jnp.int32: 4, jnp.int64: 8, jnp.complex64: 8, jnp.complex128: 16}
 
-        element_size = dtype_sizes.get(dtype, 4)  # デフォルト: float32
+        element_size = dtype_sizes.get(dtype, 4)  # Default: float32
         return num_elements * element_size
 
     @classmethod
     def get_preferred_device(cls) -> Any:
-        """優先デバイス取得.
+        """Get preferred device.
 
         Returns:
-            優先デバイス
+            Preferred device
         """
         if not cls._initialized:
             cls.initialize()
@@ -257,7 +257,7 @@ class DeviceManager:
         if not devices:
             return None
 
-        # 優先順位: TPU > GPU > CPU
+        # Priority order: TPU > GPU > CPU
         for device in devices:
             if device.platform.lower() == "tpu":
                 return device
@@ -266,15 +266,15 @@ class DeviceManager:
             if device.platform.lower() in ["gpu", "cuda"]:
                 return device
 
-        # CPUフォールバック
+        # CPU fallback
         return devices[0]
 
     @classmethod
     def fallback_to_cpu(cls) -> bool:
-        """CPUフォールバック実行.
+        """Execute CPU fallback.
 
         Returns:
-            フォールバック成功の可否
+            Whether fallback was successful
         """
         try:
             if not cls._initialized:
@@ -302,10 +302,10 @@ class DeviceManager:
 
     @classmethod
     def get_performance_metrics(cls) -> dict[str, Any]:
-        """デバイス性能メトリクス取得.
+        """Get device performance metrics.
 
         Returns:
-            性能メトリクス辞書
+            Performance metrics dictionary
         """
         if not cls._initialized:
             cls.initialize()
@@ -331,14 +331,14 @@ class DeviceManager:
 
     @classmethod
     def reset(cls) -> None:
-        """デバイス管理状態の初期化."""
+        """Reset device management state."""
         cls._device_info = {}
         cls._current_config = {}
         cls._initialized = False
 
     @classmethod
     def _estimate_device_memory(cls) -> str:
-        """デバイスメモリ推定."""
+        """Estimate device memory."""
         if cls.has_tpu():
             return "32GB+"
         elif cls.has_gpu():
@@ -348,6 +348,6 @@ class DeviceManager:
 
     @classmethod
     def _estimate_compute_capability(cls, platform: str) -> str:
-        """計算能力推定."""
+        """Estimate compute capability."""
         capability_map = {"tpu": "very_high", "gpu": "high", "cuda": "high", "cpu": "medium"}
         return capability_map.get(platform, "unknown")

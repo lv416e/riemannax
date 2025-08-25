@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import jax.random as jr
 import pytest
 
-from riemannax.core.cholesky_engine import CholeskyEngine, CholeskyDecompositionError
+from riemannax.core.cholesky_engine import CholeskyEngine
 
 
 class TestCholeskyEngine:
@@ -127,8 +127,8 @@ class TestCholeskyEngine:
         engine = CholeskyEngine()
 
         # Create a non-positive definite matrix
-        non_spd_matrix = jnp.array([[1., 2.], [2., 1.]])  # Eigenvalues: 3, -1
-        tangent_vector = jnp.array([[0., 1.], [1., 0.]])
+        non_spd_matrix = jnp.array([[1.0, 2.0], [2.0, 1.0]])  # Eigenvalues: 3, -1
+        tangent_vector = jnp.array([[0.0, 1.0], [1.0, 0.0]])
 
         # For now, we expect the method to attempt computation and potentially produce
         # NaN/inf values rather than raising a custom exception (JIT compatibility)
@@ -174,7 +174,9 @@ class TestCholeskyEngine:
         simple_v = jnp.zeros_like(tangent_vector)  # Zero tangent vector
         y_simple = engine.exp_cholesky(spd_matrix, simple_v)
         recovered_simple = engine.log_cholesky(spd_matrix, y_simple)
-        assert jnp.allclose(simple_v, recovered_simple, rtol=1e-3, atol=1e-3), "Zero tangent should round-trip accurately"
+        assert jnp.allclose(simple_v, recovered_simple, rtol=1e-3, atol=1e-3), (
+            "Zero tangent should round-trip accurately"
+        )
 
     def test_methods_are_jit_compatible(self, spd_matrix: jnp.ndarray, tangent_vector: jnp.ndarray) -> None:
         """Test that all methods work with JAX JIT compilation."""

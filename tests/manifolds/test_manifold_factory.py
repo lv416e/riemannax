@@ -9,19 +9,16 @@ Following TDD methodology:
 - REFACTOR phase: Optimize and clean up the implementation
 """
 
-import pytest
 import jax
+import pytest
 
-from riemannax.manifolds import (
-    create_sphere, create_grassmann, create_stiefel,
-    create_so, create_spd
-)
-from riemannax.manifolds.sphere import Sphere
+from riemannax.manifolds import create_grassmann, create_so, create_spd, create_sphere, create_stiefel
+from riemannax.manifolds.base import DimensionError
 from riemannax.manifolds.grassmann import Grassmann
-from riemannax.manifolds.stiefel import Stiefel
 from riemannax.manifolds.so import SpecialOrthogonal
 from riemannax.manifolds.spd import SymmetricPositiveDefinite
-from riemannax.manifolds.base import DimensionError
+from riemannax.manifolds.sphere import Sphere
+from riemannax.manifolds.stiefel import Stiefel
 
 
 class TestManifoldFactory:
@@ -58,15 +55,15 @@ class TestManifoldFactory:
 
             # Check error message quality
             error_msg = str(exc_info.value).lower()
-            assert 'dimension' in error_msg
-            assert 'positive' in error_msg or 'greater' in error_msg
+            assert "dimension" in error_msg
+            assert "positive" in error_msg or "greater" in error_msg
 
     def test_create_sphere_type_validation(self):
         """Test create_sphere with invalid types."""
         invalid_types = [1.5, "3", None, [2], {"n": 3}]
 
         for invalid_input in invalid_types:
-            with pytest.raises((TypeError, ValueError)) as exc_info:
+            with pytest.raises((TypeError, ValueError)):
                 create_sphere(invalid_input)
 
     def test_create_grassmann_function_exists(self):
@@ -89,16 +86,16 @@ class TestManifoldFactory:
         """Test create_grassmann dimension validation."""
         # Test invalid dimensions
         invalid_cases = [
-            (0, 5),    # p must be positive
-            (5, 0),    # n must be positive
-            (5, 5),    # p must be < n
-            (6, 5),    # p must be < n
-            (-1, 5),   # negative p
-            (2, -3),   # negative n
+            (0, 5),  # p must be positive
+            (5, 0),  # n must be positive
+            (5, 5),  # p must be < n
+            (6, 5),  # p must be < n
+            (-1, 5),  # negative p
+            (2, -3),  # negative n
         ]
 
         for p, n in invalid_cases:
-            with pytest.raises((ValueError, DimensionError)) as exc_info:
+            with pytest.raises((ValueError, DimensionError)):
                 create_grassmann(p, n)
 
     def test_create_stiefel_function_exists(self):
@@ -131,7 +128,7 @@ class TestManifoldFactory:
         invalid_dims = [0, 1, -1, -5]  # SO(n) needs n >= 2
 
         for n in invalid_dims:
-            with pytest.raises((ValueError, DimensionError)) as exc_info:
+            with pytest.raises((ValueError, DimensionError)):
                 create_so(n)
 
     def test_create_spd_function_exists(self):
@@ -151,7 +148,7 @@ class TestManifoldFactory:
         invalid_dims = [0, 1, -1, -5]  # SPD needs n >= 2
 
         for n in invalid_dims:
-            with pytest.raises((ValueError, DimensionError)) as exc_info:
+            with pytest.raises((ValueError, DimensionError)):
                 create_spd(n)
 
     def test_factory_functions_work_with_operations(self):
@@ -195,28 +192,23 @@ class TestManifoldFactory:
         # Test sphere error message
         try:
             create_sphere(-2)
-            assert False, "Should have raised an error"
+            raise AssertionError("Should have raised an error")
         except (ValueError, DimensionError) as e:
             error_msg = str(e)
-            assert 'sphere' in error_msg.lower() or 'dimension' in error_msg.lower()
-            assert 'positive' in error_msg.lower() or '-2' in error_msg
+            assert "sphere" in error_msg.lower() or "dimension" in error_msg.lower()
+            assert "positive" in error_msg.lower() or "-2" in error_msg
 
         # Test grassmann error message
         try:
             create_grassmann(5, 3)  # p >= n
-            assert False, "Should have raised an error"
+            raise AssertionError("Should have raised an error")
         except (ValueError, DimensionError) as e:
             error_msg = str(e)
-            assert ('grassmann' in error_msg.lower() or
-                   'p' in error_msg.lower() or
-                   'dimension' in error_msg.lower())
+            assert "grassmann" in error_msg.lower() or "p" in error_msg.lower() or "dimension" in error_msg.lower()
 
     def test_all_factory_functions_exported(self):
         """Test that all factory functions are properly exported from the module."""
-        from riemannax.manifolds import (
-            create_sphere, create_grassmann, create_stiefel,
-            create_so, create_spd
-        )
+        from riemannax.manifolds import create_grassmann, create_so, create_spd, create_sphere, create_stiefel
 
         # Should not raise ImportError
         assert callable(create_sphere)

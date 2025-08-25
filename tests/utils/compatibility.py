@@ -1,7 +1,7 @@
 """Test compatibility utilities for JIT optimizations."""
 
 from collections.abc import Callable
-from typing import Any, ClassVar, Dict
+from typing import Any, ClassVar
 
 import jax.numpy as jnp
 import numpy as np
@@ -139,7 +139,7 @@ class JITCompatibilityHelper:
 
     @staticmethod
     def verify_manifold_operation_compatibility(
-        manifold: Any, operation_name: str, test_data: Dict[str, Any], max_retries: int = 3
+        manifold: Any, operation_name: str, test_data: dict[str, Any], max_retries: int = 3
     ) -> None:
         """Verify compatibility of a manifold operation between JIT and non-JIT."""
         for attempt in range(max_retries):
