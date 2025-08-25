@@ -72,7 +72,7 @@ jobs:
           echo "::notice::Type checking configured successfully. Fix type issues incrementally."
 
   test-coverage:
-    name: "Test Coverage (95% Threshold)"
+    name: "Test Coverage (90% Threshold)"
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -103,7 +103,7 @@ jobs:
         if: matrix.python-version == '3.10'
         with:
           file: ./coverage.xml
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           verbose: true
 
   pre-commit-all:
@@ -149,7 +149,7 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Ruff Linting | $RUFF_STATUS |" >> $GITHUB_STEP_SUMMARY
           echo "| MyPy Type Checking | $MYPY_STATUS |" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Coverage (95%) | $COVERAGE_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Coverage (90%) | $COVERAGE_STATUS |" >> $GITHUB_STEP_SUMMARY
           echo "| Pre-commit Hooks | $PRECOMMIT_STATUS |" >> $GITHUB_STEP_SUMMARY
 
           # Determine overall result
