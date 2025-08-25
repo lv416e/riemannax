@@ -182,7 +182,7 @@ def bures_wasserstein_distance(self, A: Array, B: Array) -> float:
 #### 1. Code Documentation Translation
 ```python
 # Before (Japanese)
-"""JIT最適化の中央管理システム."""
+"""Central management system for JIT optimization."""
 
 # After (English)
 """Central management system for JIT optimization."""
@@ -191,7 +191,7 @@ def bures_wasserstein_distance(self, A: Array, B: Array) -> float:
 #### 2. Comment Standardization
 ```python
 # Before (Japanese)
-# クラス変数で設定とキャッシュを管理
+# Manage configuration and cache through class variables
 
 # After (English)
 # Manage configuration and cache through class variables
