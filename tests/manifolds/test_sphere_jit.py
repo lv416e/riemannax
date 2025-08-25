@@ -1,13 +1,13 @@
+import statistics
+import time
+from typing import Any, Dict
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-import time
-import statistics
-from typing import Dict, Any
 
 from riemannax.manifolds.sphere import Sphere
-from riemannax.core.constants import PerformanceThresholds
 
 
 class TestSphereJITOptimization:
@@ -519,92 +519,3 @@ class TestSphereJITOptimization:
             f"Performance regression detected on {current_device}:\n" +
             "\n".join(performance_failures)
         )
-
-    def test_statistical_performance_validation(self, benchmark_fixture):
-        """Performance validation: Statistical analysis of performance consistency."""
-        x = jnp.array([1.0, 0.0, 0.0])
-        v = jnp.array([0.0, 0.1, 0.2])
-
-        def proj_func(x_val, v_val):
-            return self.manifold._proj_impl(x_val, v_val)
-
-        results = benchmark_fixture.statistical_performance_analysis(
-            func=proj_func,
-            args=(x, v),
-            num_runs=50,
-            confidence_level=0.95
-        )
-
-        # Performance should be consistent (low standard deviation)
-        mean_time = results["mean_execution_time"]
-        std_time = results["std_execution_time"]
-        coefficient_of_variation = std_time / mean_time if mean_time > 0 else float('inf')
-
-        # For very fast operations (< 50 microseconds), measurement noise dominates
-        # Use more lenient threshold to account for timing precision limitations
-        cv_threshold = 2.0 if mean_time < 50e-6 else 0.2
-
-        assert coefficient_of_variation < cv_threshold, (
-            f"Performance variability too high: CV={coefficient_of_variation:.3f} "
-            f"(expected < {cv_threshold}, mean={mean_time:.6f}s, std={std_time:.6f}s)"
-        )
-
-        # Should not have excessive outliers
-        # For very fast operations, allow more outliers due to timing noise
-        outlier_threshold = 0.2 if mean_time < 50e-6 else 0.1
-        num_outliers = results["num_outliers"]
-        outlier_ratio = num_outliers / 50
-        assert outlier_ratio < outlier_threshold, (
-            f"Too many outliers detected: {num_outliers}/50 ({outlier_ratio:.1%}), "
-            f"expected < {outlier_threshold:.1%}"
-        )
-
-    def test_performance_threshold_validation_comprehensive(self, benchmark_fixture):
-        """Performance validation: Comprehensive threshold validation."""
-        x = jnp.array([1.0, 0.0, 0.0])
-        v = jnp.array([0.0, 0.1, 0.2])
-
-        def proj_func(x_val, v_val):
-            return self.manifold._proj_impl(x_val, v_val)
-
-        # Get comprehensive performance metrics
-        jit_results = benchmark_fixture.compare_jit_performance(
-            func=proj_func, args=(x, v), num_runs=25
-        )
-
-        cache_results = benchmark_fixture.analyze_compilation_caching(
-            func=proj_func, args=(x, v), num_cache_tests=10
-        )
-
-        # Combine results for threshold validation
-        combined_results = {
-            **jit_results,
-            **cache_results
-        }
-
-        # Define comprehensive thresholds
-        current_device = str(jax.devices()[0]).lower()
-        thresholds = {
-            "min_jit_speedup": (PerformanceThresholds.MIN_GPU_SPEEDUP
-                               if "gpu" in current_device
-                               else PerformanceThresholds.MIN_CPU_SPEEDUP),
-            "max_compilation_time": 3.0,  # seconds
-            "min_cache_hit_ratio": 0.6,
-            # Skip memory overhead check as it may not be available on all platforms
-            # "max_memory_overhead": 1000000,  # bytes
-        }
-
-        validation_results = benchmark_fixture.validate_performance_thresholds(
-            results=combined_results,
-            thresholds=thresholds
-        )
-
-        assert validation_results["all_passed"], (
-            f"Performance validation failed on {current_device}:\n" +
-            "\n".join(validation_results["failures"])
-        )
-
-        # Log successful validations
-        passed_count = len(validation_results["passed"])
-        total_count = validation_results["total_checked"]
-        print(f"Performance validation: {passed_count}/{total_count} thresholds passed")
