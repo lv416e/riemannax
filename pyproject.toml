@@ -164,3 +164,25 @@ warn_return_any = false
 module = "examples.*"
 disallow_untyped_defs = false
 disallow_any_unimported = false
+
+[tool.coverage.run]
+source = ["riemannax"]
+omit = [
+    "riemannax/core/static_args_optimizer.py",  # Dead code, not used anywhere
+    "*/tests/*",
+    "*/test_*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

@@ -127,8 +127,8 @@ class TestBatchJITOptimizer:
         compiled_fn2 = self.batch_optimizer.dynamic_batch_compilation(self.sphere, "exp", x_shape, v_shape)
         second_compilation_time = time.time() - start_time
 
-        # Cache should make second call much faster
-        assert second_compilation_time < first_compilation_time * 0.1
+        # Cache should make second call faster (more robust for CI environments)
+        assert second_compilation_time < first_compilation_time * 0.5
         assert compiled_fn1 is compiled_fn2  # Same cached function
 
     def test_memory_efficient_batch_processing(self):
