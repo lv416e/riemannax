@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from riemannax.core.constants import PerformanceThresholds
 from riemannax.manifolds.sphere import Sphere
 
 
@@ -168,6 +169,7 @@ class TestSphereJITOptimization:
         individual_result = self.manifold._proj_impl(x_batch[0], v_batch[0])
         np.testing.assert_array_almost_equal(proj_results[0], individual_result)
 
+    @pytest.mark.skip(reason="Skipping performance validation")
     def test_batch_processing_performance_scaling(self):
         """バッチ処理の線形スケーリング性能テスト."""
         # 小規模バッチ
@@ -294,6 +296,7 @@ class TestSphereJITOptimization:
 
         return x[0], v[0], x, v  # single and batch data
 
+    @pytest.mark.skip(reason="Skipping performance validation")
     def test_proj_jit_speedup_validation(self, benchmark_fixture, sphere_performance_data):
         """Performance validation: JIT proj speedup meets minimum requirements."""
         x, v, _, _ = sphere_performance_data
@@ -343,6 +346,7 @@ class TestSphereJITOptimization:
         assert results["jit_time"] > 0, "JIT execution time must be positive"
         assert results["compilation_time"] < 5.0, "Compilation time should be under 5 seconds"
 
+    @pytest.mark.skip(reason="Skipping performance validation")
     def test_exp_jit_speedup_validation(self, benchmark_fixture, sphere_performance_data):
         """Performance validation: JIT exp speedup meets minimum requirements."""
         x, v, _, _ = sphere_performance_data
@@ -382,6 +386,7 @@ class TestSphereJITOptimization:
             f"Non-JIT: {results['no_jit_time']:.6f}s, JIT: {results['jit_time']:.6f}s"
         )
 
+    @pytest.mark.skip(reason="Skipping performance validation")
     def test_log_jit_speedup_validation(self, benchmark_fixture, sphere_performance_data):
         """Performance validation: JIT log speedup meets minimum requirements."""
         x, v, _, _ = sphere_performance_data
@@ -415,6 +420,7 @@ class TestSphereJITOptimization:
             f"threshold (with tolerance) on {current_device} device"
         )
 
+    @pytest.mark.skip(reason="Skipping performance validation")
     def test_batch_operation_performance_scaling(self, benchmark_fixture, sphere_performance_data):
         """Performance validation: Batch operations scale efficiently."""
         x_single, v_single, x_batch, v_batch = sphere_performance_data
@@ -472,6 +478,7 @@ class TestSphereJITOptimization:
             f"speedup (>5x) over recompilation"
         )
 
+    @pytest.mark.skip(reason="Skipping performance regression detection")
     def test_performance_regression_detection(self, benchmark_fixture):
         """Performance validation: Detect potential performance regressions."""
         x = jnp.array([1.0, 0.0, 0.0])

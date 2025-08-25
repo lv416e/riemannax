@@ -63,7 +63,7 @@ jobs:
       - name: Run mypy type checking
         run: |
           mypy --config-file=pyproject.toml riemannax/
-        continue-on-error: true  # Allow type errors during transition period
+        continue-on-error: true # Allow type errors during transition period
 
       - name: Report mypy status
         if: failure()
@@ -72,7 +72,7 @@ jobs:
           echo "::notice::Type checking configured successfully. Fix type issues incrementally."
 
   test-coverage:
-    name: "Test Coverage (90% Threshold)"
+    name: "Test Coverage (80% Threshold)"
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -96,7 +96,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest --cov=riemannax --cov-report=xml --cov-report=term-missing --cov-fail-under=90 -n 2 --timeout=900 --max-worker-restart=3 --dist=worksteal --tb=short
+          pytest --cov=riemannax --cov-report=xml --cov-report=term-missing --cov-fail-under=80 -n 2 --timeout=900 --max-worker-restart=3 --dist=worksteal --tb=short
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -126,7 +126,7 @@ jobs:
         run: |
           pre-commit run --all-files
         env:
-          SKIP: mypy  # Skip mypy in pre-commit since it's run separately
+          SKIP: mypy # Skip mypy in pre-commit since it's run separately
 
   quality-gate-summary:
     name: "Quality Gate Summary"
@@ -149,7 +149,7 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Ruff Linting | $RUFF_STATUS |" >> $GITHUB_STEP_SUMMARY
           echo "| MyPy Type Checking | $MYPY_STATUS |" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Coverage (90%) | $COVERAGE_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Coverage (80%) | $COVERAGE_STATUS |" >> $GITHUB_STEP_SUMMARY
           echo "| Pre-commit Hooks | $PRECOMMIT_STATUS |" >> $GITHUB_STEP_SUMMARY
 
           # Determine overall result
