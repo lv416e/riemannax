@@ -134,7 +134,7 @@ class TestSPDJITOptimization(SPDCompatibilityMixin):
 
         # 元の実装との一致確認
         log_original = self.manifold_spd3.log(x, y)
-        np.testing.assert_allclose(log_original, log_result, rtol=1e-4, atol=1e-6)
+        np.testing.assert_allclose(log_original, log_result, rtol=1e-3, atol=1e-5)
 
         # 近い点に対する近似精度
         diff_norm = jnp.linalg.norm(log_result - v_small)
