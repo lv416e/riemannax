@@ -1,4 +1,5 @@
 .kiro/specs/**
+.mcp.json
 
 # Serena MCP
 .serena/**
