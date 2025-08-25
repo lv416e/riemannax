@@ -1,12 +1,8 @@
 name: Performance Benchmarking
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "riemannax/**"
-      - "tests/core/test_performance_*.py"
-      - "tests/manifolds/*jit*.py"
+  # REMOVED: PR triggers - performance testing in CI is unreliable due to shared resources
+  # Performance benchmarks should only run in controlled environments
   push:
     branches: [main]
     paths:

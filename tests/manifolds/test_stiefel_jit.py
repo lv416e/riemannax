@@ -21,20 +21,20 @@ class TestStiefelJITOptimization:
     """Stiefel多様体JIT最適化の包括的テストクラス."""
 
     def setup_method(self):
-        """各テストメソッド前の初期化."""
-        self.manifold_st52 = Stiefel(5, 2)  # 5次元空間での2-frame
-        self.manifold_st43 = Stiefel(4, 3)  # 4次元空間での3-frame
-        self.manifold_st33 = Stiefel(3, 3)  # 3次元直交群（特殊ケース）
+        """Initialize before each test method."""
+        self.manifold_st52 = Stiefel(5, 2)  # 2-frame in 5D space
+        self.manifold_st43 = Stiefel(4, 3)  # 3-frame in 4D space
+        self.manifold_st33 = Stiefel(3, 3)  # 3D orthogonal group (special case)
 
-        # テスト用キー
+        # Test PRNG key
         self.key = jr.PRNGKey(42)
 
-        # 数値許容値
+        # Numerical tolerance
         self.rtol = 1e-6
         self.atol = 1e-8
 
     def test_stiefel_jit_implementation_methods_exist(self):
-        """JIT実装メソッドの存在確認 (Requirement 8.2)."""
+        """Verify existence of JIT implementation methods (Requirement 8.2)."""
         required_methods = ["_proj_impl", "_exp_impl", "_log_impl", "_inner_impl", "_dist_impl", "_get_static_args"]
 
         for method in required_methods:
@@ -42,18 +42,18 @@ class TestStiefelJITOptimization:
             assert callable(getattr(self.manifold_st52, method)), f"JIT method not callable: {method}"
 
     def test_proj_jit_vs_original_equivalence_st52(self):
-        """プロジェクション操作のJIT vs 非JITの数値同等性 (Requirement 8.1)."""
+        """Numerical equivalence of JIT vs non-JIT projection operations (Requirement 8.1)."""
         key1, key2 = jr.split(self.key)
         x = self.manifold_st52.random_point(key1)
         v = jr.normal(key2, (5, 2))
 
-        # 元の実装
+        # Original implementation
         proj_original = self.manifold_st52.proj(x, v)
 
-        # JIT実装
+        # JIT implementation
         proj_jit = self.manifold_st52._proj_impl(x, v)
 
-        # 数値同等性確認
+        # Verify numerical equivalence
         np.testing.assert_allclose(proj_original, proj_jit, rtol=self.rtol, atol=self.atol)
 
         # 接空間条件の確認
