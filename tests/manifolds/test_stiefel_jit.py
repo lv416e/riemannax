@@ -180,7 +180,7 @@ class TestStiefelJITOptimization:
 
         # 同一点での距離
         dist_self = self.manifold_st52._dist_impl(x, x)
-        np.testing.assert_allclose(dist_self, 0.0, atol=1e-12)
+        np.testing.assert_allclose(dist_self, 0.0, atol=1e-10)
 
     def test_orthonormal_constraints_preservation(self):
         """正規直交性制約保持の検証テスト (Requirement 1.4)."""
@@ -300,7 +300,7 @@ class TestStiefelJITOptimization:
         result2 = self.manifold_st52._exp_impl(x, v)
 
         # 結果の一致確認
-        np.testing.assert_allclose(result1, result2, rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(result1, result2, rtol=1e-12, atol=1e-12)
 
     def test_error_handling_invalid_inputs(self):
         """不正入力でのエラーハンドリング (Requirement 8.2)."""

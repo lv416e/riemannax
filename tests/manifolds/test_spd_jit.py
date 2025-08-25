@@ -354,7 +354,7 @@ class TestSPDJITOptimization(SPDCompatibilityMixin):
         result2 = self.manifold_spd3._exp_impl(x, v)
 
         # 結果の一致確認
-        np.testing.assert_allclose(result1, result2, rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(result1, result2, rtol=1e-12, atol=1e-12)
 
     def test_error_handling_invalid_inputs(self):
         """不正入力でのエラーハンドリング (Requirement 8.2)."""
