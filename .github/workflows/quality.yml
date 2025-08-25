@@ -90,11 +90,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
           pip install pytest-cov>=4.0.0
+          pip install pytest-xdist>=3.0.0
+          pip install pytest-timeout>=2.1.0
           pip install coverage[toml]>=7.0.0
 
       - name: Run tests with coverage
         run: |
-          pytest --cov=riemannax --cov-report=xml --cov-report=term-missing --cov-fail-under=95
+          pytest --cov=riemannax --cov-report=xml --cov-report=term-missing --cov-fail-under=95 -n auto --timeout=600
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

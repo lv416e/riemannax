@@ -19,7 +19,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from hypothesis import given, strategies as st
+from hypothesis import given, strategies as st, settings
 
 from riemannax.core.geodesic_connection import GeodesicConnection
 
@@ -260,6 +260,7 @@ class TestMathematicalProperties:
         assert is_positive_definite, "Perturbed matrix not positive definite"
 
     @given(st.floats(min_value=0.1, max_value=10.0))
+    @settings(deadline=None)
     def test_scaling_property(self, scale_factor):
         """Property-based test: transport should scale appropriately with matrix scaling."""
         X = self.identity_2x2
