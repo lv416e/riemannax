@@ -174,6 +174,495 @@ class SymmetricPositiveDefinite(Manifold):
         scaling = _matrix_sqrt(y @ x_inv)
         return jnp.asarray(scaling @ v @ scaling.T)
 
+    @jit_optimized(static_args=(0, 4))  # Make self and n_steps static
+    def _pole_ladder(self, x: Array, y: Array, v: Array, n_steps: int = 3) -> Array:
+        """Pole ladder algorithm for parallel transport with high-order accuracy.
+
+        This implements the correct pole ladder algorithm which provides third-order accurate
+        parallel transport by using iterative geodesic constructions with midpoint symmetries.
+        The method divides the transport path into multiple steps and uses a specific
+        geometric construction at each step for improved accuracy.
+
+        The algorithm works as follows for each step:
+        1. Compute midpoint m between current point p and next point q
+        2. Compute endpoint p' = exp_p(v) of the vector to be transported
+        3. Use symmetry: extend geodesic from p' through m to get transported endpoint
+        4. Extract transported vector as log from q to the transported endpoint
+
+        References:
+        - "Parallel Transport with Pole Ladder: a Third Order Scheme in Affine Connection
+          Spaces which is Exact in Affine Symmetric Spaces" (Pennec, 2018)
+        - "Numerical Accuracy of Ladder Schemes for Parallel Transport on Manifolds"
+          (Bergmann & Gousenbourger, 2018)
+
+        Args:
+            x: Starting point on SPD manifold.
+            y: Target point on SPD manifold.
+            v: Tangent vector at x to be transported.
+            n_steps: Number of steps for the pole ladder (default: 3 for third-order accuracy).
+
+        Returns:
+            The transported vector in the tangent space at y with improved accuracy.
+        """
+        # Use JAX-compatible conditional to handle edge case: transport to the same point
+        distance_sq = jnp.sum((x - y) ** 2)
+        is_same_point = distance_sq < 1e-24  # Square of 1e-12
+
+        def pole_ladder_computation():
+            """Main pole ladder computation with correct algorithm."""
+            current_point = x
+            current_vector = v
+
+            # Divide the geodesic path into n_steps
+            for step in range(n_steps):
+                # Compute the target point for this step
+                t_step = (step + 1) / n_steps
+                target_point = self.exp(x, t_step * self.log(x, y))
+
+                # Apply one pole ladder step: transport current_vector from current_point to target_point
+                current_vector = self._single_pole_ladder_step(current_point, target_point, current_vector)
+                current_point = target_point
+
+            return current_vector
+
+        def identity_transport():
+            """Return original vector when transporting to the same point."""
+            return v
+
+        # Use JAX conditional to handle the edge case
+        return jax.lax.cond(
+            is_same_point,
+            identity_transport,
+            pole_ladder_computation
+        )
+
+    def _single_pole_ladder_step(self, p: Array, q: Array, v: Array) -> Array:
+        """Single pole ladder step for parallel transport from p to q.
+
+        Implements the core pole ladder construction:
+        1. Compute midpoint m = exp_p(0.5 * log_p(q))
+        2. Compute vector endpoint p' = exp_p(v)
+        3. Extend geodesic from p' through m: q' = exp_p'(2 * log_p'(m))
+        4. Extract transported vector: v_transported = log_q(q')
+
+        Args:
+            p: Starting point on manifold
+            q: Target point on manifold
+            v: Tangent vector at p to transport
+
+        Returns:
+            Transported tangent vector at q
+        """
+        # Step 1: Compute midpoint between p and q
+        log_pq = self.log(p, q)
+        midpoint = self.exp(p, 0.5 * log_pq)
+
+        # Step 2: Compute endpoint of the vector v at point p
+        vector_endpoint = self.exp(p, v)
+
+        # Step 3: Pole ladder construction using symmetry
+        # Extend geodesic from vector_endpoint through midpoint
+        log_to_midpoint = self.log(vector_endpoint, midpoint)
+        transported_endpoint = self.exp(vector_endpoint, 2.0 * log_to_midpoint)
+
+        # Step 4: Extract the transported vector at q
+        transported_vector = self.log(q, transported_endpoint)
+
+        # Final safety check: only for extreme numerical failures
+        # This preserves mathematical properties while preventing crashes
+        def safe_result():
+            return self.proj(q, transported_vector)
+
+        def fallback_result():
+            # Only use fallback if result contains NaN/Inf
+            # Use simple parallel transport as backup
+            return self.transp(p, q, v)
+
+        # Check if result is finite - only use fallback for extreme cases
+        result_is_finite = jnp.all(jnp.isfinite(transported_vector))
+
+        return jax.lax.cond(
+            result_is_finite,
+            safe_result,
+            fallback_result
+        )
+
+
+    @jit_optimized(static_args=(0,))
+    def _affine_invariant_transp(self, x: Array, y: Array, v: Array) -> Array:
+        """Closed-form parallel transport using the affine-invariant metric.
+
+        This implements the exact closed-form formula for parallel transport on SPD manifolds
+        with the affine-invariant Riemannian metric. The formula provides theoretically exact
+        isometry preservation and is computationally efficient.
+
+        The parallel transport formula is:
+        P_{x→y}(v) = x^{1/2} * exp(1/2 * x^{-1/2} * log_x(y) * x^{-1/2}) * x^{-1/2} * v * x^{-1/2} *
+                     exp(1/2 * x^{-1/2} * log_x(y) * x^{-1/2}) * x^{1/2}
+
+        This can be simplified using the logarithmic map log_x(y) and matrix operations.
+
+        References:
+        - "O(n)-invariant Riemannian metrics on SPD matrices" (Thanwerdas & Pennec, 2022)
+        - "Parallel Transport on Matrix Manifolds and Exponential Action" (2024)
+
+        Args:
+            x: Starting point on SPD manifold.
+            y: Target point on SPD manifold.
+            v: Tangent vector at x to be transported.
+
+        Returns:
+            The transported vector in the tangent space at y with exact isometry preservation.
+        """
+        # Handle edge case: transport to the same point
+        distance_sq = jnp.sum((x - y) ** 2)
+        is_same_point = distance_sq < 1e-24
+
+        def identity_transport():
+            """Return original vector when transporting to the same point."""
+            return v
+
+        def affine_invariant_computation():
+            """Compute closed-form affine-invariant parallel transport."""
+            # Compute x^{1/2} and x^{-1/2}
+            x_sqrt = _matrix_sqrt(x)
+            x_inv_sqrt = solve(x_sqrt, jnp.eye(self.n), assume_a="pos")
+
+            # Compute log_x(y) = x^{1/2} * log(x^{-1/2} * y * x^{-1/2}) * x^{1/2}
+            y_transformed = x_inv_sqrt @ y @ x_inv_sqrt
+            log_y_transformed = _matrix_log(y_transformed)
+            x_sqrt @ log_y_transformed @ x_sqrt
+
+            # For the closed-form parallel transport, we use a simplified approach
+            # that's mathematically equivalent but more computationally stable:
+            # P_{x→y}(v) = (x^{-1/2} * y * x^{-1/2})^{1/2} * x^{-1/2} * v * x^{-1/2} * (x^{-1/2} * y * x^{-1/2})^{1/2}
+
+            # Compute the transport operator: (x^{-1/2} * y * x^{-1/2})^{1/2}
+            transport_matrix = _matrix_sqrt(y_transformed)
+
+            # Apply the transport: transport_matrix * x^{-1/2} * v * x^{-1/2} * transport_matrix
+            v_transformed = x_inv_sqrt @ v @ x_inv_sqrt
+            transported_v_transformed = transport_matrix @ v_transformed @ transport_matrix
+
+            # Transform back to tangent space at y
+            transported_v = x_sqrt @ transported_v_transformed @ x_sqrt
+
+            return transported_v
+
+        # Use JAX conditional to handle the edge case
+        result = jax.lax.cond(
+            is_same_point,
+            identity_transport,
+            affine_invariant_computation
+        )
+
+        # Ensure result is in tangent space (symmetric for SPD)
+        return self.proj(y, result)
+
+    @jit_optimized(static_args=(0,))
+    def _bures_wasserstein_transp(self, x: Array, y: Array, v: Array) -> Array:
+        """Parallel transport using the Bures-Wasserstein metric.
+
+        The Bures-Wasserstein metric on SPD manifolds has the distance formula:
+        d(A,B) = tr(A) + tr(B) - 2*tr((A^{1/2} * B * A^{1/2})^{1/2})
+
+        For commuting matrices, there exists a closed-form parallel transport formula.
+        For general matrices, we use an approximation based on the metric properties.
+
+        This implementation handles both cases:
+        1. Exact formula for commuting matrices
+        2. Approximation for general matrices
+
+        References:
+        - "On the Bures-Wasserstein distance between positive definite matrices" (Bhatia et al., 2019)
+        - "Averaging on the Bures-Wasserstein manifold" (Altschuler & Chewi, 2021)
+
+        Args:
+            x: Starting point on SPD manifold.
+            y: Target point on SPD manifold.
+            v: Tangent vector at x to be transported.
+
+        Returns:
+            The transported vector in the tangent space at y using Bures-Wasserstein metric.
+        """
+        # Handle edge case: transport to the same point
+        distance_sq = jnp.sum((x - y) ** 2)
+        is_same_point = distance_sq < 1e-24
+
+        def identity_transport():
+            """Return original vector when transporting to the same point."""
+            return v
+
+        def bures_wasserstein_computation():
+            """Compute Bures-Wasserstein parallel transport."""
+            # Check if matrices commute (approximately)
+            xy_comm = x @ y
+            yx_comm = y @ x
+            commutator_norm = jnp.linalg.norm(xy_comm - yx_comm, 'fro')
+            matrices_commute = commutator_norm < 1e-10
+
+            def exact_commuting_transport():
+                """Exact formula for commuting matrices."""
+                # For commuting SPD matrices, we can use simultaneous diagonalization
+                # Both matrices have the same eigenvectors
+                eigenvals_x, eigenvecs = jnp.linalg.eigh(x)
+                eigenvals_y, _ = jnp.linalg.eigh(y)
+
+                # Ensure eigenvalues are positive
+                eigenvals_x = jnp.maximum(eigenvals_x, 1e-12)
+                eigenvals_y = jnp.maximum(eigenvals_y, 1e-12)
+
+                # Transform tangent vector to eigenspace
+                v_eigen = eigenvecs.T @ v @ eigenvecs
+
+                # Apply transport in eigenspace (diagonal scaling)
+                # For Bures-Wasserstein metric on commuting matrices,
+                # the transport involves geometric mean of eigenvalues
+                transport_scaling = jnp.sqrt(eigenvals_y / eigenvals_x)
+                transported_v_eigen = jnp.diag(transport_scaling) @ v_eigen @ jnp.diag(transport_scaling)
+
+                # Transform back to original space
+                transported_v = eigenvecs @ transported_v_eigen @ eigenvecs.T
+                return transported_v
+
+            def approximate_general_transport():
+                """Approximation for general (non-commuting) matrices."""
+                # Use a Bures-Wasserstein inspired transport based on matrix geometric mean
+                # Compute the matrix geometric mean: (x # y) = x^{1/2} * (x^{-1/2} * y * x^{-1/2})^{1/2} * x^{1/2}
+                x_sqrt = _matrix_sqrt(x)
+                x_inv_sqrt = solve(x_sqrt, jnp.eye(self.n), assume_a="pos")
+
+                # Compute geometric mean component
+                y_transformed = x_inv_sqrt @ y @ x_inv_sqrt
+                y_sqrt_transformed = _matrix_sqrt(y_transformed)
+                geometric_mean = x_sqrt @ y_sqrt_transformed @ x_sqrt
+
+                # Bures-Wasserstein transport approximation using geometric mean
+                # Transport operator based on the relationship between x, y, and their geometric mean
+                gm_inv_sqrt = solve(_matrix_sqrt(geometric_mean), jnp.eye(self.n), assume_a="pos")
+                y_sqrt = _matrix_sqrt(y)
+
+                # Apply transport: involves geometric mean and target point
+                transport_op = y_sqrt @ gm_inv_sqrt
+                transported_v = transport_op @ v @ transport_op.T
+
+                return transported_v
+
+            # Choose method based on whether matrices commute
+            return jax.lax.cond(
+                matrices_commute,
+                exact_commuting_transport,
+                approximate_general_transport
+            )
+
+        # Use JAX conditional to handle the edge case
+        result = jax.lax.cond(
+            is_same_point,
+            identity_transport,
+            bures_wasserstein_computation
+        )
+
+        # Ensure result is in tangent space (symmetric for SPD)
+        return self.proj(y, result)
+
+    @jit_optimized(static_args=(0, 4))  # Make self and n_steps static
+    def _schilds_ladder(self, x: Array, y: Array, v: Array, n_steps: int = 5) -> Array:
+        """
+        Implement Schild's ladder algorithm for parallel transport.
+
+        Schild's ladder is a first-order accurate parallel transport method that uses
+        iterative geodesic parallelogram constructions. It is more numerically stable
+        than higher-order methods and suitable for large matrices (n>1000) and
+        ill-conditioned cases.
+
+        The algorithm constructs geodesic parallelograms iteratively to transport
+        a tangent vector from point x to point y. Each step involves:
+        1. Subdividing the geodesic from x to y
+        2. Constructing a geodesic parallelogram
+        3. Updating the transported vector
+
+        Args:
+            x: Starting point on the manifold
+            y: Target point on the manifold
+            v: Tangent vector at x to be transported
+            n_steps: Number of ladder steps (higher = more accurate)
+
+        Returns:
+            Transported tangent vector at point y
+
+        References:
+            - Schild, A. (1949). "Discrete geodesics"
+            - Guigui et al. (2021). "Numerical Accuracy of Ladder Schemes"
+        """
+        # Handle edge case: transport to the same point
+        distance_sq = jnp.sum((x - y) ** 2)
+        is_same_point = distance_sq < 1e-24
+
+        def identity_transport():
+            """Return original vector when transporting to the same point."""
+            return v
+
+        def schilds_ladder_computation():
+            """Main Schild's ladder computation."""
+            current_point = x
+            current_vector = v
+
+            # Divide the geodesic path into n_steps
+            for step in range(n_steps):
+                # Compute the target point for this step
+                t_step = (step + 1) / n_steps
+                log_xy = self.log(x, y)
+                target_point = self.exp(x, t_step * log_xy)
+
+                # Apply one Schild's ladder step
+                current_vector = self._single_schilds_ladder_step(
+                    current_point, target_point, current_vector
+                )
+                current_point = target_point
+
+            return current_vector
+
+        # Use JAX conditional to handle the edge case
+        return jax.lax.cond(
+            is_same_point,
+            identity_transport,
+            schilds_ladder_computation
+        )
+
+    def _single_schilds_ladder_step(self, p: Array, q: Array, v: Array) -> Array:
+        """
+        Perform a single step of Schild's ladder parallel transport.
+
+        This implements the geodesic parallelogram construction:
+        1. Map tangent vector v to endpoint via exponential map
+        2. Construct geodesic from endpoint to q
+        3. Find midpoint of this geodesic
+        4. Construct geodesic from p through midpoint
+        5. Extend to find transported vector endpoint
+        6. Map back to tangent vector at q
+
+        Args:
+            p: Starting point
+            q: Target point (one step along geodesic)
+            v: Tangent vector at p to transport
+
+        Returns:
+            Transported tangent vector at q
+        """
+        # Step 1: Map tangent vector to point via exponential map
+        vector_endpoint = self.exp(p, v)
+
+        # Step 2: Construct geodesic from vector endpoint to target point q
+        log_endpoint_to_q = self.log(vector_endpoint, q)
+
+        # Step 3: Find midpoint of the geodesic from vector_endpoint to q
+        midpoint = self.exp(vector_endpoint, 0.5 * log_endpoint_to_q)
+
+        # Step 4: Construct geodesic from p through midpoint and extend
+        log_p_to_midpoint = self.log(p, midpoint)
+        transported_endpoint = self.exp(p, 2.0 * log_p_to_midpoint)
+
+        # Step 5: Extract transported tangent vector at q
+        transported_vector = self.log(q, transported_endpoint)
+
+        # Final safety check for numerical stability
+        result_is_finite = jnp.all(jnp.isfinite(transported_vector))
+
+        return jax.lax.cond(
+            result_is_finite,
+            lambda: self.proj(q, transported_vector),
+            lambda: self.transp(p, q, v)  # Fallback to simple transport
+        )
+
+    def _select_transport_algorithm(self, x: Array, y: Array, v: Array) -> Array:
+        """
+        Select the best parallel transport algorithm based on matrix properties.
+
+        Selection criteria:
+        - Small matrices (n ≤ 5): Use pole ladder for higher accuracy
+        - Large matrices (n > 5): Use Schild's ladder for stability
+        - High condition number: Use Schild's ladder for numerical stability
+        - Well-conditioned small matrices: Use pole ladder for accuracy
+
+        Args:
+            x: Starting point
+            y: Target point
+            v: Tangent vector to transport
+
+        Returns:
+            JAX Array boolean: True for Schild's ladder, False for pole ladder
+        """
+        matrix_size = x.shape[0]
+
+        # Check condition number for numerical stability assessment
+        eigenvals = jnp.linalg.eigvals(x)
+        condition_number = jnp.max(eigenvals) / jnp.min(eigenvals)
+
+        # High condition number threshold (indicates ill-conditioning)
+        high_condition_threshold = 1e4
+
+        # Large matrix threshold
+        large_matrix_threshold = 5
+
+        # Selection logic
+        is_large = matrix_size > large_matrix_threshold
+        is_ill_conditioned = condition_number > high_condition_threshold
+
+        # Use Schild's ladder for large or ill-conditioned matrices
+        use_schilds = is_large | is_ill_conditioned  # Use bitwise OR for JAX arrays
+
+        return use_schilds
+
+    @jit_optimized(static_args=(0,))  # Make self static
+    def adaptive_parallel_transport(self, x: Array, y: Array, v: Array) -> Array:
+        """
+        Adaptive parallel transport that automatically selects the best algorithm.
+
+        This method analyzes the input matrices and automatically chooses the most
+        appropriate parallel transport algorithm:
+
+        - Affine-invariant transport: For exact closed-form solutions when applicable
+        - Pole ladder: For high accuracy on small, well-conditioned matrices
+        - Schild's ladder: For stability on large matrices or ill-conditioned cases
+
+        Args:
+            x: Starting point on the manifold
+            y: Target point on the manifold
+            v: Tangent vector at x to be transported
+
+        Returns:
+            Transported tangent vector at point y
+
+        Notes:
+            This method is designed for production use where optimal performance
+            and numerical stability are required across different problem scales.
+        """
+        # First, try to determine if we can use exact methods
+        matrix_size = x.shape[0]
+
+        # For small matrices, consider affine-invariant transport
+        # (exact method when the computational cost is acceptable)
+        use_exact = matrix_size <= 4
+
+        def exact_branch():
+            return self._affine_invariant_transp(x, y, v)
+
+        def adaptive_branch():
+            # Select between pole ladder and Schild's ladder
+            use_schilds = self._select_transport_algorithm(x, y, v)
+
+            return jax.lax.cond(
+                use_schilds,
+                lambda: self._schilds_ladder(x, y, v, n_steps=5),
+                lambda: self._pole_ladder(x, y, v, n_steps=3)
+            )
+
+        return jax.lax.cond(
+            use_exact,
+            exact_branch,
+            adaptive_branch
+        )
+
     @jit_optimized(static_args=(0,))
     def dist(self, x: Array, y: Array) -> Array:
         """Compute the Riemannian distance between points x and y.

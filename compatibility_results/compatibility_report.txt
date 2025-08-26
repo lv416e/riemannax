@@ -5,15 +5,15 @@ JIT COMPATIBILITY VERIFICATION REPORT
 OVERALL SUMMARY
 ----------------------------------------
 Total tests: 44
-Passed tests: 28
-Failed tests: 16
-Pass rate: 63.6%
+Passed tests: 27
+Failed tests: 17
+Pass rate: 61.4%
 Numerical instabilities: 0
 
 RESULTS BY MANIFOLD
 ----------------------------------------
 sphere_3d: 6/8 (75.0%)
-sphere_5d: 6/8 (75.0%)
+sphere_5d: 5/8 (62.5%)
 grassmann_5_3: 5/8 (62.5%)
 stiefel_5_3: 3/6 (50.0%)
 so_3: 5/8 (62.5%)
@@ -22,7 +22,7 @@ spd_3: 3/6 (50.0%)
 RESULTS BY OPERATION
 ----------------------------------------
 exp: 7/12 (58.3%)
-log: 4/8 (50.0%)
+log: 3/8 (37.5%)
 proj: 8/12 (66.7%)
 inner: 9/12 (75.0%)
 
@@ -34,21 +34,11 @@ sphere_3d.log (batch=5)
 sphere_3d.inner (batch=5)
   Error: TypeError - dot_general requires contracting dimensions to have the same shape, got (3,) and (5,).
 
-sphere_5d.log (batch=5)
-  Error: ToleranceError -
-Not equal to tolerance rtol=0.0001, atol=1e-06
+sphere_5d.log (batch=1)
+  Error: TypeError - dot_general requires contracting dimensions to have the same shape, got (3,) and (5,).
 
-Mismatched elements: 25 / 25 (100%)
-Max absolute difference: 0.7786907
-Max relative difference: 1.394369
- x: array([[ 0.612548,  0.163136, -0.424585, -0.573489, -1.247562],
-       [ 0.85052 ,  0.027188, -0.97741 , -0.312273,  0.830923],
-       [-0.411194, -0.529506,  0.001619,  0.479568,  1.337144],...
- y: array([[ 0.267539,  0.07493 , -0.196788, -0.258662, -0.525587],
-       [ 0.384259,  0.01223 , -0.430864, -0.134009,  0.374231],
-       [-0.180124, -0.24534 ,  0.000748,  0.211854,  0.558454],...
-  Max abs diff: 7.79e-01
-  Max rel diff: 1.39e+00
+sphere_5d.log (batch=5)
+  Error: TypeError - Pred must be a scalar, got Traced<ShapedArray(bool[5,5])>with<DynamicJaxprTrace> of shape (5, 5).
 
 sphere_5d.inner (batch=5)
   Error: ToleranceError -

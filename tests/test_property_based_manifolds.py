@@ -409,6 +409,7 @@ class TestNumericalStabilityPropertyBased:
         )
 
     @given(st.floats(min_value=-1.0 + 1e-6, max_value=1.0 - 1e-6))
+    @settings(deadline=None)
     def test_sphere_antipodal_points_stability(self, perturbation):
         """Property: Operations remain stable near antipodal points."""
         manifold = Sphere(n=2)

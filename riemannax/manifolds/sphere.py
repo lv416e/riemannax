@@ -7,6 +7,7 @@ rotation representations, and constrained optimization.
 
 from typing import Any
 
+import jax
 import jax.numpy as jnp
 import jax.random as jr
 from jax import lax
@@ -80,10 +81,12 @@ class Sphere(Manifold):
 
     @jit_optimized(static_args=(0,))
     def log(self, x: Array, y: Array) -> Array:
-        """Compute the logarithmic map on the sphere.
+        """Compute the logarithmic map on the sphere with antipodal point handling.
 
         For two points x and y on the sphere, this finds the tangent vector v at x
         such that following the geodesic in that direction for distance ||v|| reaches y.
+
+        Special handling for antipodal points where the logarithmic map is not unique.
 
         Args:
             x: Starting point on the sphere (unit vector).
@@ -92,16 +95,84 @@ class Sphere(Manifold):
         Returns:
             The tangent vector at x that points toward y along the geodesic.
         """
-        # Project y-x onto the tangent space at x
-        v = self.proj(x, y - x)
-        # Compute the norm of the projected vector
-        v_norm = jnp.linalg.norm(v)
-        # Handle numerical stability
-        safe_norm = jnp.maximum(v_norm, NumericalConstants.EPSILON)
-        # Compute the angle between x and y (geodesic distance)
-        theta = jnp.arccos(jnp.clip(jnp.dot(x, y), -1.0, 1.0))
-        # Scale the direction vector by the geodesic distance
-        return jnp.asarray(theta * v / safe_norm)
+        # Compute inner product to detect antipodal points
+        inner_product = jnp.dot(x, y)
+
+        # Check for antipodal points (inner product close to -1)
+        antipodal_threshold = -1.0 + 1e-6
+        is_antipodal = inner_product < antipodal_threshold
+
+        def handle_antipodal_case():
+            """Handle the case when points are nearly antipodal."""
+            # Find any vector orthogonal to x (not unique, but that's expected)
+            # Use Gram-Schmidt to find a vector orthogonal to x
+            # Create candidate vectors using JAX-compatible operations
+            e1 = jnp.eye(self._ambient_dim)[0]  # First standard basis vector
+            e2 = jnp.eye(self._ambient_dim)[1]  # Second standard basis vector
+
+            # Choose candidate based on alignment with x
+            candidate = jnp.where(jnp.abs(x[0]) < 0.9, e1, e2)
+
+            # Project out the x component to get orthogonal vector
+            orthogonal = candidate - jnp.dot(candidate, x) * x
+            orthogonal = orthogonal / jnp.linalg.norm(orthogonal)
+
+            # Return a tangent vector of length π (geodesic distance to antipodal point)
+            return jnp.pi * orthogonal
+
+        def handle_regular_case():
+            """Handle the regular case when points are not antipodal."""
+            # Project y-x onto the tangent space at x
+            v = self.proj(x, y - x)
+            # Compute the norm of the projected vector
+            v_norm = jnp.linalg.norm(v)
+
+            # Enhanced numerical stability for nearly antipodal points
+            # When points are close to antipodal, v_norm becomes very small
+            min_safe_norm = 1e-12
+            safe_norm = jnp.maximum(v_norm, min_safe_norm)
+
+            # Compute the angle between x and y (geodesic distance)
+            # Enhanced clipping for numerical stability
+            clipped_inner = jnp.clip(inner_product, -1.0 + 1e-15, 1.0 - 1e-15)
+            theta = jnp.arccos(clipped_inner)
+
+            # Additional stability check: if v_norm is very small but theta is large,
+            # we're in a nearly antipodal situation that needs special handling
+            nearly_antipodal = (v_norm < 1e-8) & (theta > jnp.pi - 1e-6)
+
+            def use_orthogonal_direction():
+                """Use a stable orthogonal direction when projection becomes degenerate."""
+                # Similar to antipodal case but with correct scaling
+                # Create candidate vectors using JAX-compatible operations
+                e1 = jnp.eye(self._ambient_dim)[0]  # First standard basis vector
+                e2 = jnp.eye(self._ambient_dim)[1]  # Second standard basis vector
+
+                # Choose candidate based on alignment with x
+                candidate = jnp.where(jnp.abs(x[0]) < 0.9, e1, e2)
+
+                orthogonal = candidate - jnp.dot(candidate, x) * x
+                orthogonal = orthogonal / jnp.linalg.norm(orthogonal)
+                return theta * orthogonal
+
+            def use_projected_direction():
+                """Use the standard projected direction."""
+                return theta * v / safe_norm
+
+            return jax.lax.cond(
+                nearly_antipodal,
+                use_orthogonal_direction,
+                use_projected_direction
+            )
+
+        # Choose the appropriate method based on whether points are antipodal
+        result = jax.lax.cond(
+            is_antipodal,
+            handle_antipodal_case,
+            handle_regular_case
+        )
+
+        return jnp.asarray(result)
 
     @jit_optimized(static_args=(0,))
     def retr(self, x: Array, v: Array) -> Array:
