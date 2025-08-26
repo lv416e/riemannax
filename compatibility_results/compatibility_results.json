@@ -276,7 +276,7 @@
       "batch_size": 5,
       "passed": false,
       "error_type": "ValueError",
-      "error_message": "Incompatible shapes for matmul arguments: (5, 5, 3) and (3, 5, 5)",
+      "error_message": "Size of label 'j' for operand 1 (5) does not match previous terms (3).",
       "max_absolute_diff": 0.0,
       "max_relative_diff": 0.0,
       "numerical_instability": false

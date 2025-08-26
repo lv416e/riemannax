@@ -4,6 +4,7 @@ The Grassmann manifold consists of all p-dimensional subspaces of n-dimensional
 Euclidean space, represented by n * p matrices with orthonormal columns.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import jax
@@ -175,77 +176,143 @@ class Grassmann(Manifold):
     # JIT-optimized implementation methods
 
     def _proj_impl(self, x: Array, v: Array) -> Array:
-        """JIT-optimized projection implementation.
+        """JIT-optimized projection implementation with batch support.
 
         Numerical stability improvements:
         - Efficient preservation of subspace constraints
-        - Batch processing support
+        - Full batch processing support for arbitrary batch dimensions
+        - Batch-aware matrix operations using einsum for optimal performance
         """
         # Tangent space: T_X Gr(p,n) = {V ∈ R^{n * p} : X^T V = 0}
-        # Use @ operator for batch-aware matrix multiplication
-        return v - x @ (jnp.swapaxes(x, -2, -1) @ v)
+        # For batch processing, we need to handle arbitrary leading dimensions
+
+        # Get batch dimensions by comparing shapes
+        x_shape = x.shape
+        v_shape = v.shape
+
+        # Extract batch dimensions (everything except last 2 dimensions)
+        batch_dims_x = x_shape[:-2] if len(x_shape) > 2 else ()
+        batch_dims_v = v_shape[:-2] if len(v_shape) > 2 else ()
+
+        # Ensure both have same batch dimensions or one is unbatched
+        if batch_dims_x and batch_dims_v and batch_dims_x != batch_dims_v:
+            raise ValueError(f"Batch dimensions must match: x {batch_dims_x} vs v {batch_dims_v}")
+
+        # Use einsum for batch-aware matrix multiplication
+        # This handles arbitrary batch dimensions efficiently
+        if len(x_shape) > 2 or len(v_shape) > 2:
+            # Batch case: use einsum for efficient computation
+            # Formula: v - x @ (x.T @ v) becomes v - x @ (einsum('...ji,...jk->...ik', x, v))
+            xtv = jnp.einsum('...ji,...jk->...ik', x, v)
+            x_xtv = jnp.einsum('...ij,...jk->...ik', x, xtv)
+            return v - x_xtv
+        else:
+            # Single case: use standard matrix operations
+            return v - x @ (x.T @ v)
 
     def _exp_impl(self, x: Array, v: Array) -> Array:
-        """True SVD-based exponential map following Grassmann manifold theory.
+        """True SVD-based exponential map with comprehensive batch support.
 
         Implements: z = p·V·cos(S)·V^T + U·sin(S)·V^T, then QR decomposition
         where ξ = U·S·V^T is the SVD decomposition of the tangent vector.
+
+        Enhanced for batch processing with arbitrary batch dimensions.
         """
         # Project to tangent space to ensure v is in tangent space
         v_proj = self.proj(x, v)
 
-        # Handle zero tangent vector
-        v_norm = jnp.linalg.norm(v_proj)
+        # Handle zero tangent vector - batch-aware norm calculation
+        # For batch processing, we need to handle norms along the appropriate axes
+        v_norm = jnp.linalg.norm(v_proj, axis=(-2, -1)) if len(v_proj.shape) > 2 else jnp.linalg.norm(v_proj)
 
         def zero_tangent_case() -> Array:
             return x
 
         def nonzero_tangent_case() -> Array:
             # Step 1: Compute SVD of tangent vector ξ = U·S·V^T
+            # JAX SVD handles batch dimensions automatically
             U, S, Vt = jnp.linalg.svd(v_proj, full_matrices=False)
-            V = Vt.T  # Convert V^T back to V
 
             # Step 2: Apply trigonometric functions to singular values
             cos_S = jnp.cos(S)
             sin_S = jnp.sin(S)
 
-            # Step 3: Compute z = p·V·cos(S)·V^T + U·sin(S)·V^T
-            # First term: x @ V @ diag(cos_S) @ V^T
-            first_term = x @ V @ jnp.diag(cos_S) @ V.T
+            # Step 3: Compute z = x·V·cos(S)·V^T + U·sin(S)·V^T
+            # Use einsum for batch-aware operations
+            V = jnp.swapaxes(Vt, -2, -1)  # Convert V^T back to V
 
-            # Second term: U @ diag(sin_S) @ V^T
-            second_term = U @ jnp.diag(sin_S) @ V.T
+            if len(x.shape) > 2:
+                # Batch case: use einsum for efficient batch operations
+                # First term: x @ V @ diag(cos_S) @ V.T
+                V_cos_S = jnp.einsum('...ij,...j->...ij', V, cos_S)
+                first_term = jnp.einsum('...ij,...jk,...kl->...il', x, V_cos_S, jnp.swapaxes(V, -2, -1))
+
+                # Second term: U @ diag(sin_S) @ V^T
+                U_sin_S = jnp.einsum('...ij,...j->...ij', U, sin_S)
+                second_term = jnp.einsum('...ij,...jk->...ik', U_sin_S, Vt)
+            else:
+                # Single case: standard matrix operations
+                first_term = x @ V @ jnp.diag(cos_S) @ V.T
+                second_term = U @ jnp.diag(sin_S) @ V.T
 
             # Combine terms
             z = first_term + second_term
 
             # Step 4: QR decomposition to ensure orthonormality
+            # JAX QR handles batch dimensions automatically
             Q, _ = jnp.linalg.qr(z, mode="reduced")
 
             return Q
 
-        return jnp.asarray(jax.lax.cond(
-            v_norm < 1e-12,
-            zero_tangent_case,
-            nonzero_tangent_case
-        ))
+        # Use appropriate threshold for batch or single case
+        if len(v_proj.shape) > 2:
+            # Batch case: element-wise comparison
+            threshold = 1e-12
+            return jnp.where(
+                jnp.expand_dims(v_norm < threshold, (-2, -1)),
+                zero_tangent_case(),
+                nonzero_tangent_case()
+            )
+        else:
+            # Single case: use lax.cond
+            return jnp.asarray(jax.lax.cond(
+                v_norm < 1e-12,
+                zero_tangent_case,
+                nonzero_tangent_case
+            ))
 
     def _log_impl(self, x: Array, y: Array) -> Array:
-        """True SVD-based logarithmic map following Grassmann manifold theory.
+        """True SVD-based logarithmic map with comprehensive batch support.
 
         Implements: log_x(y) = V·atan(S)·U^T with proper numerical stability.
+        Enhanced for batch processing with arbitrary batch dimensions.
         """
-        # Handle near-identical points
+        # Handle near-identical points - batch-aware distance calculation
+        distance = jnp.linalg.norm(x - y, axis=(-2, -1)) if len(x.shape) > 2 else jnp.linalg.norm(x - y)
+
         def identical_points_case() -> Array:
             return jnp.zeros_like(x)
 
         def different_points_case() -> Array:
             # Use the standard Grassmann logarithmic map approach
             # Compute the orthogonal part of y relative to x
-            orthogonal_part = (jnp.eye(self.n) - x @ x.T) @ y
+            if len(x.shape) > 2:
+                # Batch case: use einsum for batch-aware operations
+                # Compute (I - x @ x.T) @ y efficiently
+                identity = jnp.eye(self.n)
+                xx_t = jnp.einsum('...ij,...kj->...ik', x, x)
+                orthogonal_part = jnp.einsum('ij,...ij->...ij', identity, y) - jnp.einsum('...ij,...ik->...jk', xx_t, y)
+            else:
+                # Single case: standard matrix operations
+                orthogonal_part = (jnp.eye(self.n) - x @ x.T) @ y
 
             # For small differences, use the direct tangent space projection
-            norm_orth = jnp.linalg.norm(orthogonal_part)
+            if len(orthogonal_part.shape) > 2:
+                # Batch case: norm over last 2 dimensions
+                norm_orth = jnp.linalg.norm(orthogonal_part, axis=(-2, -1))
+            else:
+                # Single case: standard norm
+                norm_orth = jnp.linalg.norm(orthogonal_part)
 
             def small_distance_case():
                 # For small distances, the log map is approximately the orthogonal projection
@@ -253,7 +320,7 @@ class Grassmann(Manifold):
 
             def large_distance_case():
                 # For larger distances, we need to scale properly
-                # Compute SVD of orthogonal part
+                # Compute SVD of orthogonal part - JAX handles batch dimensions automatically
                 U_orth, S_orth, VT_orth = jnp.linalg.svd(orthogonal_part, full_matrices=False)
 
                 # Scale the singular values appropriately using arctan
@@ -265,22 +332,48 @@ class Grassmann(Manifold):
                 )
 
                 # Reconstruct the tangent vector
-                return U_orth @ jnp.diag(scaled_singular_values) @ VT_orth
+                if len(orthogonal_part.shape) > 2:
+                    # Batch case: use einsum for reconstruction
+                    US = jnp.einsum('...ij,...j->...ij', U_orth, scaled_singular_values)
+                    return jnp.einsum('...ij,...jk->...ik', US, VT_orth)
+                else:
+                    # Single case: standard matrix operations
+                    return U_orth @ jnp.diag(scaled_singular_values) @ VT_orth
 
             # Choose based on the magnitude of the orthogonal part
-            result = jax.lax.cond(
-                norm_orth < 0.1,  # Threshold for "small" vs "large" distance
-                small_distance_case,
-                large_distance_case
-            )
+            if len(orthogonal_part.shape) > 2:
+                # Batch case: element-wise condition
+                threshold = 0.1
+                result = jnp.where(
+                    jnp.expand_dims(norm_orth < threshold, (-2, -1)),
+                    small_distance_case(),
+                    large_distance_case()
+                )
+            else:
+                # Single case: use lax.cond
+                result = jax.lax.cond(
+                    norm_orth < 0.1,  # Threshold for "small" vs "large" distance
+                    small_distance_case,
+                    large_distance_case
+                )
 
             # Always project to tangent space to ensure X^T @ result = 0
             return self.proj(x, result)
 
         # Check if points are nearly identical
-        distance = jnp.linalg.norm(x - y)
-        are_close = distance < 1e-12
-        return jnp.asarray(jax.lax.cond(are_close, identical_points_case, different_points_case))
+        if len(x.shape) > 2:
+            # Batch case: element-wise comparison
+            threshold = 1e-12
+            are_close = distance < threshold
+            return jnp.where(
+                jnp.expand_dims(are_close, (-2, -1)),
+                identical_points_case(),
+                different_points_case()
+            )
+        else:
+            # Single case: use lax.cond
+            are_close = distance < 1e-12
+            return jnp.asarray(jax.lax.cond(are_close, identical_points_case, different_points_case))
 
 
     def _inner_impl(self, x: Array, u: Array, v: Array) -> Array:
@@ -338,3 +431,88 @@ class Grassmann(Manifold):
         gram = x.T @ x
         identity = jnp.eye(self.p)
         return bool(jnp.allclose(gram, identity, atol=1e-6))
+
+    # Batch Processing Methods
+
+    def create_batch_operations(self) -> dict[str, Callable]:
+        """Create batch-optimized versions of all manifold operations using vmap.
+
+        Returns:
+            Dictionary of batch operation functions with consistent signatures.
+        """
+        return {
+            'proj': jax.vmap(self._proj_impl, in_axes=(0, 0)),
+            'exp': jax.vmap(self._exp_impl, in_axes=(0, 0)),
+            'log': jax.vmap(self._log_impl, in_axes=(0, 0)),
+            'inner': jax.vmap(self._inner_impl, in_axes=(0, 0, 0)),
+            'dist': jax.vmap(self._dist_impl, in_axes=(0, 0)),
+            'transp': jax.vmap(lambda x, y, v: self.proj(y, v), in_axes=(0, 0, 0)),
+            'retr': jax.vmap(lambda x, v: self._qr_retraction(x, v), in_axes=(0, 0))
+        }
+
+    def _qr_retraction(self, x: Array, v: Array) -> Array:
+        """QR-based retraction optimized for batch processing."""
+        y = x + v
+        q, _ = jnp.linalg.qr(y, mode="reduced")
+        return q
+
+    def batch_exp(self, x_batch: Array, v_batch: Array) -> Array:
+        """Batch exponential map computation using vmap.
+
+        Args:
+            x_batch: Batch of base points, shape (batch_size, n, p)
+            v_batch: Batch of tangent vectors, shape (batch_size, n, p)
+
+        Returns:
+            Batch of exponential map results, shape (batch_size, n, p)
+        """
+        return jax.vmap(self._exp_impl, in_axes=(0, 0))(x_batch, v_batch)
+
+    def batch_log(self, x_batch: Array, y_batch: Array) -> Array:
+        """Batch logarithmic map computation using vmap.
+
+        Args:
+            x_batch: Batch of base points, shape (batch_size, n, p)
+            y_batch: Batch of target points, shape (batch_size, n, p)
+
+        Returns:
+            Batch of logarithmic map results, shape (batch_size, n, p)
+        """
+        return jax.vmap(self._log_impl, in_axes=(0, 0))(x_batch, y_batch)
+
+    def batch_proj(self, x_batch: Array, v_batch: Array) -> Array:
+        """Batch projection onto tangent space using vmap.
+
+        Args:
+            x_batch: Batch of base points, shape (batch_size, n, p)
+            v_batch: Batch of vectors to project, shape (batch_size, n, p)
+
+        Returns:
+            Batch of projected vectors, shape (batch_size, n, p)
+        """
+        return jax.vmap(self._proj_impl, in_axes=(0, 0))(x_batch, v_batch)
+
+    def batch_dist(self, x_batch: Array, y_batch: Array) -> Array:
+        """Batch distance computation using vmap.
+
+        Args:
+            x_batch: Batch of first points, shape (batch_size, n, p)
+            y_batch: Batch of second points, shape (batch_size, n, p)
+
+        Returns:
+            Batch of distances, shape (batch_size,)
+        """
+        return jax.vmap(self._dist_impl, in_axes=(0, 0))(x_batch, y_batch)
+
+    def batch_inner(self, x_batch: Array, u_batch: Array, v_batch: Array) -> Array:
+        """Batch inner product computation using vmap.
+
+        Args:
+            x_batch: Batch of base points, shape (batch_size, n, p)
+            u_batch: Batch of first tangent vectors, shape (batch_size, n, p)
+            v_batch: Batch of second tangent vectors, shape (batch_size, n, p)
+
+        Returns:
+            Batch of inner products, shape (batch_size,)
+        """
+        return jax.vmap(self._inner_impl, in_axes=(0, 0, 0))(x_batch, u_batch, v_batch)
