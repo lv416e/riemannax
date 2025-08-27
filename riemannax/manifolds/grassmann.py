@@ -15,22 +15,24 @@ from jax import Array
 from ..core.constants import NumericalConstants
 from ..core.jit_decorator import jit_optimized
 from ..core.type_system import ManifoldPoint, TangentVector
-from .base import DimensionError, Manifold
+from .base import DimensionError
+from .quotient import QuotientManifold
 
 
-class Grassmann(Manifold):
+class Grassmann(QuotientManifold):
     """Grassmann manifold Gr(p,n) of p-dimensional subspaces in R^n.
 
     Points on the manifold are represented as n * p matrices with orthonormal columns.
     The tangent space at a point X consists of n * p matrices V such that X^T V = 0.
     """
 
-    def __init__(self, n: int, p: int):
+    def __init__(self, n: int, p: int, quotient_structure: bool = False):
         """Initialize Grassmann manifold.
 
         Args:
             n: Ambient space dimension.
             p: Subspace dimension (must satisfy p ≤ n).
+            quotient_structure: Whether to enable quotient structure Gr(n,p) = St(n,p)/O(p).
 
         Raises:
             DimensionError: If p > n.
@@ -40,7 +42,7 @@ class Grassmann(Manifold):
         if p <= 0 or n <= 0:
             raise DimensionError("Dimensions must be positive")
 
-        super().__init__()  # JIT-related initialization
+        super().__init__(has_quotient_structure=quotient_structure)
         self.n = n
         self.p = p
 
@@ -53,6 +55,175 @@ class Grassmann(Manifold):
     def ambient_dimension(self) -> int:
         """Ambient space dimension n * p."""
         return self.n * self.p
+
+    # QuotientManifold interface implementation for Gr(n,p) = St(n,p)/O(p)
+
+    @property
+    def total_space_dim(self) -> int:
+        """Dimension of total space St(n,p) embedding = n*p."""
+        return self.n * self.p
+
+    @property
+    def group_dim(self) -> int:
+        """Dimension of orthogonal group O(p) embedding = p*p."""
+        return self.p * self.p
+
+    @jit_optimized(static_args=(0,))
+    def horizontal_proj(self, x: Array, v: Array) -> Array:
+        """Project vector v to horizontal space at point x.
+
+        For Grassmann manifold, horizontal space H_x consists of matrices V
+        such that X^T V + V^T X = 0 (skew-symmetric condition).
+        This is orthogonal to the tangent space of O(p) orbit through X.
+
+        Args:
+            x: Point on Grassmann manifold (n x p orthogonal matrix)
+            v: Vector in ambient space (n x p matrix)
+
+        Returns:
+            Projection of v onto horizontal space at x
+        """
+        if not self.has_quotient_structure:
+            # If not using quotient structure, use standard tangent projection
+            return self.proj(x, v)
+
+        # Horizontal condition: X^T V + V^T X = 0
+        # Project out the symmetric part of X^T V
+        xtv = x.T @ v
+        symmetric_part = (xtv + xtv.T) * 0.5
+        return v - x @ symmetric_part
+
+    @jit_optimized(static_args=(0,))
+    def group_action(self, x: Array, g: Array) -> Array:
+        """Apply O(p) group element g to point x via right multiplication.
+
+        The group action is X ↦ X @ Q where Q ∈ O(p).
+
+        Args:
+            x: Point on Grassmann manifold (n x p matrix)
+            g: Orthogonal group element (p x p orthogonal matrix)
+
+        Returns:
+            Result of group action X @ Q
+        """
+        return x @ g
+
+    def random_group_element(self, key: Array) -> Array:
+        """Generate random element from orthogonal group O(p).
+
+        Uses QR decomposition of random Gaussian matrix with determinant correction.
+
+        Args:
+            key: JAX PRNG key
+
+        Returns:
+            Random p x p orthogonal matrix
+        """
+        # Generate random p x p matrix and orthogonalize
+        gaussian = jr.normal(key, (self.p, self.p))
+        q, r = jnp.linalg.qr(gaussian)
+
+        # Ensure det(Q) = +1 by correcting signs if needed
+        # This generates elements from SO(p), but O(p) includes reflections too
+        # For full O(p), we could randomly flip the sign of det(Q)
+        d = jnp.linalg.det(q)
+        q = q * jnp.sign(d)
+
+        return q
+
+
+    def are_equivalent(self, x: Array, y: Array, atol: float = 1e-4) -> bool:
+        """Check if points x and y represent the same subspace (equivalence class).
+
+        For Grassmann manifolds, two points are equivalent if they span the same
+        p-dimensional subspace. This is checked by computing the principal angles.
+
+        Args:
+            x: First point on Grassmann manifold
+            y: Second point on Grassmann manifold
+            atol: Absolute tolerance for comparison (relaxed for numerical stability)
+
+        Returns:
+            True if x and y represent the same subspace
+        """
+        if not self.has_quotient_structure:
+            # Use standard distance-based equivalence
+            return super().are_equivalent(x, y, atol)
+
+        # For Grassmann manifolds: X and Y are equivalent if they span the same subspace
+        # This is true iff all principal angles between their column spaces are zero
+        # Compute X^T @ Y and check if it has full rank with singular values close to 1
+
+        # Compute SVD of X^T @ Y
+        u, s, vh = jnp.linalg.svd(x.T @ y, full_matrices=False)
+
+        # All singular values should be close to 1 for equivalent subspaces
+        # (since both X and Y have orthonormal columns)
+        # Use more relaxed tolerance for numerical stability
+        return bool(jnp.allclose(s, 1.0, atol=atol))
+
+
+    def is_horizontal(self, x: Array, v: Array, atol: float = 1e-6) -> bool:
+        """Check if vector v is in horizontal space at x.
+
+        For Grassmann quotient structure, this checks the skew-symmetric condition.
+
+        Args:
+            x: Point on the manifold
+            v: Vector to check
+            atol: Absolute tolerance (adjusted for floating point precision)
+
+        Returns:
+            True if v is horizontal at x
+        """
+        if not self.has_quotient_structure:
+            return super().is_horizontal(x, v, atol)
+
+        # For quotient structure: check X^T V + V^T X = 0
+        gram_commutator = x.T @ v + v.T @ x
+        return bool(jnp.allclose(gram_commutator, 0.0, atol=atol))
+
+
+    # Override quotient operations for Grassmann manifolds
+    # Since Grassmann manifolds already work with equivalence classes,
+    # quotient operations should be equivalent to regular operations
+
+    @jit_optimized(static_args=(0,))
+    def quotient_exp(self, x: Array, v: Array) -> Array:
+        """Quotient exponential map for Grassmann manifolds.
+
+        For Grassmann manifolds, this is equivalent to the regular exponential map
+        since Grassmann manifolds already represent equivalence classes of subspaces.
+        """
+        if not self.has_quotient_structure:
+            return super().quotient_exp(x, v)
+
+        # For Grassmann manifolds, quotient exp = regular exp
+        return self.exp(x, v)
+
+    @jit_optimized(static_args=(0,))
+    def quotient_log(self, x: Array, y: Array) -> Array:
+        """Quotient logarithmic map for Grassmann manifolds.
+
+        For Grassmann manifolds, this is equivalent to the regular logarithmic map.
+        """
+        if not self.has_quotient_structure:
+            return super().quotient_log(x, y)
+
+        # For Grassmann manifolds, quotient log = regular log
+        return self.log(x, y)
+
+    @jit_optimized(static_args=(0,))
+    def quotient_dist(self, x: Array, y: Array) -> Array:
+        """Quotient distance for Grassmann manifolds.
+
+        For Grassmann manifolds, this is equivalent to the regular distance.
+        """
+        if not self.has_quotient_structure:
+            return super().quotient_dist(x, y)
+
+        # For Grassmann manifolds, quotient distance = regular distance
+        return self.dist(x, y)
 
     @jit_optimized(static_args=(0,))
     def proj(self, x: Array, v: Array) -> Array:

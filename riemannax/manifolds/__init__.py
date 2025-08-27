@@ -2,6 +2,7 @@
 
 from .base import DimensionError, Manifold, ManifoldError
 from .grassmann import Grassmann
+from .product import ProductManifold
 from .so import SpecialOrthogonal
 from .spd import SymmetricPositiveDefinite
 from .sphere import Sphere
@@ -159,6 +160,7 @@ __all__ = [
     "Grassmann",
     "Manifold",
     "ManifoldError",
+    "ProductManifold",
     "SpecialOrthogonal",
     "Sphere",
     "Stiefel",

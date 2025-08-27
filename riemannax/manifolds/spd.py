@@ -1018,3 +1018,17 @@ class SymmetricPositiveDefinite(Manifold):
         # Return empty tuple - no static arguments for safety
         # Future optimization could consider making 'self' parameter static (position 0)
         return ()
+
+    @property
+    def dimension(self) -> int:
+        """Intrinsic dimension of the SPD manifold.
+
+        For SPD(n), the dimension is n(n+1)/2 since SPD matrices are symmetric,
+        so only the upper triangular part including the diagonal is independent.
+        """
+        return (self.n * (self.n + 1)) // 2
+
+    @property
+    def ambient_dimension(self) -> int:
+        """Dimension of the ambient space (all nxn matrices)."""
+        return self.n * self.n
