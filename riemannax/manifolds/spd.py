@@ -1032,3 +1032,171 @@ class SymmetricPositiveDefinite(Manifold):
     def ambient_dimension(self) -> int:
         """Dimension of the ambient space (all nxn matrices)."""
         return self.n * self.n
+
+    # Log-Euclidean Metric Operations
+
+    @jit_optimized(static_args=(0,))
+    def log_euclidean_exp(self, x: Array, v: Array) -> Array:
+        """Exponential map using the Log-Euclidean metric.
+
+        The Log-Euclidean exponential map is:
+        exp_x^LE(v) = exp(log(x) + v)
+
+        This is computationally much more efficient than the affine-invariant
+        exponential map as it only requires matrix logarithm and exponential
+        operations without solving linear systems.
+
+        Args:
+            x: Base point on SPD manifold (n x n symmetric positive definite matrix)
+            v: Tangent vector at x (n x n symmetric matrix)
+
+        Returns:
+            Point on SPD manifold reached via Log-Euclidean geodesic
+
+        Mathematical Background:
+            The Log-Euclidean metric treats SPD matrices by working in the
+            logarithmic domain, where operations become much simpler.
+            This metric is not Riemannian (not affine-invariant) but provides
+            a computationally efficient approximation.
+
+        References:
+            - "Geometric means in a novel vector space structure on SPD matrices"
+              (Arsigny et al., 2007)
+            - "Log-Euclidean metrics for fast and simple calculus on DT tensors"
+              (Arsigny et al., 2006)
+        """
+        # Compute matrix logarithm of base point
+        log_x = _matrix_log(x)
+
+        # Add tangent vector in log domain
+        log_result = log_x + v
+
+        # Return via matrix exponential
+        result = expm(log_result)
+
+        return jnp.asarray(result)
+
+    @jit_optimized(static_args=(0,))
+    def log_euclidean_log(self, x: Array, y: Array) -> Array:
+        """Logarithmic map using the Log-Euclidean metric.
+
+        The Log-Euclidean logarithmic map is:
+        log_x^LE(y) = log(y) - log(x)
+
+        Args:
+            x: Base point on SPD manifold (n x n symmetric positive definite matrix)
+            y: Target point on SPD manifold (n x n symmetric positive definite matrix)
+
+        Returns:
+            Tangent vector at x pointing towards y in Log-Euclidean metric
+
+        Mathematical Background:
+            This operation is much simpler than the affine-invariant logarithmic map
+            as it only requires matrix logarithms and subtraction.
+        """
+        # Compute matrix logarithms
+        log_x = _matrix_log(x)
+        log_y = _matrix_log(y)
+
+        # Subtract in log domain
+        tangent_vector = log_y - log_x
+
+        return jnp.asarray(tangent_vector)
+
+    @jit_optimized(static_args=(0,))
+    def log_euclidean_distance(self, x: Array, y: Array) -> Array:
+        """Distance using the Log-Euclidean metric.
+
+        The Log-Euclidean distance is:
+        d^LE(x, y) = ||log(y) - log(x)||_F
+
+        where ||·||_F is the Frobenius norm.
+
+        Args:
+            x: First SPD matrix (n x n)
+            y: Second SPD matrix (n x n)
+
+        Returns:
+            Log-Euclidean distance between x and y (scalar)
+
+        Mathematical Background:
+            This distance is much faster to compute than the affine-invariant
+            distance and provides a good approximation for many applications.
+        """
+        # Compute logarithmic map
+        log_diff = self.log_euclidean_log(x, y)
+
+        # Return Frobenius norm
+        distance = jnp.linalg.norm(log_diff, 'fro')
+
+        return distance
+
+    def log_euclidean_interpolation(self, x: Array, y: Array, t: float) -> Array:
+        """Geodesic interpolation using the Log-Euclidean metric.
+
+        Computes the point at parameter t along the Log-Euclidean geodesic
+        connecting x and y:
+        geodesic(t) = exp((1-t) * log(x) + t * log(y))
+
+        Args:
+            x: Starting point on SPD manifold (n x n matrix)
+            y: Ending point on SPD manifold (n x n matrix)
+            t: Interpolation parameter (0 ≤ t ≤ 1)
+
+        Returns:
+            Interpolated point on the Log-Euclidean geodesic
+
+        Mathematical Background:
+            Log-Euclidean geodesics are straight lines in the logarithmic domain,
+            making interpolation extremely simple and efficient.
+        """
+        # Compute matrix logarithms
+        log_x = _matrix_log(x)
+        log_y = _matrix_log(y)
+
+        # Linear interpolation in log domain
+        log_interpolated = (1.0 - t) * log_x + t * log_y
+
+        # Return via matrix exponential
+        result = expm(log_interpolated)
+
+        return jnp.asarray(result)
+
+    def log_euclidean_mean(self, points: Array) -> Array:
+        """Compute the Log-Euclidean mean of SPD matrices.
+
+        The Log-Euclidean mean is:
+        μ^LE = exp(1/N * Σᵢ log(Xᵢ))
+
+        This is much faster than the Riemannian Fréchet mean as it requires
+        no iterative optimization.
+
+        Args:
+            points: Array of SPD matrices, shape (N, n, n)
+
+        Returns:
+            Log-Euclidean mean matrix (n x n)
+
+        Mathematical Background:
+            The Log-Euclidean mean is simply the arithmetic mean in the
+            logarithmic domain, making it extremely efficient to compute.
+
+        References:
+            - "Geometric means in a novel vector space structure on SPD matrices"
+              (Arsigny et al., 2007)
+        """
+        n_points = points.shape[0]
+
+        if n_points == 1:
+            return points[0]
+
+        # Compute logarithm of each matrix
+        log_matrices = jnp.array([_matrix_log(points[i]) for i in range(n_points)])
+
+        # Compute arithmetic mean in log domain
+        log_mean = jnp.mean(log_matrices, axis=0)
+
+        # Return via matrix exponential
+        result = expm(log_mean)
+
+        return jnp.asarray(result)
