@@ -3,6 +3,7 @@
 import argparse
 import sys
 from pathlib import Path
+from textwrap import dedent
 
 from .performance_benchmark import PerformanceBenchmark, run_quick_benchmark
 
@@ -26,20 +27,22 @@ def main():
     parser = argparse.ArgumentParser(
         description="RiemannAX Performance Benchmarking Suite",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Quick benchmark with default settings
-  python -m benchmarks.cli --quick
+        epilog=dedent(
+            """
+            Examples:
+                # Quick benchmark with default settings
+                python -m benchmarks.cli --quick
 
-  # Full benchmark of specific manifolds
-  python -m benchmarks.cli --manifolds sphere_3d,grassmann_5_3 --batch-sizes 1,10,100
+            # Full benchmark of specific manifolds
+                python -m benchmarks.cli --manifolds sphere_3d,grassmann_5_3 --batch-sizes 1,10,100
 
-  # Benchmark specific operations
-  python -m benchmarks.cli --operations exp,proj --output-dir ./benchmark_results
+            # Benchmark specific operations
+                python -m benchmarks.cli --operations exp,proj --output-dir ./benchmark_results
 
-  # Load and display previous results
-  python -m benchmarks.cli --load-results ./benchmark_results/benchmark_results.json
-        """,
+            # Load and display previous results
+                python -m benchmarks.cli --load-results ./benchmark_results/benchmark_results.json
+            """
+        ),
     )
 
     # Main command options

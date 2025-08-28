@@ -159,18 +159,10 @@ class Sphere(Manifold):
                 """Use the standard projected direction."""
                 return theta * v / safe_norm
 
-            return jax.lax.cond(
-                nearly_antipodal,
-                use_orthogonal_direction,
-                use_projected_direction
-            )
+            return jax.lax.cond(nearly_antipodal, use_orthogonal_direction, use_projected_direction)
 
         # Choose the appropriate method based on whether points are antipodal
-        result = jax.lax.cond(
-            is_antipodal,
-            handle_antipodal_case,
-            handle_regular_case
-        )
+        result = jax.lax.cond(is_antipodal, handle_antipodal_case, handle_regular_case)
 
         return jnp.asarray(result)
 

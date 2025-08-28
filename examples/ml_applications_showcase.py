@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Machine Learning Applications Showcase
+Machine Learning Applications Showcase.
 ======================================
 
 This example demonstrates practical machine learning applications using RiemannAX
@@ -23,15 +23,12 @@ Applications Areas:
 Author: RiemannAX Development Team
 """
 
-import time
 from pathlib import Path
-from typing import Tuple
 
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.datasets import make_classification, make_blobs
 from sklearn.metrics import roc_auc_score
 
 import riemannax as rx
@@ -46,7 +43,7 @@ class GeometricPCA:
         self.components_ = None
         self.explained_variance_ratio_ = None
 
-    def fit(self, X: jnp.ndarray, optimizer: str = 'radam') -> 'GeometricPCA':
+    def fit(self, X: jnp.ndarray, optimizer: str = "radam") -> "GeometricPCA":
         """Fit geometric PCA using Grassmann manifold optimization."""
         n_samples, n_features = X.shape
 
@@ -60,7 +57,7 @@ class GeometricPCA:
             # Maximize explained variance = minimize reconstruction error
             projector = subspace @ subspace.T
             reconstruction = X_centered @ projector
-            reconstruction_error = jnp.sum((X_centered - reconstruction)**2)
+            reconstruction_error = jnp.sum((X_centered - reconstruction) ** 2)
             return reconstruction_error
 
         # Optimize on Grassmann manifold
@@ -71,12 +68,12 @@ class GeometricPCA:
         x0 = grassmann.random_point(key)
 
         # Choose optimizer and parameters
-        if optimizer == 'radam':
-            options = {'learning_rate': 0.001, 'max_iterations': self.max_iterations}
-        elif optimizer == 'rmom':
-            options = {'learning_rate': 0.01, 'momentum': 0.9, 'max_iterations': self.max_iterations}
+        if optimizer == "radam":
+            options = {"learning_rate": 0.001, "max_iterations": self.max_iterations}
+        elif optimizer == "rmom":
+            options = {"learning_rate": 0.01, "momentum": 0.9, "max_iterations": self.max_iterations}
         else:
-            options = {'learning_rate': 0.01, 'max_iterations': self.max_iterations}
+            options = {"learning_rate": 0.01, "max_iterations": self.max_iterations}
 
         result = rx.minimize(problem, x0, method=optimizer, options=options)
 
@@ -109,7 +106,7 @@ class RobustCovarianceAnomalyDetector:
         self.location_ = None
         self.threshold_ = None
 
-    def fit(self, X: jnp.ndarray, optimizer: str = 'radam') -> 'RobustCovarianceAnomalyDetector':
+    def fit(self, X: jnp.ndarray, optimizer: str = "radam") -> "RobustCovarianceAnomalyDetector":
         """Fit robust covariance estimator using SPD manifold optimization."""
         n_samples, n_features = X.shape
 
@@ -148,12 +145,12 @@ class RobustCovarianceAnomalyDetector:
         x0 = spd.random_point(key)
 
         # Choose optimizer
-        if optimizer == 'radam':
-            options = {'learning_rate': 0.001, 'max_iterations': self.max_iterations}
-        elif optimizer == 'rmom':
-            options = {'learning_rate': 0.005, 'momentum': 0.9, 'max_iterations': self.max_iterations}
+        if optimizer == "radam":
+            options = {"learning_rate": 0.001, "max_iterations": self.max_iterations}
+        elif optimizer == "rmom":
+            options = {"learning_rate": 0.005, "momentum": 0.9, "max_iterations": self.max_iterations}
         else:
-            options = {'learning_rate': 0.01, 'max_iterations': self.max_iterations}
+            options = {"learning_rate": 0.01, "max_iterations": self.max_iterations}
 
         result = rx.minimize(problem, x0, method=optimizer, options=options)
         self.covariance_ = result.x
@@ -190,7 +187,7 @@ class RotationInvariantFeatureLearner:
         self.rotation_matrices_ = None
         self.feature_weights_ = None
 
-    def fit(self, X: jnp.ndarray, y: jnp.ndarray, optimizer: str = 'rmom'):
+    def fit(self, X: jnp.ndarray, y: jnp.ndarray, optimizer: str = "rmom"):
         """Learn rotation-invariant features for classification."""
         n_samples, n_dims = X.shape
         assert n_dims == 3, "This example works with 3D data"
@@ -222,12 +219,12 @@ class RotationInvariantFeatureLearner:
         x0 = so3.random_point(key)
 
         # Choose optimizer
-        if optimizer == 'rmom':
-            options = {'learning_rate': 0.01, 'momentum': 0.9, 'max_iterations': self.max_iterations}
-        elif optimizer == 'radam':
-            options = {'learning_rate': 0.001, 'max_iterations': self.max_iterations}
+        if optimizer == "rmom":
+            options = {"learning_rate": 0.01, "momentum": 0.9, "max_iterations": self.max_iterations}
+        elif optimizer == "radam":
+            options = {"learning_rate": 0.001, "max_iterations": self.max_iterations}
         else:
-            options = {'learning_rate': 0.01, 'max_iterations': self.max_iterations}
+            options = {"learning_rate": 0.01, "max_iterations": self.max_iterations}
 
         result = rx.minimize(problem, x0, method=optimizer, options=options)
         self.rotation_matrices_ = result.x
@@ -246,9 +243,9 @@ class RotationInvariantFeatureLearner:
 
 def demonstrate_geometric_pca():
     """Demonstrate Geometric PCA on synthetic data."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("1. GEOMETRIC PCA ON GRASSMANN MANIFOLD")
-    print("="*60)
+    print("=" * 60)
 
     # Generate synthetic data with known structure
     key = jax.random.key(42)
@@ -279,7 +276,7 @@ def demonstrate_geometric_pca():
 
     # Geometric PCA
     geometric_pca = GeometricPCA(n_components=n_components)
-    geometric_pca.fit(data, optimizer='radam')
+    geometric_pca.fit(data, optimizer="radam")
 
     print(f"\nStandard PCA explained variance ratio: {standard_pca.explained_variance_ratio_.sum():.4f}")
     print(f"Geometric PCA explained variance ratio: {geometric_pca.explained_variance_ratio_:.4f}")
@@ -301,9 +298,9 @@ def demonstrate_geometric_pca():
 
 def demonstrate_robust_anomaly_detection():
     """Demonstrate robust anomaly detection using SPD manifold."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("2. ROBUST ANOMALY DETECTION ON SPD MANIFOLD")
-    print("="*60)
+    print("=" * 60)
 
     # Generate data with anomalies
     key = jax.random.key(123)
@@ -311,9 +308,7 @@ def demonstrate_robust_anomaly_detection():
 
     # Normal data (multivariate Gaussian)
     n_normal, n_anomalies = 300, 50
-    normal_data = jax.random.multivariate_normal(
-        keys[0], jnp.zeros(4), jnp.eye(4), (n_normal,)
-    )
+    normal_data = jax.random.multivariate_normal(keys[0], jnp.zeros(4), jnp.eye(4), (n_normal,))
 
     # Anomalous data (shifted and scaled)
     anomaly_data = 3 * jax.random.normal(keys[1], (n_anomalies, 4)) + 2
@@ -334,7 +329,7 @@ def demonstrate_robust_anomaly_detection():
 
     # Robust SPD-based detection
     robust_detector = RobustCovarianceAnomalyDetector(contamination=0.15)
-    robust_detector.fit(X, optimizer='radam')
+    robust_detector.fit(X, optimizer="radam")
     robust_scores = -robust_detector.decision_function(X)  # Convert to positive scores
     robust_auc = roc_auc_score(y_true, robust_scores)
 
@@ -347,9 +342,9 @@ def demonstrate_robust_anomaly_detection():
 
 def demonstrate_rotation_invariant_learning():
     """Demonstrate rotation-invariant feature learning on SO(3)."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("3. ROTATION-INVARIANT FEATURES ON SO(3) MANIFOLD")
-    print("="*60)
+    print("=" * 60)
 
     # Generate 3D data with rotational structure
     key = jax.random.key(789)
@@ -397,7 +392,7 @@ def demonstrate_rotation_invariant_learning():
 
     # Rotation-invariant approach
     rotation_learner = RotationInvariantFeatureLearner()
-    rotation_learner.fit(X, y, optimizer='rmom')
+    rotation_learner.fit(X, y, optimizer="rmom")
 
     # Transform features and evaluate
     X_transformed = rotation_learner.transform(X)
@@ -414,102 +409,111 @@ def demonstrate_rotation_invariant_learning():
 
 def create_ml_applications_visualization(results):
     """Create comprehensive visualization for ML applications."""
-    fig = plt.figure(figsize=(18, 12))
+    plt.figure(figsize=(18, 12))
 
     # Create output directory
     output_dir = Path("examples/output")
     output_dir.mkdir(exist_ok=True)
 
-    geometric_pca, pca_data = results['pca']
-    robust_detector, anomaly_X, anomaly_y = results['anomaly']
-    rotation_learner, rotation_X, rotation_y = results['rotation']
+    geometric_pca, pca_data = results["pca"]
+    robust_detector, anomaly_X, anomaly_y = results["anomaly"]
+    rotation_learner, rotation_X, rotation_y = results["rotation"]
 
     # 1. PCA visualization
-    ax1 = plt.subplot(2, 3, 1)
+    plt.subplot(2, 3, 1)
     # Project data to 2D for visualization
     transformed_data = geometric_pca.transform(pca_data)
     plt.scatter(transformed_data[:, 0], transformed_data[:, 1], alpha=0.6, s=30)
-    plt.title('Geometric PCA: Projected Data')
-    plt.xlabel('First Principal Component')
-    plt.ylabel('Second Principal Component')
+    plt.title("Geometric PCA: Projected Data")
+    plt.xlabel("First Principal Component")
+    plt.ylabel("Second Principal Component")
     plt.grid(True, alpha=0.3)
 
     # 2. PCA explained variance
-    ax2 = plt.subplot(2, 3, 2)
-    methods = ['Standard PCA', 'Geometric PCA']
+    plt.subplot(2, 3, 2)
+    methods = ["Standard PCA", "Geometric PCA"]
     # Note: This is a simplified comparison for demonstration
     explained_var = [0.85, geometric_pca.explained_variance_ratio_]  # Placeholder for standard PCA
 
-    bars = plt.bar(methods, explained_var, color=['red', 'blue'], alpha=0.7)
-    plt.title('PCA: Explained Variance Ratio')
-    plt.ylabel('Explained Variance Ratio')
+    bars = plt.bar(methods, explained_var, color=["red", "blue"], alpha=0.7)
+    plt.title("PCA: Explained Variance Ratio")
+    plt.ylabel("Explained Variance Ratio")
     plt.ylim(0, 1)
 
-    for bar, var in zip(bars, explained_var):
-        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
-                f'{var:.3f}', ha='center', va='bottom')
+    for bar, var in zip(bars, explained_var, strict=False):
+        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01, f"{var:.3f}", ha="center", va="bottom")
 
     # 3. Anomaly detection ROC-style comparison
-    ax3 = plt.subplot(2, 3, 3)
+    plt.subplot(2, 3, 3)
     # Simplified visualization - in practice you'd compute full ROC curves
-    methods = ['Standard\nCovariance', 'Robust SPD\nManifold']
+    methods = ["Standard\nCovariance", "Robust SPD\nManifold"]
     auc_scores = [0.75, 0.89]  # Placeholder values
 
-    bars = plt.bar(methods, auc_scores, color=['orange', 'green'], alpha=0.7)
-    plt.title('Anomaly Detection: AUC Scores')
-    plt.ylabel('AUC Score')
+    bars = plt.bar(methods, auc_scores, color=["orange", "green"], alpha=0.7)
+    plt.title("Anomaly Detection: AUC Scores")
+    plt.ylabel("AUC Score")
     plt.ylim(0, 1)
 
-    for bar, auc in zip(bars, auc_scores):
-        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
-                f'{auc:.3f}', ha='center', va='bottom')
+    for bar, auc in zip(bars, auc_scores, strict=False):
+        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01, f"{auc:.3f}", ha="center", va="bottom")
 
     # 4. Anomaly detection scatter plot
-    ax4 = plt.subplot(2, 3, 4)
+    plt.subplot(2, 3, 4)
     normal_mask = anomaly_y == 0
     anomaly_mask = anomaly_y == 1
 
-    plt.scatter(anomaly_X[normal_mask, 0], anomaly_X[normal_mask, 1],
-               c='blue', alpha=0.6, s=20, label='Normal')
-    plt.scatter(anomaly_X[anomaly_mask, 0], anomaly_X[anomaly_mask, 1],
-               c='red', alpha=0.8, s=20, label='Anomaly')
-    plt.title('Anomaly Detection: Data Distribution')
-    plt.xlabel('Feature 1')
-    plt.ylabel('Feature 2')
+    plt.scatter(anomaly_X[normal_mask, 0], anomaly_X[normal_mask, 1], c="blue", alpha=0.6, s=20, label="Normal")
+    plt.scatter(anomaly_X[anomaly_mask, 0], anomaly_X[anomaly_mask, 1], c="red", alpha=0.8, s=20, label="Anomaly")
+    plt.title("Anomaly Detection: Data Distribution")
+    plt.xlabel("Feature 1")
+    plt.ylabel("Feature 2")
     plt.legend()
     plt.grid(True, alpha=0.3)
 
     # 5. Rotation data visualization
-    ax5 = plt.subplot(2, 3, 5, projection='3d')
+    ax5 = plt.subplot(2, 3, 5, projection="3d")
     class_0_mask = rotation_y == 0
     class_1_mask = rotation_y == 1
 
-    ax5.scatter(rotation_X[class_0_mask, 0], rotation_X[class_0_mask, 1], rotation_X[class_0_mask, 2],
-               c='purple', alpha=0.6, s=20, label='Class 0')
-    ax5.scatter(rotation_X[class_1_mask, 0], rotation_X[class_1_mask, 1], rotation_X[class_1_mask, 2],
-               c='cyan', alpha=0.6, s=20, label='Class 1')
-    ax5.set_title('3D Rotation Data')
+    ax5.scatter(
+        rotation_X[class_0_mask, 0],
+        rotation_X[class_0_mask, 1],
+        rotation_X[class_0_mask, 2],
+        c="purple",
+        alpha=0.6,
+        s=20,
+        label="Class 0",
+    )
+    ax5.scatter(
+        rotation_X[class_1_mask, 0],
+        rotation_X[class_1_mask, 1],
+        rotation_X[class_1_mask, 2],
+        c="cyan",
+        alpha=0.6,
+        s=20,
+        label="Class 1",
+    )
+    ax5.set_title("3D Rotation Data")
     ax5.legend()
 
     # 6. Classification accuracy comparison
-    ax6 = plt.subplot(2, 3, 6)
-    methods = ['Standard\nCoordinates', 'Rotation\nInvariant']
+    plt.subplot(2, 3, 6)
+    methods = ["Standard\nCoordinates", "Rotation\nInvariant"]
     accuracies = [0.72, 0.88]  # Placeholder values
 
-    bars = plt.bar(methods, accuracies, color=['red', 'purple'], alpha=0.7)
-    plt.title('Classification: Accuracy Comparison')
-    plt.ylabel('Accuracy')
+    bars = plt.bar(methods, accuracies, color=["red", "purple"], alpha=0.7)
+    plt.title("Classification: Accuracy Comparison")
+    plt.ylabel("Accuracy")
     plt.ylim(0, 1)
 
-    for bar, acc in zip(bars, accuracies):
-        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
-                f'{acc:.3f}', ha='center', va='bottom')
+    for bar, acc in zip(bars, accuracies, strict=False):
+        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01, f"{acc:.3f}", ha="center", va="bottom")
 
     plt.tight_layout()
 
     # Save the plot
     output_path = output_dir / "ml_applications_showcase.png"
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"\nML Applications visualization saved to: {output_path}")
 
     plt.show()
@@ -526,29 +530,29 @@ def main():
 
     # 1. Geometric PCA
     geometric_pca, pca_data = demonstrate_geometric_pca()
-    results['pca'] = (geometric_pca, pca_data)
+    results["pca"] = (geometric_pca, pca_data)
 
     # 2. Robust Anomaly Detection
     robust_detector, anomaly_X, anomaly_y = demonstrate_robust_anomaly_detection()
-    results['anomaly'] = (robust_detector, anomaly_X, anomaly_y)
+    results["anomaly"] = (robust_detector, anomaly_X, anomaly_y)
 
     # 3. Rotation-Invariant Learning
     rotation_learner, rotation_X, rotation_y = demonstrate_rotation_invariant_learning()
-    results['rotation'] = (rotation_learner, rotation_X, rotation_y)
+    results["rotation"] = (rotation_learner, rotation_X, rotation_y)
 
     # Create comprehensive visualization
     create_ml_applications_visualization(results)
 
     # Final summary
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("MACHINE LEARNING APPLICATIONS SUMMARY")
-    print("="*80)
+    print("=" * 80)
     print("✓ Geometric PCA: More accurate subspace recovery using Grassmann manifolds")
     print("✓ Robust Anomaly Detection: Better outlier resilience with SPD manifolds")
     print("✓ Rotation-Invariant Features: Improved classification with SO(3) optimization")
     print("\nThese examples demonstrate how RiemannAX enables principled solutions")
     print("for machine learning problems with inherent geometric structure.")
-    print("="*80)
+    print("=" * 80)
 
 
 if __name__ == "__main__":

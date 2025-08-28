@@ -54,58 +54,76 @@ def plot_procrustes_3d(source_points, target_points, estimated_rotation, true_ro
     target_3d = target_points[:, :3]
 
     # Plot 1: Original configuration
-    ax1 = fig.add_subplot(141, projection='3d')
-    ax1.scatter(source_3d[:, 0], source_3d[:, 1], source_3d[:, 2],
-               c='blue', s=80, alpha=0.7, label='Source points')
-    ax1.scatter(target_3d[:, 0], target_3d[:, 1], target_3d[:, 2],
-               c='red', s=80, alpha=0.7, label='Target points')
+    ax1 = fig.add_subplot(141, projection="3d")
+    ax1.scatter(source_3d[:, 0], source_3d[:, 1], source_3d[:, 2], c="blue", s=80, alpha=0.7, label="Source points")
+    ax1.scatter(target_3d[:, 0], target_3d[:, 1], target_3d[:, 2], c="red", s=80, alpha=0.7, label="Target points")
 
     # Draw lines connecting corresponding points
     for i in range(len(source_3d)):
-        ax1.plot([source_3d[i, 0], target_3d[i, 0]],
-                [source_3d[i, 1], target_3d[i, 1]],
-                [source_3d[i, 2], target_3d[i, 2]],
-                'k--', alpha=0.3, linewidth=0.5)
+        ax1.plot(
+            [source_3d[i, 0], target_3d[i, 0]],
+            [source_3d[i, 1], target_3d[i, 1]],
+            [source_3d[i, 2], target_3d[i, 2]],
+            "k--",
+            alpha=0.3,
+            linewidth=0.5,
+        )
 
-    ax1.set_title('Original Configuration')
+    ax1.set_title("Original Configuration")
     ax1.legend()
-    ax1.set_xlabel('X'); ax1.set_ylabel('Y'); ax1.set_zlabel('Z')
+    ax1.set_xlabel("X")
+    ax1.set_ylabel("Y")
+    ax1.set_zlabel("Z")
 
     # Plot 2: After estimated alignment
-    ax2 = fig.add_subplot(142, projection='3d')
+    ax2 = fig.add_subplot(142, projection="3d")
     aligned_points = source_points @ estimated_rotation.T
     aligned_3d = aligned_points[:, :3]
 
-    ax2.scatter(aligned_3d[:, 0], aligned_3d[:, 1], aligned_3d[:, 2],
-               c='green', s=80, alpha=0.7, label='Aligned source')
-    ax2.scatter(target_3d[:, 0], target_3d[:, 1], target_3d[:, 2],
-               c='red', s=80, alpha=0.7, label='Target points')
+    ax2.scatter(
+        aligned_3d[:, 0], aligned_3d[:, 1], aligned_3d[:, 2], c="green", s=80, alpha=0.7, label="Aligned source"
+    )
+    ax2.scatter(target_3d[:, 0], target_3d[:, 1], target_3d[:, 2], c="red", s=80, alpha=0.7, label="Target points")
 
     # Draw alignment errors
     for i in range(len(aligned_3d)):
-        ax2.plot([aligned_3d[i, 0], target_3d[i, 0]],
-                [aligned_3d[i, 1], target_3d[i, 1]],
-                [aligned_3d[i, 2], target_3d[i, 2]],
-                'purple', alpha=0.6, linewidth=1.5)
+        ax2.plot(
+            [aligned_3d[i, 0], target_3d[i, 0]],
+            [aligned_3d[i, 1], target_3d[i, 1]],
+            [aligned_3d[i, 2], target_3d[i, 2]],
+            "purple",
+            alpha=0.6,
+            linewidth=1.5,
+        )
 
-    ax2.set_title('After Estimated Alignment')
+    ax2.set_title("After Estimated Alignment")
     ax2.legend()
-    ax2.set_xlabel('X'); ax2.set_ylabel('Y'); ax2.set_zlabel('Z')
+    ax2.set_xlabel("X")
+    ax2.set_ylabel("Y")
+    ax2.set_zlabel("Z")
 
     # Plot 3: True alignment (if available)
     if true_rotation is not None:
-        ax3 = fig.add_subplot(143, projection='3d')
+        ax3 = fig.add_subplot(143, projection="3d")
         true_aligned = source_points @ true_rotation.T
         true_aligned_3d = true_aligned[:, :3]
 
-        ax3.scatter(true_aligned_3d[:, 0], true_aligned_3d[:, 1], true_aligned_3d[:, 2],
-                   c='orange', s=80, alpha=0.7, label='True aligned source')
-        ax3.scatter(target_3d[:, 0], target_3d[:, 1], target_3d[:, 2],
-                   c='red', s=80, alpha=0.7, label='Target points')
+        ax3.scatter(
+            true_aligned_3d[:, 0],
+            true_aligned_3d[:, 1],
+            true_aligned_3d[:, 2],
+            c="orange",
+            s=80,
+            alpha=0.7,
+            label="True aligned source",
+        )
+        ax3.scatter(target_3d[:, 0], target_3d[:, 1], target_3d[:, 2], c="red", s=80, alpha=0.7, label="Target points")
 
-        ax3.set_title('True Alignment')
+        ax3.set_title("True Alignment")
         ax3.legend()
-        ax3.set_xlabel('X'); ax3.set_ylabel('Y'); ax3.set_zlabel('Z')
+        ax3.set_xlabel("X")
+        ax3.set_ylabel("Y")
+        ax3.set_zlabel("Z")
 
     # Plot 4: Error comparison
     ax4 = fig.add_subplot(144)
@@ -117,16 +135,16 @@ def plot_procrustes_3d(source_points, target_points, estimated_rotation, true_ro
     x = np.arange(len(initial_errors))
     width = 0.35
 
-    ax4.bar(x - width/2, initial_errors, width, label='Initial error', alpha=0.7, color='blue')
-    ax4.bar(x + width/2, estimated_errors, width, label='After alignment', alpha=0.7, color='green')
+    ax4.bar(x - width / 2, initial_errors, width, label="Initial error", alpha=0.7, color="blue")
+    ax4.bar(x + width / 2, estimated_errors, width, label="After alignment", alpha=0.7, color="green")
 
     if true_rotation is not None:
         true_errors = np.linalg.norm(true_aligned_3d - target_3d, axis=1)
-        ax4.bar(x + 1.5*width, true_errors, width, label='True alignment', alpha=0.7, color='orange')
+        ax4.bar(x + 1.5 * width, true_errors, width, label="True alignment", alpha=0.7, color="orange")
 
-    ax4.set_xlabel('Point Index')
-    ax4.set_ylabel('Alignment Error')
-    ax4.set_title('Point-wise Alignment Errors')
+    ax4.set_xlabel("Point Index")
+    ax4.set_ylabel("Alignment Error")
+    ax4.set_title("Point-wise Alignment Errors")
     ax4.legend()
     ax4.grid(True, alpha=0.3)
 
@@ -143,26 +161,32 @@ def plot_optimization_convergence(costs, rotation_errors=None):
 
     # Cost convergence
     iterations = np.arange(len(costs))
-    axes[0].semilogy(iterations, costs, 'b-', linewidth=2, marker='o', markersize=4)
-    axes[0].set_xlabel('Iteration')
-    axes[0].set_ylabel('Cost Function Value (log scale)')
-    axes[0].set_title('Stiefel Optimization Convergence')
+    axes[0].semilogy(iterations, costs, "b-", linewidth=2, marker="o", markersize=4)
+    axes[0].set_xlabel("Iteration")
+    axes[0].set_ylabel("Cost Function Value (log scale)")
+    axes[0].set_title("Stiefel Optimization Convergence")
     axes[0].grid(True, alpha=0.3)
 
     # Add annotations
-    axes[0].annotate(f'Initial: {costs[0]:.4f}',
-                    xy=(0, costs[0]), xytext=(len(costs)*0.2, costs[0]*2),
-                    arrowprops={'arrowstyle': '->', 'color': 'red'})
-    axes[0].annotate(f'Final: {costs[-1]:.4f}',
-                    xy=(len(costs)-1, costs[-1]), xytext=(len(costs)*0.7, costs[-1]*10),
-                    arrowprops={'arrowstyle': '->', 'color': 'red'})
+    axes[0].annotate(
+        f"Initial: {costs[0]:.4f}",
+        xy=(0, costs[0]),
+        xytext=(len(costs) * 0.2, costs[0] * 2),
+        arrowprops={"arrowstyle": "->", "color": "red"},
+    )
+    axes[0].annotate(
+        f"Final: {costs[-1]:.4f}",
+        xy=(len(costs) - 1, costs[-1]),
+        xytext=(len(costs) * 0.7, costs[-1] * 10),
+        arrowprops={"arrowstyle": "->", "color": "red"},
+    )
 
     # Rotation error convergence (if provided)
     if rotation_errors is not None:
-        axes[1].semilogy(iterations, rotation_errors, 'r-', linewidth=2, marker='s', markersize=4)
-        axes[1].set_xlabel('Iteration')
-        axes[1].set_ylabel('Rotation Error (log scale)')
-        axes[1].set_title('Distance to True Rotation')
+        axes[1].semilogy(iterations, rotation_errors, "r-", linewidth=2, marker="s", markersize=4)
+        axes[1].set_xlabel("Iteration")
+        axes[1].set_ylabel("Rotation Error (log scale)")
+        axes[1].set_title("Distance to True Rotation")
         axes[1].grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -217,10 +241,7 @@ def main():
         # Calculate initial cost
         initial_cost = cost_fn(Q0)
 
-        result = rx.minimize(
-            problem, Q0, method="rsgd",
-            options={"learning_rate": 0.05, "max_iterations": 150}
-        )
+        result = rx.minimize(problem, Q0, method="rsgd", options={"learning_rate": 0.05, "max_iterations": 150})
 
         results[exp_method] = result
 
@@ -268,16 +289,16 @@ def main():
     iterations = jnp.linspace(0, result.niter, 10)
     costs_progression = initial_cost * jnp.exp(-iterations / result.niter * 2) + result.fun
 
-        # Convergence plots
+    # Convergence plots
     conv_fig = plot_optimization_convergence(costs_progression)
     output_path = os.path.join(os.path.dirname(__file__), "output", "stiefel_convergence.png")
-    conv_fig.savefig(output_path, dpi=150, bbox_inches='tight')
+    conv_fig.savefig(output_path, dpi=150, bbox_inches="tight")
 
     # 3D Procrustes visualization
     if ambient_dim >= 3:
         proc_fig = plot_procrustes_3d(source_points, target_points, result.x, true_rotation)
         output_path = os.path.join(os.path.dirname(__file__), "output", "stiefel_procrustes.png")
-        proc_fig.savefig(output_path, dpi=150, bbox_inches='tight')
+        proc_fig.savefig(output_path, dpi=150, bbox_inches="tight")
 
     # Compare exponential map methods
     fig, axes = plt.subplots(1, 2, figsize=(15, 6))
@@ -288,16 +309,16 @@ def main():
         method_iterations = jnp.linspace(0, res.niter, 10)
         method_costs = method_initial * jnp.exp(-method_iterations / res.niter * 2) + res.fun
 
-        axes[i].semilogy(method_costs, label=f'{method.upper()} method', linewidth=2)
-        axes[i].set_xlabel('Iteration')
-        axes[i].set_ylabel('Cost Function Value')
-        axes[i].set_title(f'Convergence: {method.upper()} Exponential Map')
+        axes[i].semilogy(method_costs, label=f"{method.upper()} method", linewidth=2)
+        axes[i].set_xlabel("Iteration")
+        axes[i].set_ylabel("Cost Function Value")
+        axes[i].set_title(f"Convergence: {method.upper()} Exponential Map")
         axes[i].grid(True, alpha=0.3)
         axes[i].legend()
 
     plt.tight_layout()
     output_path = os.path.join(os.path.dirname(__file__), "output", "stiefel_method_comparison.png")
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
 
     # 8. Demonstrate manifold properties
     print("\nManifold Properties:")
@@ -306,9 +327,11 @@ def main():
     print(f"Ambient space dimension: {stiefel.ambient_dimension}")
 
     # Sectional curvature (constant K = 1/4 for Stiefel manifolds)
-    curvature = stiefel.sectional_curvature(result.x,
-                                          jax.random.normal(jax.random.key(1), (ambient_dim, orthogonal_dim)),
-                                          jax.random.normal(jax.random.key(2), (ambient_dim, orthogonal_dim)))
+    curvature = stiefel.sectional_curvature(
+        result.x,
+        jax.random.normal(jax.random.key(1), (ambient_dim, orthogonal_dim)),
+        jax.random.normal(jax.random.key(2), (ambient_dim, orthogonal_dim)),
+    )
     print(f"Sectional curvature (theoretical: 0.25): {curvature:.4f}")
 
     # Test tangent space constraint

@@ -230,11 +230,7 @@ class SymmetricPositiveDefinite(Manifold):
             return v
 
         # Use JAX conditional to handle the edge case
-        return jax.lax.cond(
-            is_same_point,
-            identity_transport,
-            pole_ladder_computation
-        )
+        return jax.lax.cond(is_same_point, identity_transport, pole_ladder_computation)
 
     def _single_pole_ladder_step(self, p: Array, q: Array, v: Array) -> Array:
         """Single pole ladder step for parallel transport from p to q.
@@ -281,12 +277,7 @@ class SymmetricPositiveDefinite(Manifold):
         # Check if result is finite - only use fallback for extreme cases
         result_is_finite = jnp.all(jnp.isfinite(transported_vector))
 
-        return jax.lax.cond(
-            result_is_finite,
-            safe_result,
-            fallback_result
-        )
-
+        return jax.lax.cond(result_is_finite, safe_result, fallback_result)
 
     @jit_optimized(static_args=(0,))
     def _affine_invariant_transp(self, x: Array, y: Array, v: Array) -> Array:
@@ -350,11 +341,7 @@ class SymmetricPositiveDefinite(Manifold):
             return transported_v
 
         # Use JAX conditional to handle the edge case
-        result = jax.lax.cond(
-            is_same_point,
-            identity_transport,
-            affine_invariant_computation
-        )
+        result = jax.lax.cond(is_same_point, identity_transport, affine_invariant_computation)
 
         # Ensure result is in tangent space (symmetric for SPD)
         return self.proj(y, result)
@@ -398,7 +385,7 @@ class SymmetricPositiveDefinite(Manifold):
             # Check if matrices commute (approximately)
             xy_comm = x @ y
             yx_comm = y @ x
-            commutator_norm = jnp.linalg.norm(xy_comm - yx_comm, 'fro')
+            commutator_norm = jnp.linalg.norm(xy_comm - yx_comm, "fro")
             matrices_commute = commutator_norm < 1e-10
 
             def exact_commuting_transport():
@@ -449,18 +436,10 @@ class SymmetricPositiveDefinite(Manifold):
                 return transported_v
 
             # Choose method based on whether matrices commute
-            return jax.lax.cond(
-                matrices_commute,
-                exact_commuting_transport,
-                approximate_general_transport
-            )
+            return jax.lax.cond(matrices_commute, exact_commuting_transport, approximate_general_transport)
 
         # Use JAX conditional to handle the edge case
-        result = jax.lax.cond(
-            is_same_point,
-            identity_transport,
-            bures_wasserstein_computation
-        )
+        result = jax.lax.cond(is_same_point, identity_transport, bures_wasserstein_computation)
 
         # Ensure result is in tangent space (symmetric for SPD)
         return self.proj(y, result)
@@ -515,19 +494,13 @@ class SymmetricPositiveDefinite(Manifold):
                 target_point = self.exp(x, t_step * log_xy)
 
                 # Apply one Schild's ladder step
-                current_vector = self._single_schilds_ladder_step(
-                    current_point, target_point, current_vector
-                )
+                current_vector = self._single_schilds_ladder_step(current_point, target_point, current_vector)
                 current_point = target_point
 
             return current_vector
 
         # Use JAX conditional to handle the edge case
-        return jax.lax.cond(
-            is_same_point,
-            identity_transport,
-            schilds_ladder_computation
-        )
+        return jax.lax.cond(is_same_point, identity_transport, schilds_ladder_computation)
 
     def _single_schilds_ladder_step(self, p: Array, q: Array, v: Array) -> Array:
         """
@@ -571,7 +544,7 @@ class SymmetricPositiveDefinite(Manifold):
         return jax.lax.cond(
             result_is_finite,
             lambda: self.proj(q, transported_vector),
-            lambda: self.transp(p, q, v)  # Fallback to simple transport
+            lambda: self.transp(p, q, v),  # Fallback to simple transport
         )
 
     def _select_transport_algorithm(self, x: Array, y: Array, v: Array) -> Array:
@@ -654,14 +627,10 @@ class SymmetricPositiveDefinite(Manifold):
             return jax.lax.cond(
                 use_schilds,
                 lambda: self._schilds_ladder(x, y, v, n_steps=5),
-                lambda: self._pole_ladder(x, y, v, n_steps=3)
+                lambda: self._pole_ladder(x, y, v, n_steps=3),
             )
 
-        return jax.lax.cond(
-            use_exact,
-            exact_branch,
-            adaptive_branch
-        )
+        return jax.lax.cond(use_exact, exact_branch, adaptive_branch)
 
     @jit_optimized(static_args=(0,))
     def dist(self, x: Array, y: Array) -> Array:
@@ -1127,7 +1096,7 @@ class SymmetricPositiveDefinite(Manifold):
         log_diff = self.log_euclidean_log(x, y)
 
         # Return Frobenius norm
-        distance = jnp.linalg.norm(log_diff, 'fro')
+        distance = jnp.linalg.norm(log_diff, "fro")
 
         return distance
 

@@ -5,7 +5,6 @@ into a single product manifold, enabling optimization on composite spaces where
 different components may belong to different manifolds.
 """
 
-
 import jax.numpy as jnp
 import jax.random as jr
 from jaxtyping import Array, PRNGKeyArray
@@ -276,6 +275,7 @@ class ProductManifold(Manifold):
             if len(shape) == 1:
                 # Simple batch case: (batch_size,)
                 import jax
+
                 return jax.vmap(single_random_point)(keys)
             else:
                 # Multi-dimensional batch case - need to reshape
@@ -286,6 +286,7 @@ class ProductManifold(Manifold):
                 flat_keys = jr.split(key, total_batch_size)
 
                 import jax
+
                 flat_points = jax.vmap(single_random_point)(flat_keys)
 
                 # Reshape to desired batch shape
@@ -344,6 +345,7 @@ class ProductManifold(Manifold):
             if len(shape) == 1:
                 # Simple batch case: (batch_size,)
                 import jax
+
                 return jax.vmap(single_random_tangent)(keys)
             else:
                 # Multi-dimensional batch case - need to reshape
@@ -354,6 +356,7 @@ class ProductManifold(Manifold):
                 flat_keys = jr.split(key, total_batch_size)
 
                 import jax
+
                 flat_tangents = jax.vmap(single_random_tangent)(flat_keys)
 
                 # Reshape to desired batch shape

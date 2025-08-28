@@ -283,6 +283,7 @@ class QuotientManifold(Manifold, ABC):
             # Handle batch case
             def proj_fn(vi: Array) -> Array:
                 return self.horizontal_proj(x, vi)
+
             return jax.vmap(proj_fn)(v_random)
         else:
             return self.horizontal_proj(x, v_random)
@@ -376,6 +377,6 @@ class QuotientManifold(Manifold, ABC):
 
     def __repr__(self) -> str:
         """String representation of quotient manifold."""
-        if hasattr(self, 'total_space_dim') and hasattr(self, 'group_dim'):
+        if hasattr(self, "total_space_dim") and hasattr(self, "group_dim"):
             return f"{self.__class__.__name__}(total_dim={self.total_space_dim}, group_dim={self.group_dim})"
         return f"{self.__class__.__name__}(quotient_structure={self.has_quotient_structure})"

@@ -97,9 +97,7 @@ def main():
     X0 = so3.random_point(key)
 
     # 5. Solve the problem
-    result = rx.minimize(
-        problem, X0, method="rsgd", options={"learning_rate": 0.1, "max_iterations": 200}
-    )
+    result = rx.minimize(problem, X0, method="rsgd", options={"learning_rate": 0.1, "max_iterations": 200})
 
     # 6. Display results
     print(f"Cost function value: {result.fun}")

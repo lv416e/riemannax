@@ -27,7 +27,7 @@ try:
         "euclidean_to_riemannian_gradient",
         "least_squares_on_manifold",
         "minimize",
-        "minimize_on_manifold"
+        "minimize_on_manifold",
     ]
 
 except ImportError:

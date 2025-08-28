@@ -108,9 +108,7 @@ def main():
     x0 = sphere.random_point(key)
 
     # 4. Solve the problem
-    result = rx.minimize(
-        problem, x0, method="rsgd", options={"learning_rate": 0.1, "max_iterations": 100}
-    )
+    result = rx.minimize(problem, x0, method="rsgd", options={"learning_rate": 0.1, "max_iterations": 100})
 
     # 5. Display results
     print(f"Initial point: {x0}")
@@ -119,9 +117,7 @@ def main():
     print(f"Number of iterations until convergence: {result.niter}")
 
     # 6. Visualization
-    plot_sphere_with_points(
-        [x0, result.x], colors=["green", "blue"], labels=["Initial point", "Optimal solution"]
-    )
+    plot_sphere_with_points([x0, result.x], colors=["green", "blue"], labels=["Initial point", "Optimal solution"])
     output_path = os.path.join(os.path.dirname(__file__), "output", "sphere_optimization.png")
     plt.savefig(output_path)
     plt.show()

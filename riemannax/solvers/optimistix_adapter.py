@@ -23,11 +23,7 @@ from riemannax.manifolds.base import Manifold
 from riemannax.problems.base import RiemannianProblem
 
 
-def euclidean_to_riemannian_gradient(
-    manifold: Manifold,
-    point: Array,
-    euclidean_grad: Array
-) -> Array:
+def euclidean_to_riemannian_gradient(manifold: Manifold, point: Array, euclidean_grad: Array) -> Array:
     """Convert Euclidean gradient to Riemannian gradient.
 
     Args:
@@ -125,7 +121,7 @@ class ManifoldMinimizer(optx.AbstractMinimiser):
         base_solver: optx.AbstractMinimiser,
         rtol: float | None = None,
         atol: float | None = None,
-        norm: Callable[[PyTree], Array] | None = None
+        norm: Callable[[PyTree], Array] | None = None,
     ):
         """Initialize the manifold minimizer adapter.
 
@@ -140,19 +136,12 @@ class ManifoldMinimizer(optx.AbstractMinimiser):
         self.base_solver = base_solver
 
         # Inherit tolerances from base solver if not specified
-        self.rtol = rtol if rtol is not None else getattr(base_solver, 'rtol', 1e-6)
-        self.atol = atol if atol is not None else getattr(base_solver, 'atol', 1e-6)
-        self.norm = norm if norm is not None else getattr(base_solver, 'norm', optx.max_norm)
+        self.rtol = rtol if rtol is not None else getattr(base_solver, "rtol", 1e-6)
+        self.atol = atol if atol is not None else getattr(base_solver, "atol", 1e-6)
+        self.norm = norm if norm is not None else getattr(base_solver, "norm", optx.max_norm)
 
     def init(
-        self,
-        fn: Callable,
-        y: Array,
-        args: Any,
-        options: dict,
-        f_struct: Any,
-        aux_struct: Any,
-        tags: frozenset
+        self, fn: Callable, y: Array, args: Any, options: dict, f_struct: Any, aux_struct: Any, tags: frozenset
     ) -> Any:
         """Initialize the solver state.
 
@@ -172,18 +161,10 @@ class ManifoldMinimizer(optx.AbstractMinimiser):
         y_projected = self._ensure_on_manifold(y)
 
         # Initialize base solver with projected point
-        return self.base_solver.init(
-            fn, y_projected, args, options, f_struct, aux_struct, tags
-        )
+        return self.base_solver.init(fn, y_projected, args, options, f_struct, aux_struct, tags)
 
     def step(
-        self,
-        fn: Callable,
-        y: Array,
-        args: Any,
-        options: dict,
-        state: Any,
-        tags: frozenset
+        self, fn: Callable, y: Array, args: Any, options: dict, state: Any, tags: frozenset
     ) -> tuple[Array, Any, Any]:
         """Perform one optimization step with manifold constraints.
 
@@ -202,9 +183,7 @@ class ManifoldMinimizer(optx.AbstractMinimiser):
         y_on_manifold = self._ensure_on_manifold(y)
 
         # Take step with base solver
-        y_new, state_new, aux = self.base_solver.step(
-            fn, y_on_manifold, args, options, state, tags
-        )
+        y_new, state_new, aux = self.base_solver.step(fn, y_on_manifold, args, options, state, tags)
 
         # Project new point back to manifold
         y_projected = self._ensure_on_manifold(y_new)
@@ -212,13 +191,7 @@ class ManifoldMinimizer(optx.AbstractMinimiser):
         return y_projected, state_new, aux
 
     def terminate(
-        self,
-        fn: Callable,
-        y: Array,
-        args: Any,
-        options: dict,
-        state: Any,
-        tags: frozenset
+        self, fn: Callable, y: Array, args: Any, options: dict, state: Any, tags: frozenset
     ) -> tuple[Array, optx.RESULTS]:
         """Check termination criteria.
 
@@ -248,7 +221,7 @@ class ManifoldMinimizer(optx.AbstractMinimiser):
         options: dict,
         state: Any,
         tags: frozenset,
-        result: optx.RESULTS
+        result: optx.RESULTS,
     ) -> tuple[Array, Any, optx.RESULTS]:
         """Post-process the optimization result.
 
@@ -309,7 +282,7 @@ def _project_to_manifold(manifold: Manifold, point: Array) -> Array:
     # This ensures the point is on the manifold without boolean conversion issues
 
     # Use different projection strategies based on manifold type
-    if hasattr(manifold, 'retr') and hasattr(manifold, 'proj'):
+    if hasattr(manifold, "retr") and hasattr(manifold, "proj"):
         # For manifolds with exponential map, use retraction from origin
         try:
             # Project point to tangent space at a reference point, then retract
@@ -332,7 +305,7 @@ def minimize_on_manifold(
     manifold: Manifold,
     initial_point: Array,
     solver: optx.AbstractMinimiser | None = None,
-    **kwargs
+    **kwargs,
 ) -> optx.Solution:
     """Minimize a cost function on a Riemannian manifold using Optimistix.
 
@@ -389,7 +362,7 @@ def least_squares_on_manifold(
     manifold: Manifold,
     initial_point: Array,
     solver: optx.AbstractMinimiser | None = None,
-    **kwargs
+    **kwargs,
 ) -> optx.Solution:
     """Solve a least squares problem on a Riemannian manifold using Optimistix.
 
@@ -415,10 +388,11 @@ def least_squares_on_manifold(
         >>> result = least_squares_on_manifold(residuals, manifold, x0)
         >>> print(f"Optimal point: {result.value}")
     """
+
     # Convert least squares problem to minimization problem
     def cost_function(y: Array) -> Array:
         residuals = residual_fn(y)
-        return 0.5 * jnp.sum(residuals ** 2)
+        return 0.5 * jnp.sum(residuals**2)
 
     # Use default solver if none provided
     if solver is None:

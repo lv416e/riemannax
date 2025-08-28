@@ -61,7 +61,7 @@ examples = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["riemannax"]
+where = ["."]
 
 [tool.ruff]
 target-version = "py310"
