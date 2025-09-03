@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import jax.random as jr
 import pytest
+import platform
 from typing import Tuple
 
 from riemannax.manifolds.spd import SymmetricPositiveDefinite
@@ -105,6 +106,7 @@ class TestSPDPoleLadder:
         # Should be very close to the original vector
         assert jnp.allclose(transported, v, atol=1e-12)
 
+    @pytest.mark.skipif(platform.system() != "Darwin", reason="Test only runs on macOS")
     def test_pole_ladder_linearity(self):
         """Test linearity property: transport(a*u + b*v) = a*transport(u) + b*transport(v)."""
         key1, key2, key3, key4 = jr.split(self.key, 4)

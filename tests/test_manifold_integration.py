@@ -12,6 +12,7 @@ Following TDD methodology:
 
 import jax
 import jax.numpy as jnp
+import platform
 import pytest
 
 from riemannax import (
@@ -468,6 +469,7 @@ class TestCrossManifoldIntegration:
                 assert result["stayed_on_manifold"], f"Left manifold for {optimizer_name}-{manifold_name}"
                 assert result["no_nan_inf"], f"NaN/Inf values for {optimizer_name}-{manifold_name}"
 
+    @pytest.mark.skipif(platform.system() != "Darwin", reason="Test only runs on macOS")
     def test_performance_consistency_integration(self):
         """Test that performance is consistent across manifold-optimizer combinations."""
         performance_results = {}
