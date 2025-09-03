@@ -188,3 +188,5 @@ cython_debug/
 
 # VS code
 .vscode/
+
+compatibility_results/
