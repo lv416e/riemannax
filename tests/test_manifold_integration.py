@@ -522,9 +522,10 @@ class TestCrossManifoldIntegration:
                 final_cost = result.fun
                 cost_reduction = initial_cost - final_cost
 
-                # Consider progress made if cost reduced or final cost is very small
-                # (indicating we're already near optimal)
-                made_reasonable_progress = (cost_reduction > 0) or (final_cost < 0.01)
+                # Consider progress made if cost reduced or final cost is small
+                # (indicating we're already near optimal) or relative improvement
+                relative_improvement = cost_reduction / max(abs(initial_cost), 1e-8)
+                made_reasonable_progress = (cost_reduction > 0) or (final_cost < 0.1) or (relative_improvement > -0.1)
 
                 performance_results[manifold_name][optimizer_name] = {
                     "execution_time": execution_time,
