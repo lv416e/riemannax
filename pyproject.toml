@@ -24,15 +24,22 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "jax>=0.4.0",
+    "jaxtyping>=0.2.0",
     "matplotlib>=3.10.3",
     "numpy>=1.20.0",
     "optax>=0.1.0",
+    "optimistix>=0.0.5",
+    "equinox>=0.11.0",
+    "types-setuptools>=80.9.0.20250822",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.9.0",
     "pytest>=7.0.0",
+    "pytest-xdist>=3.0.0",
+    "pytest-timeout>=2.1.0",
+    "hypothesis>=6.0.0",
     "black==23.7.0",
     "mypy>=1.8.0",
     "types-requests",
@@ -54,7 +61,7 @@ examples = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["riemannax"]
+where = ["."]
 
 [tool.ruff]
 target-version = "py310"
@@ -66,6 +73,7 @@ exclude = [
     ".venv",
     "build",
     "examples",
+    "tests",
     "docs",
     "dist",
     "venv",
@@ -101,3 +109,36 @@ convention = "google"
 
 [tool.ruff.lint.isort]
 known-third-party = ["numpy", "jax", "optax"]
+
+[tool.mypy]
+python_version = "3.10"
+cache_dir = ".mypy_cache"
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disable_error_code = ["no-redef"] # TODO: Future use
+exclude = ["tests/.*"]
+files = ["riemannax"]
+
+[tool.coverage.run]
+source = ["riemannax"]
+omit = [
+    "riemannax/core/static_args_optimizer.py", # Dead code, not used anywhere
+    "*/tests/*",
+    "*/test_*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

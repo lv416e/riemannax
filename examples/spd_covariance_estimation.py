@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SPD Manifold: Robust Covariance Matrix Estimation
+SPD Manifold: Robust Covariance Matrix Estimation.
 =================================================
 
 This example demonstrates robust covariance matrix estimation on the Symmetric
@@ -21,11 +21,11 @@ matrix estimation that respects the geometric structure of positive definite mat
 Author: RiemannAX Development Team
 """
 
+from pathlib import Path
+
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import numpy as np
-from pathlib import Path
 
 import riemannax as rx
 
@@ -35,12 +35,7 @@ def generate_multivariate_data_with_outliers(key, n_samples=200, n_features=4, o
     keys = jax.random.split(key, 4)
 
     # True covariance structure with correlation
-    true_cov = jnp.array([
-        [1.0, 0.5, 0.2, 0.1],
-        [0.5, 1.0, 0.3, 0.0],
-        [0.2, 0.3, 1.0, 0.4],
-        [0.1, 0.0, 0.4, 1.0]
-    ])
+    true_cov = jnp.array([[1.0, 0.5, 0.2, 0.1], [0.5, 1.0, 0.3, 0.0], [0.2, 0.3, 1.0, 0.4], [0.1, 0.0, 0.4, 1.0]])
 
     # Generate normal samples
     n_clean = int(n_samples * (1 - outlier_ratio))
@@ -77,7 +72,7 @@ def robust_manifold_covariance_cost(cov_matrix, data, huber_delta=1.5):
     This cost function uses the Mahalanobis distance with Huber loss
     to reduce the influence of outliers on covariance estimation.
     """
-    n_samples = data.shape[0]
+    data.shape[0]
     centered_data = data - jnp.mean(data, axis=0)
 
     # Compute Mahalanobis distances
@@ -98,7 +93,7 @@ def robust_manifold_covariance_cost(cov_matrix, data, huber_delta=1.5):
     return log_det_term + jnp.mean(huber_distances)
 
 
-def optimize_covariance_manifold(data, method='radam', max_iterations=100):
+def optimize_covariance_manifold(data, method="radam", max_iterations=100):
     """Optimize covariance matrix on SPD manifold using robust estimation."""
     n_features = data.shape[1]
     spd = rx.SymmetricPositiveDefinite(n=n_features)
@@ -114,17 +109,13 @@ def optimize_covariance_manifold(data, method='radam', max_iterations=100):
     problem = rx.RiemannianProblem(spd, cost_fn)
 
     # Optimize using specified method
-    learning_rates = {'rsgd': 0.01, 'radam': 0.001, 'rmom': 0.005}
-    options = {
-        'learning_rate': learning_rates.get(method, 0.01),
-        'max_iterations': max_iterations,
-        'tolerance': 1e-8
-    }
+    learning_rates = {"rsgd": 0.01, "radam": 0.001, "rmom": 0.005}
+    options = {"learning_rate": learning_rates.get(method, 0.01), "max_iterations": max_iterations, "tolerance": 1e-8}
 
-    if method == 'radam':
-        options.update({'beta1': 0.9, 'beta2': 0.999, 'eps': 1e-8})
-    elif method == 'rmom':
-        options.update({'momentum': 0.9})
+    if method == "radam":
+        options.update({"beta1": 0.9, "beta2": 0.999, "eps": 1e-8})
+    elif method == "rmom":
+        options.update({"momentum": 0.9})
 
     result = rx.minimize(problem, x0, method=method, options=options)
     return result
@@ -132,7 +123,7 @@ def optimize_covariance_manifold(data, method='radam', max_iterations=100):
 
 def frobenius_error(A, B):
     """Compute Frobenius norm error between two matrices."""
-    return jnp.sqrt(jnp.sum((A - B)**2))
+    return jnp.sqrt(jnp.sum((A - B) ** 2))
 
 
 def log_euclidean_distance(A, B):
@@ -166,7 +157,7 @@ def demonstrate_spd_covariance_estimation():
     print()
 
     # Robust manifold-based estimation with different optimizers
-    methods = ['rsgd', 'radam', 'rmom']
+    methods = ["rsgd", "radam", "rmom"]
     results = {}
 
     for method in methods:
@@ -178,11 +169,11 @@ def demonstrate_spd_covariance_estimation():
         log_eucl_dist = log_euclidean_distance(robust_cov, true_cov)
 
         results[method] = {
-            'covariance': robust_cov,
-            'frobenius_error': robust_error,
-            'log_euclidean_distance': log_eucl_dist,
-            'final_cost': result.fun,
-            'iterations': len(result.costs) if hasattr(result, 'costs') else result.nit
+            "covariance": robust_cov,
+            "frobenius_error": robust_error,
+            "log_euclidean_distance": log_eucl_dist,
+            "final_cost": result.fun,
+            "iterations": len(result.costs) if hasattr(result, "costs") else result.nit,
         }
 
         print(f"Frobenius error: {robust_error:.6f}")
@@ -206,14 +197,14 @@ def demonstrate_spd_covariance_estimation():
     print(f"{'MLE':<12} {mle_error:<16.6f} {'N/A':<14} {'Baseline':<12}")
 
     for method in methods:
-        error = results[method]['frobenius_error']
-        log_dist = results[method]['log_euclidean_distance']
+        error = results[method]["frobenius_error"]
+        log_dist = results[method]["log_euclidean_distance"]
         improvement = ((baseline_error - error) / baseline_error) * 100
         print(f"{method.upper():<12} {error:<16.6f} {log_dist:<14.6f} {improvement:+8.2f}%")
 
     # Find best method
-    best_method = min(methods, key=lambda m: results[m]['frobenius_error'])
-    best_error = results[best_method]['frobenius_error']
+    best_method = min(methods, key=lambda m: results[m]["frobenius_error"])
+    best_error = results[best_method]["frobenius_error"]
     improvement_pct = ((mle_error - best_error) / mle_error) * 100
 
     print("-" * 70)
@@ -224,7 +215,7 @@ def demonstrate_spd_covariance_estimation():
 
 def create_covariance_estimation_plots(true_cov, mle_cov, results, data):
     """Create comprehensive visualization of covariance estimation results."""
-    fig = plt.figure(figsize=(16, 12))
+    plt.figure(figsize=(16, 12))
 
     # Create output directory
     output_dir = Path("examples/output")
@@ -241,61 +232,76 @@ def create_covariance_estimation_plots(true_cov, mle_cov, results, data):
         width, height = 2 * jnp.sqrt(eigenvals)
 
         from matplotlib.patches import Ellipse
-        ellipse = Ellipse(xy=(0, 0), width=width, height=height, angle=angle,
-                         facecolor=color, alpha=alpha, edgecolor=color, linewidth=2,
-                         label=label)
+
+        ellipse = Ellipse(
+            xy=(0, 0),
+            width=width,
+            height=height,
+            angle=angle,
+            facecolor=color,
+            alpha=alpha,
+            edgecolor=color,
+            linewidth=2,
+            label=label,
+        )
         ax1.add_patch(ellipse)
 
-    plot_confidence_ellipse(true_cov, 'green', 'True')
-    plot_confidence_ellipse(mle_cov, 'red', 'MLE')
-    plot_confidence_ellipse(results['radam']['covariance'], 'blue', 'Robust (Adam)')
+    plot_confidence_ellipse(true_cov, "green", "True")
+    plot_confidence_ellipse(mle_cov, "red", "MLE")
+    plot_confidence_ellipse(results["radam"]["covariance"], "blue", "Robust (Adam)")
 
-    plt.title('Data Distribution with Confidence Ellipses')
-    plt.xlabel('Feature 1')
-    plt.ylabel('Feature 2')
+    plt.title("Data Distribution with Confidence Ellipses")
+    plt.xlabel("Feature 1")
+    plt.ylabel("Feature 2")
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.axis('equal')
+    plt.axis("equal")
 
     # 2. Covariance matrices heatmap
-    methods_to_plot = ['True', 'MLE', 'RSGD', 'RAdaM', 'RMom']
-    covs_to_plot = [true_cov, mle_cov] + [results[m]['covariance'] for m in ['rsgd', 'radam', 'rmom']]
+    methods_to_plot = ["True", "MLE", "RSGD", "RAdaM", "RMom"]
+    covs_to_plot = [true_cov, mle_cov] + [results[m]["covariance"] for m in ["rsgd", "radam", "rmom"]]
 
-    for i, (method, cov) in enumerate(zip(methods_to_plot, covs_to_plot)):
-        ax = plt.subplot(2, len(methods_to_plot), len(methods_to_plot) + 1 + i)
-        im = plt.imshow(cov, cmap='RdBu_r', vmin=-1, vmax=1)
-        plt.title(f'{method} Covariance')
+    for i, (method, cov) in enumerate(zip(methods_to_plot, covs_to_plot, strict=False)):
+        plt.subplot(2, len(methods_to_plot), len(methods_to_plot) + 1 + i)
+        im = plt.imshow(cov, cmap="RdBu_r", vmin=-1, vmax=1)
+        plt.title(f"{method} Covariance")
         plt.colorbar(im, fraction=0.046, pad=0.04)
 
         # Add text annotations
         for i_coord in range(cov.shape[0]):
             for j_coord in range(cov.shape[1]):
-                plt.text(j_coord, i_coord, f'{cov[i_coord, j_coord]:.2f}',
-                        ha='center', va='center', fontsize=8)
+                plt.text(j_coord, i_coord, f"{cov[i_coord, j_coord]:.2f}", ha="center", va="center", fontsize=8)
 
     # 3. Error comparison
-    ax6 = plt.subplot(2, 3, 6)
-    methods = ['MLE', 'RSGD', 'RAdaM', 'RMom']
-    frobenius_errors = [frobenius_error(mle_cov, true_cov)] + \
-                      [results[m]['frobenius_error'] for m in ['rsgd', 'radam', 'rmom']]
+    plt.subplot(2, 3, 6)
+    methods = ["MLE", "RSGD", "RAdaM", "RMom"]
+    frobenius_errors = [frobenius_error(mle_cov, true_cov)] + [
+        results[m]["frobenius_error"] for m in ["rsgd", "radam", "rmom"]
+    ]
 
-    colors = ['red', 'orange', 'blue', 'purple']
+    colors = ["red", "orange", "blue", "purple"]
     bars = plt.bar(methods, frobenius_errors, color=colors, alpha=0.7)
-    plt.title('Covariance Estimation Error')
-    plt.ylabel('Frobenius Error')
+    plt.title("Covariance Estimation Error")
+    plt.ylabel("Frobenius Error")
     plt.xticks(rotation=45)
     plt.grid(True, alpha=0.3)
 
     # Add value labels on bars
-    for bar, error in zip(bars, frobenius_errors):
-        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.001,
-                f'{error:.4f}', ha='center', va='bottom', fontsize=9)
+    for bar, error in zip(bars, frobenius_errors, strict=False):
+        plt.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.001,
+            f"{error:.4f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
 
     plt.tight_layout()
 
     # Save the plot
     output_path = output_dir / "spd_covariance_estimation.png"
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Visualization saved to: {output_path}")
 
     plt.show()

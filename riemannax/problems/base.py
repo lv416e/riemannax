@@ -4,6 +4,9 @@ This module defines the core interfaces for optimization problems on
 Riemannian manifolds.
 """
 
+from collections.abc import Callable
+from typing import Any
+
 import jax
 
 
@@ -14,7 +17,13 @@ class RiemannianProblem:
     for optimization on a Riemannian manifold.
     """
 
-    def __init__(self, manifold, cost_fn, grad_fn=None, euclidean_grad_fn=None):
+    def __init__(
+        self,
+        manifold: Any,
+        cost_fn: Callable[..., Any],
+        grad_fn: Callable[..., Any] | None = None,
+        euclidean_grad_fn: Callable[..., Any] | None = None,
+    ) -> None:
         """Initialize optimization problem.
 
         Args:
@@ -29,7 +38,7 @@ class RiemannianProblem:
         self.grad_fn = grad_fn
         self.euclidean_grad_fn = euclidean_grad_fn
 
-    def cost(self, x):
+    def cost(self, x: Any) -> Any:
         """Evaluate cost at point x.
 
         Args:
@@ -40,7 +49,7 @@ class RiemannianProblem:
         """
         return self.cost_fn(x)
 
-    def grad(self, x):
+    def grad(self, x: Any) -> Any:
         """Compute Riemannian gradient at point x.
 
         The Riemannian gradient is computed using one of three approaches,

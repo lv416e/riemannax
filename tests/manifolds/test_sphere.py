@@ -22,10 +22,40 @@ def sphere():
     return rieax.Sphere()
 
 
+@pytest.fixture(params=[2, 3, 5, 10])
+def dynamic_sphere(request):
+    """Create sphere manifolds with different dimensions for testing."""
+    return rieax.Sphere(n=request.param)
+
+
+@pytest.fixture
+def sphere_dim_2():
+    """Create a 2D sphere (S^2) for testing."""
+    return rieax.Sphere(n=2)
+
+
+@pytest.fixture
+def sphere_dim_3():
+    """Create a 3D sphere (S^3) for testing."""
+    return rieax.Sphere(n=3)
+
+
+@pytest.fixture
+def sphere_dim_5():
+    """Create a 5D sphere (S^5) for testing."""
+    return rieax.Sphere(n=5)
+
+
+@pytest.fixture
+def sphere_dim_10():
+    """Create a 10D sphere (S^10) for testing."""
+    return rieax.Sphere(n=10)
+
+
 @pytest.fixture
 def point_on_sphere(key):
     """Create a random point on the sphere for testing."""
-    # Standard basis vector
+    # Standard basis vector for default 3D case
     return jnp.array([0.0, 0.0, 1.0])
 
 
@@ -34,6 +64,22 @@ def tangent_vec(sphere, point_on_sphere):
     """Create a tangent vector at the given point for testing."""
     # Create a vector in the tangent space (orthogonal to the point)
     return jnp.array([0.1, 0.2, 0.0])
+
+
+def create_point_on_sphere(dimension):
+    """Helper to create a point on sphere of given dimension."""
+    point = jnp.zeros(dimension + 1)
+    point = point.at[-1].set(1.0)  # Last coordinate = 1, others = 0
+    return point
+
+
+def create_tangent_vector(sphere_instance, point):
+    """Helper to create a tangent vector for given sphere and point."""
+    # Create a small perturbation orthogonal to the point
+    ambient_dim = sphere_instance.ambient_dimension
+    # Create vector with small random values, then project to tangent space
+    vec = jnp.concatenate([jnp.array([0.1, 0.2]), jnp.zeros(ambient_dim - 2)])
+    return sphere_instance.proj(point, vec)
 
 
 def test_sphere_proj(sphere, point_on_sphere):
@@ -178,3 +224,228 @@ def test_sphere_transp(sphere, point_on_sphere):
     orig_norm = jnp.linalg.norm(tangent)
     transp_norm = jnp.linalg.norm(transported)
     assert jnp.abs(orig_norm - transp_norm) < 1e-6
+
+
+# Dynamic dimension tests
+def test_sphere_dimension_properties(dynamic_sphere):
+    """Test that sphere dimension properties are correct for different dimensions."""
+    n = dynamic_sphere.dimension
+    assert dynamic_sphere.ambient_dimension == n + 1
+    assert n >= 1  # Minimum dimension
+
+
+def test_sphere_initialization_validation():
+    """Test sphere initialization with invalid dimensions."""
+    # Valid dimensions should work
+    for n in [1, 2, 3, 10, 100]:
+        sphere = rieax.Sphere(n=n)
+        assert sphere.dimension == n
+        assert sphere.ambient_dimension == n + 1
+
+    # Invalid dimensions should raise ValueError
+    with pytest.raises(ValueError, match="Sphere dimension must be positive"):
+        rieax.Sphere(n=0)
+
+    with pytest.raises(ValueError, match="Sphere dimension must be positive"):
+        rieax.Sphere(n=-1)
+
+
+def test_sphere_random_point_dynamic(dynamic_sphere, key):
+    """Test random point generation for different dimensions."""
+    point = dynamic_sphere.random_point(key)
+
+    # Check that point has correct shape
+    assert point.shape == (dynamic_sphere.ambient_dimension,)
+
+    # Check that point is on the sphere
+    norm = jnp.linalg.norm(point)
+    assert jnp.abs(norm - 1.0) < 1e-6
+
+    # Test batch generation
+    batch_points = dynamic_sphere.random_point(key, 5, dynamic_sphere.ambient_dimension)
+    assert batch_points.shape == (5, dynamic_sphere.ambient_dimension)
+
+    # All points should be on sphere
+    norms = jnp.linalg.norm(batch_points, axis=-1)
+    assert jnp.allclose(norms, 1.0, atol=1e-6)
+
+
+def test_sphere_random_tangent_dynamic(dynamic_sphere, key):
+    """Test random tangent vector generation for different dimensions."""
+    point = create_point_on_sphere(dynamic_sphere.dimension)
+    tangent = dynamic_sphere.random_tangent(key, point)
+
+    # Check correct shape
+    assert tangent.shape == point.shape
+
+    # Check orthogonality to point
+    dot_product = jnp.dot(point, tangent)
+    assert jnp.abs(dot_product) < 1e-6
+
+
+def test_sphere_proj_dynamic(dynamic_sphere):
+    """Test projection operation for different dimensions."""
+    point = create_point_on_sphere(dynamic_sphere.dimension)
+
+    # Create a random vector in ambient space
+    ambient_dim = dynamic_sphere.ambient_dimension
+    v = jnp.ones(ambient_dim) * 0.1
+
+    # Project onto tangent space
+    proj_v = dynamic_sphere.proj(point, v)
+
+    # Check orthogonality to point
+    dot_product = jnp.dot(point, proj_v)
+    assert jnp.abs(dot_product) < 1e-6
+
+    # Check idempotency
+    proj_proj_v = dynamic_sphere.proj(point, proj_v)
+    assert jnp.allclose(proj_v, proj_proj_v)
+
+
+def test_sphere_exp_dynamic(dynamic_sphere):
+    """Test exponential map for different dimensions."""
+    point = create_point_on_sphere(dynamic_sphere.dimension)
+    tangent = create_tangent_vector(dynamic_sphere, point)
+
+    # Apply exponential map
+    new_point = dynamic_sphere.exp(point, tangent)
+
+    # Check that result is on sphere
+    norm = jnp.linalg.norm(new_point)
+    assert jnp.abs(norm - 1.0) < 1e-6
+
+    # For zero tangent vector, should return original point
+    zero_vec = jnp.zeros_like(tangent)
+    exp_zero = dynamic_sphere.exp(point, zero_vec)
+    assert jnp.allclose(point, exp_zero, atol=1e-6)
+
+
+def test_sphere_log_dynamic(dynamic_sphere):
+    """Test logarithmic map for different dimensions."""
+    point1 = create_point_on_sphere(dynamic_sphere.dimension)
+
+    # Create a second point by rotating slightly
+    ambient_dim = dynamic_sphere.ambient_dimension
+    if ambient_dim >= 2:
+        point2 = jnp.zeros(ambient_dim)
+        point2 = point2.at[0].set(1.0)  # Different from point1
+    else:
+        # For 1D case (S^1), use antipodal point
+        point2 = -point1
+
+    # Compute log
+    log_vec = dynamic_sphere.log(point1, point2)
+
+    # Check that log vector is in tangent space
+    dot_product = jnp.dot(point1, log_vec)
+    assert jnp.abs(dot_product) < 1e-5
+
+    # Check that exp(log(y)) ≈ y (with relaxed tolerance for numerical stability)
+    exp_log = dynamic_sphere.exp(point1, log_vec)
+    assert jnp.allclose(exp_log, point2, atol=1e-4)
+
+
+def test_sphere_inner_dynamic(dynamic_sphere):
+    """Test Riemannian inner product for different dimensions."""
+    point = create_point_on_sphere(dynamic_sphere.dimension)
+
+    # Create two tangent vectors
+    tangent1 = create_tangent_vector(dynamic_sphere, point)
+    tangent2 = create_tangent_vector(dynamic_sphere, point) * 0.5
+
+    # Compute inner product
+    inner_prod = dynamic_sphere.inner(point, tangent1, tangent2)
+
+    # Should match Euclidean inner product for sphere
+    euclidean_inner = jnp.dot(tangent1, tangent2)
+    assert jnp.allclose(inner_prod, euclidean_inner)
+
+
+def test_sphere_dist_dynamic(dynamic_sphere):
+    """Test geodesic distance for different dimensions."""
+    ambient_dim = dynamic_sphere.ambient_dimension
+
+    # Create two orthogonal points (90 degree separation)
+    point1 = jnp.zeros(ambient_dim)
+    point1 = point1.at[-1].set(1.0)  # Last coordinate = 1
+
+    point2 = jnp.zeros(ambient_dim)
+    point2 = point2.at[0].set(1.0)  # First coordinate = 1
+
+    # Distance should be π/2 (90 degrees)
+    dist = dynamic_sphere.dist(point1, point2)
+    assert jnp.abs(dist - jnp.pi / 2) < 1e-6
+
+    # Distance from point to itself should be zero
+    assert jnp.allclose(dynamic_sphere.dist(point1, point1), 0.0)
+
+
+def test_sphere_retr_dynamic(dynamic_sphere):
+    """Test retraction for different dimensions."""
+    point = create_point_on_sphere(dynamic_sphere.dimension)
+    tangent = create_tangent_vector(dynamic_sphere, point)
+
+    # Apply retraction
+    new_point = dynamic_sphere.retr(point, tangent)
+
+    # Check that result is on sphere
+    norm = jnp.linalg.norm(new_point)
+    assert jnp.abs(norm - 1.0) < 1e-6
+
+
+def test_sphere_validate_point_dynamic(dynamic_sphere):
+    """Test point validation for different dimensions."""
+    # Valid point
+    point = create_point_on_sphere(dynamic_sphere.dimension)
+    assert dynamic_sphere.validate_point(point)
+
+    # Invalid point (not unit norm)
+    invalid_point = point * 2.0
+    assert not dynamic_sphere.validate_point(invalid_point)
+
+    # Point with wrong dimension
+    if dynamic_sphere.ambient_dimension > 1:
+        wrong_dim_point = jnp.ones(dynamic_sphere.ambient_dimension - 1)
+        # This should not validate (wrong shape will cause error or fail validation)
+        try:
+            result = dynamic_sphere.validate_point(wrong_dim_point)
+            assert not result  # Should be False if no error
+        except (ValueError, IndexError):
+            pass  # Expected for wrong dimensions
+
+
+def test_sphere_validate_tangent_dynamic(dynamic_sphere):
+    """Test tangent vector validation for different dimensions."""
+    point = create_point_on_sphere(dynamic_sphere.dimension)
+    tangent = create_tangent_vector(dynamic_sphere, point)
+
+    # Valid tangent vector
+    assert dynamic_sphere.validate_tangent(point, tangent)
+
+    # Invalid tangent vector (not orthogonal)
+    invalid_tangent = point  # Point itself is not tangent
+    assert not dynamic_sphere.validate_tangent(point, invalid_tangent)
+
+
+# Edge case tests
+@pytest.mark.parametrize("n", [1, 2, 3, 5, 10, 20])
+def test_sphere_edge_cases(n):
+    """Test edge cases for different sphere dimensions."""
+    sphere = rieax.Sphere(n=n)
+    key = jax.random.key(42)
+
+    # Test that all basic operations work
+    point = sphere.random_point(key)
+    tangent = sphere.random_tangent(key, point)
+
+    # All operations should complete without error
+    projected = sphere.proj(point, tangent)
+    new_point = sphere.exp(point, tangent)
+    retracted = sphere.retr(point, tangent)
+
+    # Basic invariants
+    assert jnp.abs(jnp.linalg.norm(point) - 1.0) < 1e-6
+    assert jnp.abs(jnp.linalg.norm(new_point) - 1.0) < 1e-6
+    assert jnp.abs(jnp.linalg.norm(retracted) - 1.0) < 1e-6
+    assert jnp.abs(jnp.dot(point, projected)) < 1e-6

@@ -49,8 +49,7 @@ def sphere_problem():
     initial_cost = cost_fn(x0)
 
     # Solve
-    result = rx.minimize(problem, x0, method="rsgd",
-                        options={"learning_rate": 0.1, "max_iterations": 50})
+    result = rx.minimize(problem, x0, method="rsgd", options={"learning_rate": 0.1, "max_iterations": 50})
 
     # Analysis
     constraint_error = abs(jnp.linalg.norm(result.x) - 1.0)
@@ -66,14 +65,14 @@ def sphere_problem():
     costs = initial_cost * jnp.exp(-iterations / result.niter * 2) + result.fun
 
     return {
-        'manifold': 'Sphere',
-        'dimension': sphere.dimension,
-        'ambient_dimension': sphere.ambient_dimension,
-        'initial_cost': initial_cost,
-        'final_cost': result.fun,
-        'constraint_error': constraint_error,
-        'iterations': result.niter,
-        'costs': costs
+        "manifold": "Sphere",
+        "dimension": sphere.dimension,
+        "ambient_dimension": sphere.ambient_dimension,
+        "initial_cost": initial_cost,
+        "final_cost": result.fun,
+        "constraint_error": constraint_error,
+        "iterations": result.niter,
+        "costs": costs,
     }
 
 
@@ -111,8 +110,7 @@ def grassmann_problem():
     initial_cost = cost_fn(X0)
 
     # Solve
-    result = rx.minimize(problem, X0, method="rsgd",
-                        options={"learning_rate": 0.01, "max_iterations": 100})
+    result = rx.minimize(problem, X0, method="rsgd", options={"learning_rate": 0.01, "max_iterations": 100})
 
     # Analysis
     constraint_error = jnp.linalg.norm(result.x.T @ result.x - jnp.eye(2))
@@ -129,14 +127,14 @@ def grassmann_problem():
     costs = initial_cost * jnp.exp(-iterations / result.niter * 3) + result.fun
 
     return {
-        'manifold': 'Grassmann',
-        'dimension': grassmann.dimension,
-        'ambient_dimension': grassmann.ambient_dimension,
-        'initial_cost': initial_cost,
-        'final_cost': result.fun,
-        'constraint_error': constraint_error,
-        'iterations': result.niter,
-        'costs': costs
+        "manifold": "Grassmann",
+        "dimension": grassmann.dimension,
+        "ambient_dimension": grassmann.ambient_dimension,
+        "initial_cost": initial_cost,
+        "final_cost": result.fun,
+        "constraint_error": constraint_error,
+        "iterations": result.niter,
+        "costs": costs,
     }
 
 
@@ -175,8 +173,7 @@ def stiefel_problem():
     initial_cost = cost_fn(Q0)
 
     # Solve
-    result = rx.minimize(problem, Q0, method="rsgd",
-                        options={"learning_rate": 0.05, "max_iterations": 100})
+    result = rx.minimize(problem, Q0, method="rsgd", options={"learning_rate": 0.05, "max_iterations": 100})
 
     # Analysis
     constraint_error = jnp.linalg.norm(result.x.T @ result.x - jnp.eye(3))
@@ -195,14 +192,14 @@ def stiefel_problem():
     costs = initial_cost * jnp.exp(-iterations / result.niter * 2.5) + result.fun
 
     return {
-        'manifold': 'Stiefel',
-        'dimension': stiefel.dimension,
-        'ambient_dimension': stiefel.ambient_dimension,
-        'initial_cost': initial_cost,
-        'final_cost': result.fun,
-        'constraint_error': constraint_error,
-        'iterations': result.niter,
-        'costs': costs
+        "manifold": "Stiefel",
+        "dimension": stiefel.dimension,
+        "ambient_dimension": stiefel.ambient_dimension,
+        "initial_cost": initial_cost,
+        "final_cost": result.fun,
+        "constraint_error": constraint_error,
+        "iterations": result.niter,
+        "costs": costs,
     }
 
 
@@ -212,33 +209,32 @@ def plot_comparison_results(results):
 
     # Convergence comparison
     ax1 = fig.add_subplot(231)
-    colors = ['blue', 'red', 'green']
+    colors = ["blue", "red", "green"]
     for i, result in enumerate(results):
-        iterations = np.arange(len(result['costs']))
-        ax1.semilogy(iterations, result['costs'],
-                    color=colors[i], linewidth=2, label=result['manifold'])
+        iterations = np.arange(len(result["costs"]))
+        ax1.semilogy(iterations, result["costs"], color=colors[i], linewidth=2, label=result["manifold"])
 
-    ax1.set_xlabel('Iteration')
-    ax1.set_ylabel('Cost Function Value (log scale)')
-    ax1.set_title('Optimization Convergence Comparison')
+    ax1.set_xlabel("Iteration")
+    ax1.set_ylabel("Cost Function Value (log scale)")
+    ax1.set_title("Optimization Convergence Comparison")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
     # Manifold dimensions
     ax2 = fig.add_subplot(232)
-    manifolds = [r['manifold'] for r in results]
-    dimensions = [r['dimension'] for r in results]
-    ambient_dims = [r['ambient_dimension'] for r in results]
+    manifolds = [r["manifold"] for r in results]
+    dimensions = [r["dimension"] for r in results]
+    ambient_dims = [r["ambient_dimension"] for r in results]
 
     x = np.arange(len(manifolds))
     width = 0.35
 
-    ax2.bar(x - width/2, dimensions, width, label='Manifold dimension', alpha=0.8)
-    ax2.bar(x + width/2, ambient_dims, width, label='Ambient dimension', alpha=0.8)
+    ax2.bar(x - width / 2, dimensions, width, label="Manifold dimension", alpha=0.8)
+    ax2.bar(x + width / 2, ambient_dims, width, label="Ambient dimension", alpha=0.8)
 
-    ax2.set_xlabel('Manifold')
-    ax2.set_ylabel('Dimension')
-    ax2.set_title('Manifold vs Ambient Dimensions')
+    ax2.set_xlabel("Manifold")
+    ax2.set_ylabel("Dimension")
+    ax2.set_title("Manifold vs Ambient Dimensions")
     ax2.set_xticks(x)
     ax2.set_xticklabels(manifolds)
     ax2.legend()
@@ -246,70 +242,66 @@ def plot_comparison_results(results):
 
     # Cost reduction
     ax3 = fig.add_subplot(233)
-    cost_reductions = [(r['initial_cost'] - r['final_cost']) / r['initial_cost'] * 100
-                      for r in results]
+    cost_reductions = [(r["initial_cost"] - r["final_cost"]) / r["initial_cost"] * 100 for r in results]
 
     bars = ax3.bar(manifolds, cost_reductions, color=colors, alpha=0.8)
-    ax3.set_ylabel('Cost Reduction (%)')
-    ax3.set_title('Optimization Effectiveness')
+    ax3.set_ylabel("Cost Reduction (%)")
+    ax3.set_title("Optimization Effectiveness")
     ax3.grid(True, alpha=0.3)
 
     # Add value labels on bars
     for bar, value in zip(bars, cost_reductions, strict=False):
         height = bar.get_height()
-        ax3.text(bar.get_x() + bar.get_width()/2., height + 1,
-                f'{value:.1f}%', ha='center', va='bottom')
+        ax3.text(bar.get_x() + bar.get_width() / 2.0, height + 1, f"{value:.1f}%", ha="center", va="bottom")
 
     # Constraint satisfaction
     ax4 = fig.add_subplot(234)
-    constraint_errors = [r['constraint_error'] for r in results]
+    constraint_errors = [r["constraint_error"] for r in results]
 
-    ax4.semilogy(manifolds, constraint_errors, 'o-', linewidth=2, markersize=8)
-    ax4.set_ylabel('Constraint Error (log scale)')
-    ax4.set_title('Manifold Constraint Satisfaction')
+    ax4.semilogy(manifolds, constraint_errors, "o-", linewidth=2, markersize=8)
+    ax4.set_ylabel("Constraint Error (log scale)")
+    ax4.set_title("Manifold Constraint Satisfaction")
     ax4.grid(True, alpha=0.3)
 
     # Convergence iterations
     ax5 = fig.add_subplot(235)
-    iterations = [r['iterations'] for r in results]
+    iterations = [r["iterations"] for r in results]
 
     bars = ax5.bar(manifolds, iterations, color=colors, alpha=0.8)
-    ax5.set_ylabel('Iterations to Convergence')
-    ax5.set_title('Convergence Speed')
+    ax5.set_ylabel("Iterations to Convergence")
+    ax5.set_title("Convergence Speed")
     ax5.grid(True, alpha=0.3)
 
     # Add value labels
     for bar, value in zip(bars, iterations, strict=False):
         height = bar.get_height()
-        ax5.text(bar.get_x() + bar.get_width()/2., height + 1,
-                f'{value}', ha='center', va='bottom')
+        ax5.text(bar.get_x() + bar.get_width() / 2.0, height + 1, f"{value}", ha="center", va="bottom")
 
     # Summary table
     ax6 = fig.add_subplot(236)
-    ax6.axis('tight')
-    ax6.axis('off')
+    ax6.axis("tight")
+    ax6.axis("off")
 
     table_data = []
-    headers = ['Manifold', 'Notation', 'Dimension', 'Ambient', 'Final Cost', 'Constraint Error']
+    headers = ["Manifold", "Notation", "Dimension", "Ambient", "Final Cost", "Constraint Error"]
 
-    notations = ['S²', 'Gr(2,4)', 'St(3,3)']
+    notations = ["S²", "Gr(2,4)", "St(3,3)"]
     for i, (result, notation) in enumerate(zip(results, notations, strict=False)):
         row = [
-            result['manifold'],
+            result["manifold"],
             notation,
             f"{result['dimension']}",
             f"{result['ambient_dimension']}",
             f"{result['final_cost']:.4f}",
-            f"{result['constraint_error']:.2e}"
+            f"{result['constraint_error']:.2e}",
         ]
         table_data.append(row)
 
-    table = ax6.table(cellText=table_data, colLabels=headers,
-                     cellLoc='center', loc='center')
+    table = ax6.table(cellText=table_data, colLabels=headers, cellLoc="center", loc="center")
     table.auto_set_font_size(False)
     table.set_fontsize(10)
     table.scale(1.2, 1.5)
-    ax6.set_title('Summary Statistics')
+    ax6.set_title("Summary Statistics")
 
     plt.tight_layout()
     return fig
@@ -317,9 +309,9 @@ def plot_comparison_results(results):
 
 def demonstrate_manifold_properties():
     """Demonstrate key properties of each manifold."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("MANIFOLD PROPERTIES DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
 
     # Initialize manifolds
     sphere = rx.Sphere()
@@ -329,7 +321,7 @@ def demonstrate_manifold_properties():
     manifolds = [
         (sphere, "Sphere S²", "Unit vectors in R³"),
         (grassmann, "Grassmann Gr(2,4)", "2D subspaces in R⁴"),
-        (stiefel, "Stiefel St(3,3)", "Orthogonal 3×3 matrices")
+        (stiefel, "Stiefel St(3,3)", "Orthogonal 3×3 matrices"),
     ]
 
     for manifold, name, description in manifolds:
@@ -411,15 +403,15 @@ def main():
     print("\nGenerating comparison visualizations...")
     comparison_fig = plot_comparison_results(results)
     output_path = os.path.join(os.path.dirname(__file__), "output", "manifolds_comparison.png")
-    comparison_fig.savefig(output_path, dpi=150, bbox_inches='tight')
+    comparison_fig.savefig(output_path, dpi=150, bbox_inches="tight")
 
     # Demonstrate manifold properties
     demonstrate_manifold_properties()
 
     # Final summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("MILESTONE 1.1 IMPLEMENTATION SUMMARY")
-    print("="*60)
+    print("=" * 60)
 
     print("✅ Enhanced Manifold base class with validation and error handling")
     print("✅ Sphere manifold S^(n-1) with all geometric operations")
@@ -435,7 +427,7 @@ def main():
     print("  - Include proper validation and error handling")
 
     print(f"\nTotal optimization problems solved: {len(results)}")
-    avg_constraint_error = np.mean([r['constraint_error'] for r in results])
+    avg_constraint_error = np.mean([r["constraint_error"] for r in results])
     print(f"Average constraint satisfaction error: {avg_constraint_error:.2e}")
 
     plt.show()

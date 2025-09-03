@@ -24,7 +24,7 @@ class MomentumState(OptState):
         momentum: Momentum term in the tangent space.
     """
 
-    def __init__(self, x, momentum=None):
+    def __init__(self, x: Any, momentum: Any = None) -> None:
         """Initialize momentum state.
 
         Args:
@@ -34,14 +34,14 @@ class MomentumState(OptState):
         super().__init__(x)
         self.momentum = jnp.zeros_like(x) if momentum is None else momentum
 
-    def tree_flatten(self):
+    def tree_flatten(self) -> tuple[tuple[Any, Any], dict[str, Any]]:
         """Flatten the MomentumState for JAX."""
         children = (self.x, self.momentum)
         aux_data: dict[str, Any] = {}
         return children, aux_data
 
     @classmethod
-    def tree_unflatten(cls, aux_data, children):
+    def tree_unflatten(cls, aux_data: dict[str, Any], children: tuple[Any, Any]) -> "MomentumState":
         """Unflatten the MomentumState for JAX."""
         return cls(x=children[0], momentum=children[1])
 
@@ -51,10 +51,8 @@ tree_util.register_pytree_node_class(MomentumState)
 
 
 def riemannian_momentum(
-    learning_rate=0.1,
-    momentum=0.9,
-    use_retraction=False
-):
+    learning_rate: float = 0.1, momentum: float = 0.9, use_retraction: bool = False
+) -> tuple[Any, Any]:
     """Riemannian gradient descent with momentum.
 
     Implements Riemannian gradient descent with momentum, where the momentum
@@ -76,7 +74,7 @@ def riemannian_momentum(
         and their application to shape space. SIAM Journal on Optimization.
     """
 
-    def init_fn(x0):
+    def init_fn(x0: Any) -> MomentumState:
         """Initialize momentum optimizer state.
 
         Args:
@@ -87,7 +85,7 @@ def riemannian_momentum(
         """
         return MomentumState(x=x0)
 
-    def update_fn(gradient, state, manifold):
+    def update_fn(gradient: Any, state: MomentumState, manifold: Any) -> MomentumState:
         """Update momentum state using Riemannian gradient.
 
         Args:
@@ -113,9 +111,9 @@ def riemannian_momentum(
         # Clip step size for numerical stability
         step_norm = jnp.linalg.norm(step_direction)
         max_step = 0.5  # Maximum step size
-        step_direction = jnp.where(step_norm > max_step,
-                                 step_direction * (max_step / (step_norm + 1e-8)),
-                                 step_direction)
+        step_direction = jnp.where(
+            step_norm > max_step, step_direction * (max_step / (step_norm + 1e-8)), step_direction
+        )
 
         # Move along manifold using the step direction
         try:
@@ -124,9 +122,11 @@ def riemannian_momentum(
             # Fallback to retraction if exponential map fails
             x_new = manifold.retr(x, step_direction)
 
-        # Ensure the new point is on the manifold (only for sphere-like manifolds)
-        if hasattr(manifold, 'proj') and hasattr(manifold, '__class__') and 'Sphere' in manifold.__class__.__name__:
-            x_new = manifold.proj(x_new, jnp.zeros_like(x_new))  # Project to manifold
+        # Ensure the new point is on the manifold
+        if hasattr(manifold, "__class__") and "Sphere" in manifold.__class__.__name__:
+            # For sphere manifolds, normalize to ensure unit length
+            x_norm = jnp.linalg.norm(x_new)
+            x_new = jnp.where(x_norm > 1e-8, x_new / x_norm, x)  # Fallback to original if norm too small
 
         # Transport momentum to new point
         m_transported = manifold.transp(x, x_new, m_new)

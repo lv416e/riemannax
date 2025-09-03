@@ -15,11 +15,12 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 **Specs** (`.kiro/specs/`) - Formalize development process for individual features
 
 ### Active Specifications
+- **advanced-manifold-mathematics**: Comprehensive enhancement of RiemannAX with mathematical completeness improvements (Grassmann/SPD implementations), new manifolds (Product/Quotient), and Optimistix integration
 - Check `.kiro/specs/` for active specifications
 - Use `/kiro:spec-status [feature-name]` to check progress
 
 ## Development Guidelines
-- Think in English, but generate responses in Japanese (思考は英語、回答の生成は日本語で行うように)
+- Think in English, and generate responses in English for global accessibility
 
 ## Workflow
 
@@ -32,7 +33,7 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 ### Phase 1: Specification Creation
 1. `/kiro:spec-init [detailed description]` - Initialize spec with detailed project description
 2. `/kiro:spec-requirements [feature]` - Generate requirements document
-3. `/kiro:spec-design [feature]` - Interactive: "requirements.mdをレビューしましたか？ [y/N]"
+3. `/kiro:spec-design [feature]` - Interactive: "Have you reviewed requirements.md? [y/N]"
 4. `/kiro:spec-tasks [feature]` - Interactive: Confirms both requirements and design review
 
 ### Phase 2: Progress Tracking
@@ -46,6 +47,30 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 5. **Update task status**: Mark tasks as completed when working on them
 6. **Keep steering current**: Run `/kiro:steering` after significant changes
 7. **Check spec compliance**: Use `/kiro:spec-status` to verify alignment
+
+## Python Development Constitution
+
+### 📜 Absolute Quality Standards
+
+**CONSTITUTIONAL LAW**: The following quality checks are **mandatory** for each Todo and **must ALL pass** before proceeding to the next Todo. **NO EXCEPTIONS ALLOWED**.
+
+#### Mandatory Quality Checks (All Must Pass)
+1. `mypy --config-file=pyproject.toml` - Complete type error resolution
+2. `pre-commit run --all-files` - Complete style/quality issue resolution
+3. `ruff check . --fix --unsafe-fixes` - Complete lint issue resolution
+4. `pytest` - Complete test failure resolution
+
+#### Information Quality Requirement
+- **MANDATORY**: Use `context7` for precise, research-based implementations
+- **PROHIBITED**: Implementations based on guesswork or general knowledge
+
+#### Constitutional Enforcement
+- ✅ **GREEN STATUS REQUIRED**: All 4 checks must show PASS status
+- 🚫 **PROGRESSION BLOCKED**: Any RED/FAIL status blocks next Todo
+- 🎯 **ZERO COMPROMISE**: Technical debt accumulation is constitutionally prohibited
+
+#### Philosophy
+This constitution eliminates technical debt at its source, ensuring every code change meets professional standards. Quality is non-negotiable.
 
 ## Steering Configuration
 
@@ -64,6 +89,8 @@ Managed by `/kiro:steering` command. Updates here reflect command changes.
   Mode: Always|Conditional|Manual
   Pattern: File patterns for Conditional mode
 -->
+
+- `python_development_constitution.md`: Conditional - *.py,pyproject.toml,requirements*.txt,setup.py,conftest.py,tests/**/*.py - Python Development Constitutional Law enforcing mandatory quality checks
 
 ### Inclusion Modes
 - **Always**: Loaded in every interaction (default)

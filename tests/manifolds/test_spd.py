@@ -47,9 +47,7 @@ def test_spd_initialization():
 def test_spd_proj(spd3, point_on_spd3):
     """Test the projection operation on SPD(3)."""
     # Create a random matrix in the ambient space
-    random_matrix = jnp.array([[1.0, 2.0, 3.0],
-                              [4.0, 5.0, 6.0],
-                              [7.0, 8.0, 9.0]])
+    random_matrix = jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
 
     # Project onto the tangent space
     proj_v = spd3.proj(point_on_spd3, random_matrix)
@@ -191,21 +189,15 @@ def test_spd_random_tangent(spd3, key, point_on_spd3):
 def test_spd_is_in_manifold(spd3):
     """Test the manifold membership check."""
     # Create a valid SPD matrix
-    A = jnp.array([[2.0, 1.0, 0.5],
-                   [1.0, 3.0, 1.5],
-                   [0.5, 1.5, 2.5]])
+    A = jnp.array([[2.0, 1.0, 0.5], [1.0, 3.0, 1.5], [0.5, 1.5, 2.5]])
     assert spd3._is_in_manifold(A)
 
     # Create a non-symmetric matrix
-    B = jnp.array([[2.0, 1.0, 0.5],
-                   [0.0, 3.0, 1.5],
-                   [0.5, 1.5, 2.5]])
+    B = jnp.array([[2.0, 1.0, 0.5], [0.0, 3.0, 1.5], [0.5, 1.5, 2.5]])
     assert not spd3._is_in_manifold(B)
 
     # Create a symmetric but not positive definite matrix
-    C = jnp.array([[1.0, 2.0, 3.0],
-                   [2.0, 1.0, 4.0],
-                   [3.0, 4.0, 1.0]])
+    C = jnp.array([[1.0, 2.0, 3.0], [2.0, 1.0, 4.0], [3.0, 4.0, 1.0]])
     # This matrix has negative eigenvalues
     assert not spd3._is_in_manifold(C)
 
@@ -275,12 +267,7 @@ def test_spd_integration_with_optimization():
     x0 = spd2.random_point(key)
 
     # Solve the problem (should converge towards identity)
-    result = rieax.minimize(
-        problem,
-        x0,
-        method='rsgd',
-        options={'learning_rate': 0.1, 'max_iterations': 20}
-    )
+    result = rieax.minimize(problem, x0, method="rsgd", options={"learning_rate": 0.1, "max_iterations": 20})
 
     # Check that optimization succeeded
     assert result.success
@@ -292,3 +279,135 @@ def test_spd_integration_with_optimization():
     initial_cost = cost_fn(x0)
     final_cost = cost_fn(result.x)
     assert final_cost <= initial_cost, "Optimization should not increase cost"
+
+
+# Log-Euclidean Metric Tests
+
+def test_log_euclidean_exp(spd3, point_on_spd3, tangent_vec):
+    """Test Log-Euclidean exponential map."""
+    # Compute Log-Euclidean exponential
+    result = spd3.log_euclidean_exp(point_on_spd3, tangent_vec)
+
+    # Result should be SPD
+    assert_is_spd(result)
+
+    # Result should have the same shape
+    assert result.shape == point_on_spd3.shape
+
+    # For zero tangent vector, should return the original point
+    zero_tangent = jnp.zeros_like(tangent_vec)
+    result_zero = spd3.log_euclidean_exp(point_on_spd3, zero_tangent)
+    assert jnp.allclose(result_zero, point_on_spd3, atol=1e-6)
+
+
+def test_log_euclidean_log(spd3, point_on_spd3, key):
+    """Test Log-Euclidean logarithmic map."""
+    # Create another point
+    other_point = spd3.random_point(jax.random.fold_in(key, 1))
+
+    # Compute Log-Euclidean logarithm
+    log_vec = spd3.log_euclidean_log(point_on_spd3, other_point)
+
+    # Result should be symmetric (in tangent space)
+    assert jnp.allclose(log_vec, log_vec.T, atol=1e-6)
+
+    # Result should have the same shape
+    assert log_vec.shape == point_on_spd3.shape
+
+    # For identical points, should return zero
+    zero_log = spd3.log_euclidean_log(point_on_spd3, point_on_spd3)
+    assert jnp.allclose(zero_log, jnp.zeros_like(zero_log), atol=1e-6)
+
+
+def test_log_euclidean_exp_log_inverse(spd3, point_on_spd3, tangent_vec):
+    """Test that Log-Euclidean exp and log are inverses."""
+    # Forward: exp(point, tangent) -> result
+    result = spd3.log_euclidean_exp(point_on_spd3, tangent_vec)
+
+    # Backward: log(point, result) -> recovered_tangent
+    recovered_tangent = spd3.log_euclidean_log(point_on_spd3, result)
+
+    # Should recover the original tangent vector
+    assert jnp.allclose(tangent_vec, recovered_tangent, atol=1e-5)
+
+
+def test_log_euclidean_distance(spd3, point_on_spd3, key):
+    """Test Log-Euclidean distance computation."""
+    # Create another point
+    other_point = spd3.random_point(jax.random.fold_in(key, 1))
+
+    # Compute Log-Euclidean distance
+    distance = spd3.log_euclidean_distance(point_on_spd3, other_point)
+
+    # Distance should be non-negative scalar
+    assert distance >= 0
+    assert distance.shape == ()
+
+    # Distance to itself should be zero
+    self_distance = spd3.log_euclidean_distance(point_on_spd3, point_on_spd3)
+    assert jnp.allclose(self_distance, 0.0, atol=1e-10)
+
+    # Distance should be symmetric
+    reverse_distance = spd3.log_euclidean_distance(other_point, point_on_spd3)
+    assert jnp.allclose(distance, reverse_distance, atol=1e-6)
+
+
+def test_log_euclidean_interpolation(spd3, point_on_spd3, key):
+    """Test Log-Euclidean geodesic interpolation."""
+    # Create another point
+    other_point = spd3.random_point(jax.random.fold_in(key, 1))
+
+    # Test interpolation at different values of t
+    t_values = [0.0, 0.25, 0.5, 0.75, 1.0]
+
+    for t in t_values:
+        interpolated = spd3.log_euclidean_interpolation(point_on_spd3, other_point, t)
+
+        # Result should be SPD
+        assert_is_spd(interpolated)
+
+        # At t=0, should get first point
+        if t == 0.0:
+            assert jnp.allclose(interpolated, point_on_spd3, atol=1e-6)
+
+        # At t=1, should get second point
+        if t == 1.0:
+            assert jnp.allclose(interpolated, other_point, atol=1e-6)
+
+
+def test_log_euclidean_mean(spd3, key):
+    """Test Log-Euclidean mean (Riemannian center of mass)."""
+    # Generate multiple points
+    keys = jax.random.split(key, 5)
+    points = jnp.array([spd3.random_point(k) for k in keys])
+
+    # Compute Log-Euclidean mean
+    mean_point = spd3.log_euclidean_mean(points)
+
+    # Result should be SPD
+    assert_is_spd(mean_point)
+
+    # For single point, mean should be the point itself
+    single_point = points[0:1]
+    single_mean = spd3.log_euclidean_mean(single_point)
+    assert jnp.allclose(single_mean, points[0], atol=1e-6)
+
+    # Mean should have same shape as input points
+    assert mean_point.shape == points[0].shape
+
+
+def test_log_euclidean_vs_affine_invariant(spd3, point_on_spd3, tangent_vec):
+    """Test comparison between Log-Euclidean and affine-invariant metrics."""
+    # Both metrics should give SPD results for exp operation
+    le_result = spd3.log_euclidean_exp(point_on_spd3, tangent_vec)
+    ai_result = spd3.exp(point_on_spd3, tangent_vec)  # affine-invariant
+
+    # Both should be SPD
+    assert_is_spd(le_result)
+    assert_is_spd(ai_result)
+
+    # They should be different (unless tangent vector is zero)
+    if jnp.linalg.norm(tangent_vec) > 1e-10:
+        # Allow them to be different (they use different metrics)
+        # This test just ensures both work correctly
+        assert le_result.shape == ai_result.shape

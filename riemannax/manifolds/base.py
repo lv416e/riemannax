@@ -4,8 +4,14 @@ This module defines the core interfaces for Riemannian manifolds, establishing
 the contract that concrete manifold implementations must satisfy.
 """
 
+import logging
+
 import jax.numpy as jnp
-from jax import Array
+from jaxtyping import Array, Float, PRNGKeyArray
+
+from ..core.type_system import ManifoldPoint, TangentVector
+
+logger = logging.getLogger(__name__)
 
 
 class ManifoldError(Exception):
@@ -27,7 +33,11 @@ class Manifold:
     Riemannian manifolds, including tangent space projections and exponential/logarithmic maps.
     """
 
-    def proj(self, x: Array, v: Array) -> Array:
+    def __init__(self) -> None:
+        """Initialize manifold base class."""
+        pass
+
+    def proj(self, x: ManifoldPoint, v: Float[Array, "..."]) -> TangentVector:
         """Project a vector from ambient space to the tangent space at point x.
 
         Args:
@@ -39,7 +49,7 @@ class Manifold:
         """
         raise NotImplementedError("Subclasses must implement projection operation")
 
-    def exp(self, x: Array, v: Array) -> Array:
+    def exp(self, x: ManifoldPoint, v: TangentVector) -> ManifoldPoint:
         """Apply the exponential map to move from point x along tangent vector v.
 
         The exponential map takes a point x on the manifold and a tangent vector v at x,
@@ -55,7 +65,7 @@ class Manifold:
         """
         raise NotImplementedError("Subclasses must implement exponential map")
 
-    def log(self, x: Array, y: Array) -> Array:
+    def log(self, x: ManifoldPoint, y: ManifoldPoint) -> TangentVector:
         """Apply the logarithmic map to find the tangent vector that maps x to y.
 
         The logarithmic map is the inverse of the exponential map. It takes two points
@@ -71,7 +81,7 @@ class Manifold:
         """
         raise NotImplementedError("Subclasses must implement logarithmic map")
 
-    def retr(self, x: Array, v: Array) -> Array:
+    def retr(self, x: ManifoldPoint, v: TangentVector) -> ManifoldPoint:
         """Apply retraction to move from point x along tangent vector v.
 
         Retraction is a cheaper approximation of the exponential map that maintains
@@ -84,9 +94,9 @@ class Manifold:
         Returns:
             The point reached by the retraction from x in direction v.
         """
-        return self.exp(x, v)
+        raise NotImplementedError("Subclasses must implement retraction")
 
-    def transp(self, x: Array, y: Array, v: Array) -> Array:
+    def transp(self, x: ManifoldPoint, y: ManifoldPoint, v: TangentVector) -> TangentVector:
         """Parallel transport vector v from tangent space at x to tangent space at y.
 
         Parallel transport moves a tangent vector along a geodesic while preserving
@@ -102,7 +112,7 @@ class Manifold:
         """
         raise NotImplementedError("Subclasses must implement parallel transport")
 
-    def inner(self, x: Array, u: Array, v: Array) -> Array:
+    def inner(self, x: ManifoldPoint, u: TangentVector, v: TangentVector) -> Array:
         """Compute the Riemannian inner product between tangent vectors u and v at point x.
 
         Args:
@@ -115,7 +125,7 @@ class Manifold:
         """
         raise NotImplementedError("Subclasses must implement Riemannian inner product")
 
-    def dist(self, x: Array, y: Array) -> Array:
+    def dist(self, x: ManifoldPoint, y: ManifoldPoint) -> Array:
         """Compute the Riemannian distance between points x and y on the manifold.
 
         Args:
@@ -128,7 +138,7 @@ class Manifold:
         v = self.log(x, y)
         return jnp.sqrt(self.inner(x, v, v))
 
-    def norm(self, x: Array, v: Array) -> Array:
+    def norm(self, x: ManifoldPoint, v: TangentVector) -> Array:
         """Compute the norm of tangent vector v at point x.
 
         Args:
@@ -140,7 +150,7 @@ class Manifold:
         """
         return jnp.sqrt(self.inner(x, v, v))
 
-    def random_point(self, key: Array, *shape: int) -> Array:
+    def random_point(self, key: PRNGKeyArray, *shape: int) -> ManifoldPoint:
         """Generate random point(s) on the manifold.
 
         Args:
@@ -152,7 +162,7 @@ class Manifold:
         """
         raise NotImplementedError("Subclasses must implement random point generation")
 
-    def random_tangent(self, key: Array, x: Array, *shape: int) -> Array:
+    def random_tangent(self, key: PRNGKeyArray, x: ManifoldPoint, *shape: int) -> TangentVector:
         """Generate random tangent vector(s) at point x.
 
         Args:
@@ -165,7 +175,7 @@ class Manifold:
         """
         raise NotImplementedError("Subclasses must implement random tangent generation")
 
-    def curvature_tensor(self, x: Array, u: Array, v: Array, w: Array) -> Array:
+    def curvature_tensor(self, x: ManifoldPoint, u: TangentVector, v: TangentVector, w: TangentVector) -> TangentVector:
         """Compute the Riemann curvature tensor R(u,v)w at point x.
 
         Args:
@@ -179,7 +189,7 @@ class Manifold:
         """
         raise NotImplementedError("Curvature tensor computation not implemented")
 
-    def sectional_curvature(self, x: Array, u: Array, v: Array) -> Array:
+    def sectional_curvature(self, x: ManifoldPoint, u: TangentVector, v: TangentVector) -> Array:
         """Compute the sectional curvature of the plane spanned by u and v at point x.
 
         Args:
@@ -192,7 +202,7 @@ class Manifold:
         """
         raise NotImplementedError("Sectional curvature computation not implemented")
 
-    def injectivity_radius(self, x: Array) -> Array:
+    def injectivity_radius(self, x: ManifoldPoint) -> Array:
         """Compute the injectivity radius at point x.
 
         Args:
@@ -203,18 +213,19 @@ class Manifold:
         """
         raise NotImplementedError("Injectivity radius computation not implemented")
 
-    def validate_point(self, x: Array) -> bool:
+    def validate_point(self, x: ManifoldPoint, atol: float = 1e-6) -> bool | Array:
         """Validate that x is a valid point on the manifold.
 
         Args:
             x: Point to validate.
+            atol: Absolute tolerance for validation.
 
         Returns:
             True if x is on the manifold, False otherwise.
         """
         raise NotImplementedError("Point validation not implemented")
 
-    def validate_tangent(self, x: Array, v: Array, atol: float = 1e-6) -> Array:
+    def validate_tangent(self, x: ManifoldPoint, v: TangentVector, atol: float = 1e-6) -> bool | Array:
         """Validate that v is a valid tangent vector at point x.
 
         Args:
@@ -227,7 +238,13 @@ class Manifold:
         """
         # Default implementation: check if v equals its projection
         proj_v = self.proj(x, v)
-        return jnp.allclose(v, proj_v, atol=atol)
+        result = jnp.allclose(v, proj_v, atol=atol)
+        # Return JAX array directly if in traced context to avoid TracerBoolConversionError
+        try:
+            return bool(result)
+        except TypeError:
+            # In JAX traced context, return the array directly
+            return result
 
     @property
     def dimension(self) -> int:

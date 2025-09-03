@@ -37,10 +37,10 @@ def test_adam_initialization(sphere, key):
     state = init_fn(x0)
 
     # Check state structure
-    assert hasattr(state, 'x')
-    assert hasattr(state, 'm')
-    assert hasattr(state, 'v')
-    assert hasattr(state, 'step')
+    assert hasattr(state, "x")
+    assert hasattr(state, "m")
+    assert hasattr(state, "v")
+    assert hasattr(state, "step")
 
     # Check initial values
     assert jnp.allclose(state.x, x0)
@@ -58,7 +58,7 @@ def test_adam_update(sphere, key):
     state = init_fn(x0)
 
     # Compute gradient (pointing away from north pole)
-    north_pole = jnp.array([0., 0., 1.])
+    north_pole = jnp.array([0.0, 0.0, 1.0])
     gradient = sphere.proj(x0, -north_pole)  # Point toward north pole
 
     # Perform update
@@ -77,10 +77,11 @@ def test_adam_update(sphere, key):
 @pytest.mark.skip(reason="Numerical instability issues - needs further investigation")
 def test_adam_convergence(sphere):
     """Test Adam convergence on a simple optimization problem."""
+
     # Use a simpler cost function to avoid numerical issues
     def cost_fn(x):
         # Minimize distance to [1, 0, 0] (simple quadratic)
-        return jnp.sum((x - jnp.array([1., 0., 0.])) ** 2)
+        return jnp.sum((x - jnp.array([1.0, 0.0, 0.0])) ** 2)
 
     # Create problem
     problem = rieax.RiemannianProblem(sphere, cost_fn)
@@ -154,7 +155,7 @@ def test_adam_bias_correction():
     init_fn, update_fn = rieax.riemannian_adam(
         learning_rate=0.01,  # Use smaller learning rate
         beta1=0.99,
-        beta2=0.999
+        beta2=0.999,
     )
     state = init_fn(x0)
 
@@ -234,7 +235,7 @@ def test_adam_state_pytree():
     from riemannax.optimizers.adam import AdamState
 
     # Create test state
-    x = jnp.array([1., 2., 3.])
+    x = jnp.array([1.0, 2.0, 3.0])
     m = jnp.array([0.1, 0.2, 0.3])
     v = jnp.array([0.01, 0.02, 0.03])
     step = 5

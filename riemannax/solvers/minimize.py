@@ -5,9 +5,10 @@ on Riemannian manifolds using various optimization algorithms.
 """
 
 import dataclasses
+from typing import Any
 
-import jax.numpy as jnp
 from jax import lax
+from jaxtyping import Array
 
 from ..optimizers import riemannian_adam, riemannian_gradient_descent, riemannian_momentum
 
@@ -24,14 +25,14 @@ class OptimizeResult:
         message: Description of the termination reason.
     """
 
-    x: jnp.ndarray  # Final point
+    x: Array  # Final point
     fun: float  # Final function value
     success: bool = True  # Whether the optimization was successful
     niter: int = 0  # Number of iterations performed
     message: str = "Optimization terminated successfully."  # Termination reason
 
 
-def minimize(problem, x0, method="rsgd", options=None):
+def minimize(problem: Any, x0: Array, method: str = "rsgd", options: dict[str, Any] | None = None) -> OptimizeResult:
     """Minimize a function on a Riemannian manifold.
 
     Args:
@@ -66,18 +67,12 @@ def minimize(problem, x0, method="rsgd", options=None):
         beta2 = options.get("beta2", 0.999)
         eps = options.get("eps", 1e-8)
         init_fn, update_fn = riemannian_adam(
-            learning_rate=learning_rate,
-            beta1=beta1,
-            beta2=beta2,
-            eps=eps,
-            use_retraction=use_retraction
+            learning_rate=learning_rate, beta1=beta1, beta2=beta2, eps=eps, use_retraction=use_retraction
         )
     elif method == "rmom":
         momentum = options.get("momentum", 0.9)
         init_fn, update_fn = riemannian_momentum(
-            learning_rate=learning_rate,
-            momentum=momentum,
-            use_retraction=use_retraction
+            learning_rate=learning_rate, momentum=momentum, use_retraction=use_retraction
         )
     else:
         raise ValueError(f"Unsupported optimization method: {method}")
@@ -86,7 +81,7 @@ def minimize(problem, x0, method="rsgd", options=None):
     state = init_fn(x0)
 
     # Define the step function for the loop
-    def step_fn(i, state_i):
+    def step_fn(i: int, state_i: Any) -> Any:
         x_i = state_i.x
         grad_i = problem.grad(x_i)
         new_state = update_fn(grad_i, state_i, problem.manifold)

@@ -4,10 +4,15 @@ This module implements the Riemannian gradient descent (RGD) algorithm for
 optimization on Riemannian manifolds.
 """
 
+from collections.abc import Callable
+from typing import Any
+
 from .state import OptState
 
 
-def riemannian_gradient_descent(learning_rate=0.1, use_retraction=False):
+def riemannian_gradient_descent(
+    learning_rate: float = 0.1, use_retraction: bool = False
+) -> tuple[Callable[[Any], OptState], Callable[[Any, OptState, Any], OptState]]:
     """Riemannian gradient descent optimizer.
 
     Implements the Riemannian gradient descent algorithm, which moves along the
@@ -22,7 +27,7 @@ def riemannian_gradient_descent(learning_rate=0.1, use_retraction=False):
         A tuple (init_fn, update_fn) for initialization and updates.
     """
 
-    def init_fn(x0):
+    def init_fn(x0: Any) -> OptState:
         """Initialize optimizer state.
 
         Args:
@@ -33,7 +38,7 @@ def riemannian_gradient_descent(learning_rate=0.1, use_retraction=False):
         """
         return OptState(x=x0)
 
-    def update_fn(gradient, state, manifold):
+    def update_fn(gradient: Any, state: OptState, manifold: Any) -> OptState:
         """Update optimizer state using Riemannian gradient.
 
         Args:

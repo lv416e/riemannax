@@ -17,6 +17,7 @@ RiemannAX is a high-performance library for optimization on Riemannian manifolds
 - **Riemannian Gradient Descent**: First-order optimization with exponential maps and retractions
 - **Automatic Differentiation**: Seamless computation of Riemannian gradients from Euclidean cost functions
 - **Hardware Acceleration**: GPU/TPU support through JAX's XLA compilation (10-100x speedup)
+- **Advanced JIT Optimization**: Comprehensive JIT compilation with intelligent caching, batch optimization, and device management
 - **Batch Processing**: Vectorized operations for multiple optimization instances
 
 ### 🛠 **Robust Framework**
@@ -51,17 +52,19 @@ RiemannAX is a high-performance library for optimization on Riemannian manifolds
 
 ## Key Value Propositions
 
-### **Mathematical Correctness**
-- Rigorous implementation of differential geometric operations
-- Numerical stability through robust QR-based orthogonalization
-- Comprehensive testing with 77+ unit and integration tests
-- Validation with appropriate floating-point tolerances
+### **Mathematical Correctness** ⚠️ *Under Active Development*
+- Implementation of core differential geometric operations (exponential maps, logarithmic maps, parallel transport)
+- Numerical stability through QR-based orthogonalization for orthogonal manifolds
+- Comprehensive testing with 49+ unit and integration tests across manifolds and JIT optimization
+- Validation with configurable floating-point tolerances and edge case handling
+- **Note**: Mathematical implementation is being refined for full geometric rigor
 
-### **Exceptional Performance**
-- **10-100x GPU speedup** over CPU alternatives for large-scale problems
-- **2-5x CPU speedup** through JAX's XLA optimization
-- **Linear scaling** with batch size for parallel optimization
-- Just-in-time compilation with near-C performance after first call
+### **Performance Focus** 🚧 *Performance Claims Under Verification*
+- Hardware acceleration through JAX's XLA compilation system
+- JIT compilation with intelligent caching and static argument optimization
+- Batch processing support for vectorized operations
+- Linear scaling potential with batch size for parallel optimization
+- **Note**: Performance benchmarks are being systematically validated against established baselines
 
 ### **Developer Experience**
 - **Intuitive API**: Simple problem definition with `RiemannianProblem` class
@@ -85,8 +88,15 @@ RiemannAX is a high-performance library for optimization on Riemannian manifolds
 
 ## Success Metrics
 
-- **Performance**: 10x+ speedup over existing CPU-based alternatives
-- **Reliability**: 95%+ test coverage with mathematical correctness validation
+### **Development Phase Targets**
+- **Performance**: Systematic benchmarking against established libraries (Pymanopt, Geoopt)
+- **Reliability**: Comprehensive test coverage across 49+ test files with mathematical property validation
+- **Code Quality**: Zero linting/type checking errors with strict code quality gates (Ruff, MyPy)
+- **Mathematical Rigor**: Verified implementations of core differential geometric operations
+- **Documentation**: Complete API documentation with mathematical foundations and examples
+
+### **Production Readiness Goals**
 - **Usability**: Clear API that researchers can adopt within one day
 - **Extensibility**: Architecture supporting new manifolds and optimizers
 - **Community**: Growing adoption in academic and industrial research projects
+- **Performance**: Documented and reproducible performance characteristics

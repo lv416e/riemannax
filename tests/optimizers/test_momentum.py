@@ -37,8 +37,8 @@ def test_momentum_initialization(sphere, key):
     state = init_fn(x0)
 
     # Check state structure
-    assert hasattr(state, 'x')
-    assert hasattr(state, 'momentum')
+    assert hasattr(state, "x")
+    assert hasattr(state, "momentum")
 
     # Check initial values
     assert jnp.allclose(state.x, x0)
@@ -54,7 +54,7 @@ def test_momentum_update(sphere, key):
     state = init_fn(x0)
 
     # Compute gradient (pointing toward north pole)
-    north_pole = jnp.array([0., 0., 1.])
+    north_pole = jnp.array([0.0, 0.0, 1.0])
     gradient = sphere.proj(x0, north_pole - x0)
 
     # Perform update
@@ -75,9 +75,7 @@ def test_momentum_acceleration(sphere, key):
 
     # Compare momentum vs no momentum (SGD)
     # Momentum optimizer
-    init_fn_mom, update_fn_mom = rieax.riemannian_momentum(
-        learning_rate=0.001, momentum=0.9
-    )
+    init_fn_mom, update_fn_mom = rieax.riemannian_momentum(learning_rate=0.001, momentum=0.9)
     state_mom = init_fn_mom(x0)
 
     # SGD optimizer (no momentum)
@@ -111,7 +109,7 @@ def test_momentum_acceleration(sphere, key):
 def test_momentum_convergence(sphere):
     """Test momentum convergence on optimization problem."""
     # Define target point (north pole)
-    target = jnp.array([0., 0., 1.])
+    target = jnp.array([0.0, 0.0, 1.0])
 
     # Define cost function
     def cost_fn(x):
@@ -121,7 +119,7 @@ def test_momentum_convergence(sphere):
     problem = rieax.RiemannianProblem(sphere, cost_fn)
 
     # Initialize from south pole
-    x0 = jnp.array([0., 0., -1.])
+    x0 = jnp.array([0.0, 0.0, -1.0])
 
     # Test momentum optimizer by manually implementing optimization loop
     init_fn, update_fn = rieax.riemannian_momentum(learning_rate=0.001, momentum=0.9)
@@ -183,9 +181,7 @@ def test_momentum_parameters(sphere, key):
 
     # Test different momentum coefficients
     for momentum_coeff in [0.0, 0.5, 0.9, 0.99]:
-        init_fn, update_fn = rieax.riemannian_momentum(
-            learning_rate=0.1, momentum=momentum_coeff
-        )
+        init_fn, update_fn = rieax.riemannian_momentum(learning_rate=0.1, momentum=momentum_coeff)
         state = init_fn(x0)
         new_state = update_fn(gradient, state, sphere)
 
@@ -200,9 +196,7 @@ def test_momentum_parameters(sphere, key):
 
     # Test different learning rates
     for lr in [0.01, 0.1, 1.0]:
-        init_fn, update_fn = rieax.riemannian_momentum(
-            learning_rate=lr, momentum=0.9
-        )
+        init_fn, update_fn = rieax.riemannian_momentum(learning_rate=lr, momentum=0.9)
         state = init_fn(x0)
         new_state = update_fn(gradient, state, sphere)
 
@@ -216,16 +210,12 @@ def test_momentum_retraction_vs_exponential(sphere, key):
     gradient = sphere.random_tangent(key, x0)
 
     # Test with exponential map
-    init_fn1, update_fn1 = rieax.riemannian_momentum(
-        learning_rate=0.1, momentum=0.9, use_retraction=False
-    )
+    init_fn1, update_fn1 = rieax.riemannian_momentum(learning_rate=0.1, momentum=0.9, use_retraction=False)
     state1 = init_fn1(x0)
     new_state1 = update_fn1(gradient, state1, sphere)
 
     # Test with retraction
-    init_fn2, update_fn2 = rieax.riemannian_momentum(
-        learning_rate=0.1, momentum=0.9, use_retraction=True
-    )
+    init_fn2, update_fn2 = rieax.riemannian_momentum(learning_rate=0.1, momentum=0.9, use_retraction=True)
     state2 = init_fn2(x0)
     new_state2 = update_fn2(gradient, state2, sphere)
 
@@ -243,7 +233,7 @@ def test_momentum_state_pytree():
     from riemannax.optimizers.momentum import MomentumState
 
     # Create test state
-    x = jnp.array([1., 2., 3.])
+    x = jnp.array([1.0, 2.0, 3.0])
     momentum = jnp.array([0.1, 0.2, 0.3])
 
     state = MomentumState(x, momentum)
@@ -273,9 +263,7 @@ def test_momentum_zero_momentum():
     gradient = sphere.random_tangent(key, x0)
 
     # Momentum with zero coefficient
-    init_fn_mom, update_fn_mom = rieax.riemannian_momentum(
-        learning_rate=0.1, momentum=0.0
-    )
+    init_fn_mom, update_fn_mom = rieax.riemannian_momentum(learning_rate=0.1, momentum=0.0)
     state_mom = init_fn_mom(x0)
     new_state_mom = update_fn_mom(gradient, state_mom, sphere)
 

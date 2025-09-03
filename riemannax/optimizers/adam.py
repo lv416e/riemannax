@@ -26,7 +26,7 @@ class AdamState(OptState):
         step: Current step number.
     """
 
-    def __init__(self, x, m=None, v=None, step=0):
+    def __init__(self, x: Any, m: Any = None, v: Any = None, step: int = 0) -> None:
         """Initialize Adam state.
 
         Args:
@@ -40,14 +40,14 @@ class AdamState(OptState):
         self.v = jnp.zeros_like(x) if v is None else v
         self.step = step
 
-    def tree_flatten(self):
+    def tree_flatten(self) -> tuple[tuple[Any, Any, Any, int], dict[str, Any]]:
         """Flatten the AdamState for JAX."""
         children = (self.x, self.m, self.v, self.step)
         aux_data: dict[str, Any] = {}
         return children, aux_data
 
     @classmethod
-    def tree_unflatten(cls, aux_data, children):
+    def tree_unflatten(cls, aux_data: dict[str, Any], children: tuple[Any, Any, Any, int]) -> "AdamState":
         """Unflatten the AdamState for JAX."""
         return cls(x=children[0], m=children[1], v=children[2], step=children[3])
 
@@ -57,12 +57,12 @@ tree_util.register_pytree_node_class(AdamState)
 
 
 def riemannian_adam(
-    learning_rate=0.001,
-    beta1=0.9,
-    beta2=0.999,
-    eps=1e-8,
-    use_retraction=False
-):
+    learning_rate: float = 0.001,
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    eps: float = 1e-8,
+    use_retraction: bool = False,
+) -> tuple[Any, Any]:
     """Riemannian Adam optimizer.
 
     Implements the Riemannian Adam algorithm, which adapts the Adam optimizer
@@ -87,7 +87,7 @@ def riemannian_adam(
         International Conference on Learning Representations.
     """
 
-    def init_fn(x0):
+    def init_fn(x0: Any) -> AdamState:
         """Initialize Adam optimizer state.
 
         Args:
@@ -98,7 +98,7 @@ def riemannian_adam(
         """
         return AdamState(x=x0)
 
-    def update_fn(gradient, state, manifold):
+    def update_fn(gradient: Any, state: AdamState, manifold: Any) -> AdamState:
         """Update Adam state using Riemannian gradient.
 
         Args:
@@ -148,9 +148,11 @@ def riemannian_adam(
             # Fallback to retraction if exponential map fails
             x_new = manifold.retr(x, v)
 
-        # Ensure the new point is on the manifold (only for sphere-like manifolds)
-        if hasattr(manifold, 'proj') and hasattr(manifold, '__class__') and 'Sphere' in manifold.__class__.__name__:
-            x_new = manifold.proj(x_new, jnp.zeros_like(x_new))  # Project to manifold
+        # Ensure the new point is on the manifold
+        if hasattr(manifold, "__class__") and "Sphere" in manifold.__class__.__name__:
+            # For sphere manifolds, normalize to ensure unit length
+            x_norm = jnp.linalg.norm(x_new)
+            x_new = jnp.where(x_norm > 1e-8, x_new / x_norm, x)  # Fallback to original if norm too small
 
         # Transport momentum estimates to new point
         m_transported = manifold.transp(x, x_new, m_new)

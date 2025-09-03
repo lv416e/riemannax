@@ -7,8 +7,8 @@ These classes track the current state of optimization on Riemannian manifolds.
 import dataclasses
 from typing import Any
 
-import jax.numpy as jnp
 from jax import tree_util
+from jaxtyping import Array
 
 
 @dataclasses.dataclass
@@ -22,7 +22,7 @@ class OptState:
         x: Current point on the manifold.
     """
 
-    x: jnp.ndarray  # Current point on the manifold
+    x: Array  # Current point on the manifold
 
     def tree_flatten(self) -> tuple[tuple[Any, ...], dict[str, Any]]:
         """Flatten the OptState for JAX.

@@ -28,6 +28,18 @@ riemannax/
 ```
 riemannax/
 ├── __init__.py             # Package exports and version
+├── core/                   # JIT optimization and performance management
+│   ├── __init__.py         # Core module exports
+│   ├── jit_manager.py      # JIT compilation management and caching
+│   ├── jit_decorator.py    # JIT decorator with LRU caching optimization
+│   ├── batch_ops.py        # Batch operation optimization
+│   ├── safe_jit.py         # Safe JIT wrapper with error handling
+│   ├── device_manager.py   # Hardware device management
+│   ├── performance.py      # Performance monitoring utilities
+│   ├── performance_benchmark.py # Performance benchmarking tools
+│   ├── static_args_optimizer.py # Static argument optimization
+│   ├── type_system.py      # Type system definitions and validation
+│   └── constants.py        # Numerical constants and precision settings
 ├── manifolds/              # Riemannian manifold implementations
 │   ├── __init__.py         # Manifold exports
 │   ├── base.py             # Abstract base classes and interfaces
@@ -54,29 +66,72 @@ riemannax/
 
 ```
 tests/
-├── conftest.py                      # Shared pytest fixtures
-├── test_integration.py              # End-to-end workflow tests
-├── test_integration_manifolds.py    # Cross-manifold integration tests
-├── manifolds/                       # Manifold-specific tests
-│   ├── test_sphere.py               # Sphere manifold tests
-│   ├── test_grassmann.py            # Grassmann manifold tests
-│   ├── test_stiefel.py              # Stiefel manifold tests
-│   ├── test_so.py                   # SO(n) manifold tests
-│   └── test_spd.py                  # SPD manifold tests
-├── optimizers/                      # Optimizer tests
-│   ├── test_sgd.py                  # SGD tests
-│   ├── test_adam.py                 # Adam tests
-│   └── test_momentum.py             # Momentum tests
-├── problems/                        # Problem definition tests
-│   └── test_base.py                 # RiemannianProblem tests
-└── solvers/                         # Solver interface tests
-    └── test_minimize.py             # Minimization interface tests
+├── conftest.py                            # Shared pytest fixtures
+├── test_integration.py                    # End-to-end workflow tests
+├── test_integration_manifolds.py          # Cross-manifold integration tests
+├── test_jit_compatibility.py              # JIT system compatibility tests
+├── test_end_to_end_jit.py                 # Full JIT integration tests
+├── test_batch_optimization.py             # Batch operations tests
+├── test_performance_benchmark.py          # Performance benchmarking tests
+├── test_jit_testing_framework.py          # JIT testing framework tests
+├── test_comprehensive_numerical_stability.py # Numerical stability tests
+├── test_property_based_manifolds.py        # Property-based testing for manifolds
+├── test_performance_validation.py          # Performance validation tests
+├── test_manifold_integration.py            # Manifold integration tests
+├── core/                                  # Core module tests
+│   ├── test_jit_manager.py                # JIT manager tests
+│   ├── test_jit_decorator.py              # JIT decorator with LRU cache tests
+│   ├── test_device_manager.py             # Device manager tests
+│   ├── test_safe_jit.py                   # Safe JIT wrapper tests
+│   ├── test_batch_ops.py                  # Batch operations tests
+│   ├── test_performance.py                # Performance monitoring tests
+│   ├── test_performance_benchmark_functionality.py # Benchmark functionality tests
+│   ├── test_performance_benchmarking.py    # Benchmarking tests
+│   ├── test_jit_cache_functionality.py     # JIT cache tests
+│   ├── test_static_args_optimization.py    # Static args optimizer tests
+│   ├── test_type_system.py                # Type system validation tests
+│   ├── test_constants.py                  # Numerical constants tests
+│   ├── test_jit_decorator_application.py   # JIT decorator application tests
+│   ├── test_base_manifold_jit_removal.py   # Base manifold JIT integration tests
+│   ├── test_internationalization.py       # Internationalization support tests
+│   └── test_manifold_documentation.py     # Manifold documentation tests
+├── manifolds/                             # Manifold-specific tests
+│   ├── test_sphere.py                     # Sphere manifold tests
+│   ├── test_sphere_jit.py                 # Sphere JIT optimization tests
+│   ├── test_grassmann.py                  # Grassmann manifold tests
+│   ├── test_grassmann_jit.py              # Grassmann JIT optimization tests
+│   ├── test_stiefel.py                    # Stiefel manifold tests
+│   ├── test_stiefel_jit.py                # Stiefel JIT optimization tests
+│   ├── test_so.py                         # SO(n) manifold tests
+│   ├── test_so_jit.py                     # SO(n) JIT optimization tests
+│   ├── test_spd.py                        # SPD manifold tests
+│   ├── test_spd_jit.py                    # SPD JIT optimization tests
+│   ├── test_base_jit.py                   # Base manifold JIT tests
+│   └── test_manifold_factory.py           # Manifold factory function tests
+├── optimizers/                            # Optimizer tests
+│   ├── test_sgd.py                        # SGD tests
+│   ├── test_adam.py                       # Adam tests
+│   └── test_momentum.py                   # Momentum tests
+├── problems/                              # Problem definition tests
+│   └── test_base.py                       # RiemannianProblem tests
+├── solvers/                               # Solver interface tests
+│   └── test_minimize.py                   # Minimization interface tests
+└── utils/                                 # Testing utilities
+    ├── __init__.py                        # Utils exports
+    ├── compatibility.py                   # Compatibility testing utilities
+    └── jit_testing.py                     # JIT testing framework
 ```
 
 ### **Test Organization Patterns**
 - **Mirror Structure**: Test directory structure mirrors source code organization
-- **Comprehensive Coverage**: Each module has corresponding test file
-- **Integration Testing**: Cross-module interaction validation
+- **Comprehensive Coverage**: Each module has corresponding test file (49+ total test files)
+- **JIT-Specific Testing**: Dedicated `*_jit.py` test files for JIT compilation validation per manifold
+- **Integration Testing**: Cross-module interaction validation including JIT compatibility and end-to-end workflows
+- **Performance Testing**: Dedicated benchmarking, performance validation, and monitoring tests
+- **Property-Based Testing**: Mathematical property validation across manifold implementations
+- **Numerical Stability**: Comprehensive numerical stability and convergence verification
+- **Core Infrastructure**: Extensive testing of JIT management, device handling, and performance monitoring
+- **Utilities Testing**: Shared testing infrastructure in `tests/utils/`
 - **Fixture Sharing**: Common test utilities in `conftest.py`
 
 ## Examples Structure (`examples/`)
@@ -93,7 +148,8 @@ examples/
 ├── spd_covariance_estimation.py     # Covariance matrix estimation
 ├── manifolds_comparison_demo.py     # Comparative analysis
 ├── optimizer_comparison_demo.py     # Algorithm performance comparison
-└── ml_applications_showcase.py      # Machine learning applications
+├── ml_applications_showcase.py      # Machine learning applications
+└── dynamic_dimensions_usage.py      # Dynamic dimension handling demonstrations
 ```
 
 ### **Example Organization Patterns**
@@ -154,6 +210,37 @@ problem = RiemannianProblem(
 )
 ```
 
+### **Core Module Patterns**
+
+#### **JIT Manager Usage**
+```python
+from riemannax.core import JITManager
+# JITManager uses class methods for global configuration and caching
+JITManager.configure(enable_jit=True, cache_size=10000, fallback_on_error=True)
+optimized_fn = JITManager.jit_decorator(function, static_argnums=(...), device=None)
+JITManager.clear_cache()  # Clear JIT cache when needed
+```
+
+#### **Device Management**
+```python
+from riemannax.core import DeviceManager
+device_manager = DeviceManager()
+device_manager.set_device('gpu')  # or 'cpu', 'tpu'
+```
+
+#### **Performance Monitoring**
+```python
+from riemannax.core import PerformanceMonitor
+# PerformanceMonitor uses class methods for global monitoring
+with PerformanceMonitor.measure('operation_name'):
+    result = expensive_operation()
+
+# Get performance metrics and reports
+metrics = PerformanceMonitor.get_metrics()
+report = PerformanceMonitor.get_speedup_report()
+PerformanceMonitor.reset_metrics()  # Clear metrics when needed
+```
+
 ## File Naming Conventions
 
 ### **Python Files**
@@ -197,6 +284,7 @@ from riemannax.problems.base import RiemannianProblem
 ## Key Architectural Principles
 
 ### **Separation of Concerns**
+- **Core**: JIT compilation, device management, performance monitoring, and optimization infrastructure
 - **Manifolds**: Pure geometric operations, no optimization logic
 - **Optimizers**: Generic optimization algorithms, manifold-agnostic
 - **Problems**: Bridge between manifolds and cost functions
@@ -212,8 +300,15 @@ from riemannax.problems.base import RiemannianProblem
 - **Vectorization**: Batch operations using `jax.vmap` where applicable
 - **Memory Efficiency**: In-place operations where mathematically valid
 
-### **Mathematical Rigor**
-- **Validation**: Input validation and constraint checking
-- **Numerical Stability**: Robust implementations handling edge cases
-- **Testing**: Comprehensive mathematical property verification
-- **Documentation**: Clear mathematical foundations and references
+### **Mathematical Rigor** 🚧 *Under Active Development*
+- **Validation**: Input validation and constraint checking with manifold-specific verification
+- **Numerical Stability**: Robust implementations targeting edge cases and numerical precision
+- **Testing**: Comprehensive mathematical property verification across 49+ test files
+- **Documentation**: Mathematical foundations and references with ongoing refinement
+- **JIT Integration**: Focus on mathematically correct JIT optimization with proper static argument handling
+
+### **Current Development Focus**
+- **JAX JIT Optimization**: Comprehensive JIT compilation system with intelligent caching
+- **Performance Monitoring**: Systematic performance measurement and benchmarking infrastructure
+- **Type System**: Full type safety with modern Python 3.10+ type annotations
+- **Numerical Constants**: Precision-controlled constants for stable geometric computations
