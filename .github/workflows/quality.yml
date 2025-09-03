@@ -96,7 +96,11 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest --cov=riemannax --cov-report=xml --cov-report=term-missing --cov-fail-under=80 -n 2 --timeout=900 --max-worker-restart=3 --dist=worksteal --tb=short
+          pytest --cov=riemannax --cov-report=xml --cov-report=term-missing --cov-fail-under=80 --timeout=1200 --tb=short
+        env:
+          JAX_PLATFORMS: cpu
+          XLA_PYTHON_CLIENT_PREALLOCATE: false
+          JAX_ENABLE_X64: true
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

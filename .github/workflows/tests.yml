@@ -34,7 +34,11 @@ jobs:
           pip install pytest-cov pytest-xdist pytest-timeout matplotlib seaborn pandas scikit-learn
       - name: Run tests
         run: |
-          pytest --cov=riemannax -n 2 --timeout=600 --maxfail=10 --max-worker-restart=2 --dist=worksteal -v --tb=short
+          pytest --cov=riemannax --timeout=900 --maxfail=10 -v --tb=short
+        env:
+          JAX_PLATFORMS: cpu
+          XLA_PYTHON_CLIENT_PREALLOCATE: false
+          JAX_ENABLE_X64: true
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
         if: ${{ github.repository_owner == 'username' }}
@@ -60,7 +64,11 @@ jobs:
           pip install pytest-cov pytest-xdist pytest-timeout matplotlib seaborn pandas scikit-learn
       - name: Run tests
         run: |
-          pytest --cov=riemannax -n 2 --timeout=600 --maxfail=10 --max-worker-restart=2 --dist=worksteal -v --tb=short
+          pytest --cov=riemannax --timeout=900 --maxfail=10 -v --tb=short
+        env:
+          JAX_PLATFORMS: cpu
+          XLA_PYTHON_CLIENT_PREALLOCATE: false
+          JAX_ENABLE_X64: true
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
         if: ${{ github.repository_owner == 'username' }}
@@ -86,7 +94,11 @@ jobs:
           pip install pytest-cov pytest-xdist pytest-timeout matplotlib seaborn pandas scikit-learn
       - name: Run tests
         run: |
-          pytest --cov=riemannax -n 2 --timeout=600 --maxfail=10 --max-worker-restart=2 --dist=worksteal -v --tb=short
+          pytest --cov=riemannax --timeout=900 --maxfail=10 -v --tb=short
+        env:
+          JAX_PLATFORMS: cpu
+          XLA_PYTHON_CLIENT_PREALLOCATE: false
+          JAX_ENABLE_X64: true
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
         if: ${{ github.repository_owner == 'username' }}
