@@ -501,5 +501,9 @@ def pytest_configure(config):
     settings.register_profile("ci", max_examples=100, deadline=60000)  # 60 seconds
     settings.register_profile("thorough", max_examples=500, deadline=None)
 
-    # Use 'dev' profile by default
-    settings.load_profile("dev")
+    # Use 'ci' profile in CI environment, 'dev' profile otherwise
+    import os
+    if os.environ.get('CI') or os.environ.get('GITHUB_ACTIONS'):
+        settings.load_profile("ci")
+    else:
+        settings.load_profile("dev")
