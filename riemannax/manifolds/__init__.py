@@ -4,6 +4,7 @@ from .base import DimensionError, Manifold, ManifoldError
 from .grassmann import Grassmann
 from .lorentz import Lorentz
 from .product import ProductManifold
+from .se3 import SE3
 from .so import SpecialOrthogonal
 from .spd import SymmetricPositiveDefinite
 from .sphere import Sphere
@@ -163,6 +164,7 @@ __all__ = [
     "Manifold",
     "ManifoldError",
     "ProductManifold",
+    "SE3",
     "SpecialOrthogonal",
     "Sphere",
     "Stiefel",
