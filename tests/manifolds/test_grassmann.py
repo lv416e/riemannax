@@ -308,7 +308,7 @@ class TestGrassmann:
         # 3. Mean should minimize sum of squared distances
         # This is a necessary condition for the Fréchet mean
         distances_to_mean = jnp.array([manifold.dist(mean_point, point) for point in points])
-        sum_squared_dist = jnp.sum(distances_to_mean ** 2)
+        sum_squared_dist = jnp.sum(distances_to_mean**2)
 
         # The sum should be reasonably small (exact value depends on point distribution)
         assert sum_squared_dist >= 0  # Sanity check

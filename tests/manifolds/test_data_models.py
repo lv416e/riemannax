@@ -161,12 +161,7 @@ class TestSE3Transform:
         transform = SE3Transform(rotation, translation)
         homogeneous = transform.homogeneous_matrix()
 
-        expected = jnp.array([
-            [1, 0, 0, 1],
-            [0, 1, 0, 2],
-            [0, 0, 1, 3],
-            [0, 0, 0, 1]
-        ])
+        expected = jnp.array([[1, 0, 0, 1], [0, 1, 0, 2], [0, 0, 1, 3], [0, 0, 0, 1]])
 
         assert jnp.allclose(homogeneous, expected)
 
@@ -229,11 +224,7 @@ class TestManifoldParameters:
     def test_custom_parameters(self):
         """Test ManifoldParameters with custom values."""
         params = ManifoldParameters(
-            tolerance=1e-8,
-            max_iterations=200,
-            step_size=0.005,
-            use_retraction=False,
-            manifold_type="hyperbolic"
+            tolerance=1e-8, max_iterations=200, step_size=0.005, use_retraction=False, manifold_type="hyperbolic"
         )
 
         assert params.tolerance == 1e-8
@@ -274,11 +265,7 @@ class TestManifoldParameters:
 
     def test_parameter_summary(self):
         """Test parameter summary generation."""
-        params = ManifoldParameters(
-            tolerance=1e-8,
-            max_iterations=200,
-            manifold_type="hyperbolic"
-        )
+        params = ManifoldParameters(tolerance=1e-8, max_iterations=200, manifold_type="hyperbolic")
 
         summary = params.summary()
 

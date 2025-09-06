@@ -395,9 +395,7 @@ class TestGrassmannJITOptimization:
             np.testing.assert_array_almost_equal(
                 log_batch[0], self.manifold_gr35.log(x_batch[0], y_batch[0]), decimal=8
             )
-            np.testing.assert_almost_equal(
-                dist_batch[0], self.manifold_gr35.dist(x_batch[0], y_batch[0]), decimal=6
-            )
+            np.testing.assert_almost_equal(dist_batch[0], self.manifold_gr35.dist(x_batch[0], y_batch[0]), decimal=6)
             np.testing.assert_almost_equal(
                 inner_batch[0], self.manifold_gr35.inner(x_batch[0], v_batch[0], v_batch[0]), decimal=6
             )
@@ -413,18 +411,18 @@ class TestGrassmannJITOptimization:
         y = self.manifold_gr35.random_point(jax.random.PRNGKey(44))
 
         # Test JIT compilation timing for different operations
-        operations = ['proj', 'exp', 'log', 'dist', 'inner']
+        operations = ["proj", "exp", "log", "dist", "inner"]
 
         for op_name in operations:
-            if op_name == 'proj':
+            if op_name == "proj":
                 op_func = lambda: self.manifold_gr35.proj(x, v)
-            elif op_name == 'exp':
+            elif op_name == "exp":
                 op_func = lambda: self.manifold_gr35.exp(x, v)
-            elif op_name == 'log':
+            elif op_name == "log":
                 op_func = lambda: self.manifold_gr35.log(x, y)
-            elif op_name == 'dist':
+            elif op_name == "dist":
                 op_func = lambda: self.manifold_gr35.dist(x, y)
-            elif op_name == 'inner':
+            elif op_name == "inner":
                 op_func = lambda: self.manifold_gr35.inner(x, v, v)
 
             # First call (includes compilation time)
@@ -443,7 +441,7 @@ class TestGrassmannJITOptimization:
             third_call_time = time.time() - start_time
 
             # Verify results are identical (cached correctly)
-            if op_name in ['dist', 'inner']:
+            if op_name in ["dist", "inner"]:
                 np.testing.assert_almost_equal(result1, result2, decimal=12)
                 np.testing.assert_almost_equal(result2, result3, decimal=12)
             else:
@@ -453,8 +451,9 @@ class TestGrassmannJITOptimization:
             # Verify caching performance improvement (relaxed condition)
             # Second and third calls should be faster than first (but allow for variation)
             if first_call_time > 0.001:  # Only check if first call took reasonable time
-                assert second_call_time < first_call_time * 0.8, \
+                assert second_call_time < first_call_time * 0.8, (
                     f"{op_name}: Second call ({second_call_time:.6f}s) not faster than first ({first_call_time:.6f}s)"
+                )
 
     def test_batch_processing_computational_complexity(self):
         """Test O(np²) computational complexity scaling with batch processing."""
@@ -491,9 +490,9 @@ class TestGrassmannJITOptimization:
 
             # Store results
             timing_results[(n, p)] = {
-                'time': execution_time,
-                'complexity': theoretical_complexity,
-                'time_per_complexity': execution_time / theoretical_complexity
+                "time": execution_time,
+                "complexity": theoretical_complexity,
+                "time_per_complexity": execution_time / theoretical_complexity,
             }
 
             # Verify mathematical correctness
@@ -503,16 +502,17 @@ class TestGrassmannJITOptimization:
             assert manifold.validate_point(x_batch[0]), f"Invalid point for Gr({p},{n})"
 
         # Verify scaling behavior - should show reasonable scaling
-        complexities = [timing_results[dims]['complexity'] for dims in dimensions]
-        times_per_complexity = [timing_results[dims]['time_per_complexity'] for dims in dimensions]
+        complexities = [timing_results[dims]["complexity"] for dims in dimensions]
+        times_per_complexity = [timing_results[dims]["time_per_complexity"] for dims in dimensions]
 
         # Should show reasonable scaling (not exponential)
         if len(times_per_complexity) > 1:
             max_ratio = max(times_per_complexity)
             min_ratio = min(times_per_complexity)
             if min_ratio > 0:  # Avoid division by zero
-                assert max_ratio / min_ratio < 50.0, \
-                    f"Complexity scaling too severe: ratio {max_ratio/min_ratio:.2f} > 50.0"
+                assert max_ratio / min_ratio < 50.0, (
+                    f"Complexity scaling too severe: ratio {max_ratio / min_ratio:.2f} > 50.0"
+                )
 
     def test_advanced_batch_operations_integration(self):
         """Test integration of all batch operations in complex scenarios."""

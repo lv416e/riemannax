@@ -17,13 +17,13 @@ from riemannax.manifolds.base import Manifold, ManifoldPoint
 # Numerical constants for Taylor expansions and stability thresholds
 _SMALL_ANGLE_THRESHOLD = 1e-8
 _TAYLOR_EPS = 1e-12  # Numerical stability threshold
-_SINC_TAYLOR_C2 = 1.0 / 6.0      # -theta²/6
-_SINC_TAYLOR_C4 = 1.0 / 120.0    # theta⁴/120
-_ONE_MINUS_COS_C0 = 0.5          # 1/2
-_ONE_MINUS_COS_C2 = 1.0 / 24.0   # -theta²/24
+_SINC_TAYLOR_C2 = 1.0 / 6.0  # -theta²/6
+_SINC_TAYLOR_C4 = 1.0 / 120.0  # theta⁴/120
+_ONE_MINUS_COS_C0 = 0.5  # 1/2
+_ONE_MINUS_COS_C2 = 1.0 / 24.0  # -theta²/24
 _ONE_MINUS_COS_C4 = 1.0 / 720.0  # theta⁴/720
-_V_INVERSE_C0 = 1.0 / 12.0       # 1/12 for small angle V^(-1)
-_V_INVERSE_C2 = 1.0 / 720.0      # -theta²/720 for small angle V^(-1)
+_V_INVERSE_C0 = 1.0 / 12.0  # 1/12 for small angle V^(-1)
+_V_INVERSE_C2 = 1.0 / 720.0  # -theta²/720 for small angle V^(-1)
 
 
 class SE3(Manifold):
@@ -161,6 +161,42 @@ class SE3(Manifold):
             # In JAX traced context, return array directly
             return jnp.all(is_normalized) if quaternion.ndim > 1 else is_normalized
 
+    def validate_tangent(self, x: Array, v: Array, atol: float = 1e-6) -> bool | Array:
+        """Validate tangent vector in se(3) Lie algebra.
+
+        Tangent vectors should be 6-dimensional: (omega, rho) where
+        omega ∈ so(3) (3D rotation vector) and rho ∈ R³ (3D translation vector).
+
+        Args:
+            x: Base point on SE(3) manifold (not used for validation)
+            v: Tangent vector to validate
+            atol: Absolute tolerance for validation (unused for SE(3))
+
+        Returns:
+            True if vector is valid tangent vector in se(3), False otherwise
+        """
+        try:
+            v = jnp.asarray(v)
+
+            # Check dimensions
+            if v.ndim == 1:
+                result = v.shape[0] == 6
+            elif v.ndim == 2:
+                # Batch case
+                result = v.shape[1] == 6
+            else:
+                result = False
+
+            # Return JAX array directly if in traced context to avoid TracerBoolConversionError
+            try:
+                return bool(result)
+            except TypeError:
+                # In JAX traced context, return the array directly
+                return result
+
+        except (ValueError, TypeError):
+            return False
+
     def _skew_symmetric(self, v: Array) -> Array:
         """Create skew-symmetric matrix from 3D vector.
 
@@ -292,14 +328,14 @@ class SE3(Manifold):
         sin_over_theta = jnp.where(
             small_angle,
             1.0 - theta_sq * _SINC_TAYLOR_C2 + theta_4 * _SINC_TAYLOR_C4,
-            jnp.sin(theta) / jnp.maximum(theta, _TAYLOR_EPS)
+            jnp.sin(theta) / jnp.maximum(theta, _TAYLOR_EPS),
         )
 
         # (1-cos(θ))/θ² ≈ 1/2 - θ²/24 + θ⁴/720
         one_minus_cos_over_theta_sq = jnp.where(
             small_angle,
             _ONE_MINUS_COS_C0 - theta_sq * _ONE_MINUS_COS_C2 + theta_4 * _ONE_MINUS_COS_C4,
-            (1.0 - jnp.cos(theta)) / jnp.maximum(theta_sq, _TAYLOR_EPS)
+            (1.0 - jnp.cos(theta)) / jnp.maximum(theta_sq, _TAYLOR_EPS),
         )
 
         return sin_over_theta, one_minus_cos_over_theta_sq
@@ -415,8 +451,8 @@ class SE3(Manifold):
         # (θ-sin(θ))/θ³ ≈ 1/6 - θ²/120 + θ⁴/5040
         theta_minus_sin_over_theta_cubed = jnp.where(
             small_angle,
-            1.0/6.0 - theta_sq/120.0 + theta_4/5040.0,
-            (theta - jnp.sin(theta)) / jnp.maximum(theta * theta_sq, _TAYLOR_EPS)
+            1.0 / 6.0 - theta_sq / 120.0 + theta_4 / 5040.0,
+            (theta - jnp.sin(theta)) / jnp.maximum(theta * theta_sq, _TAYLOR_EPS),
         )
 
         # Build V matrix
@@ -518,6 +554,219 @@ class SE3(Manifold):
 
         # Combine rotation and translation parts
         return jnp.concatenate([omega, rho], axis=-1)
+
+    def compose(self, g1: Array, g2: Array) -> Array:
+        """Compose two SE(3) group elements.
+
+        Args:
+            g1: First SE(3) element as (qw, qx, qy, qz, tx, ty, tz)
+            g2: Second SE(3) element as (qw, qx, qy, qz, tx, ty, tz)
+
+        Returns:
+            Composed element g1 * g2 as (qw, qx, qy, qz, tx, ty, tz)
+        """
+        # Handle both single and batched inputs
+        if g1.ndim == 1:
+            # Single input case
+            q1, t1 = g1[:4], g1[4:]
+            q2, t2 = g2[:4], g2[4:]
+        else:
+            # Batched input case
+            q1, t1 = g1[..., :4], g1[..., 4:]
+            q2, t2 = g2[..., :4], g2[..., 4:]
+
+        # Quaternion multiplication: q_result = q1 * q2
+        qw1, qx1, qy1, qz1 = q1[..., 0], q1[..., 1], q1[..., 2], q1[..., 3]
+        qw2, qx2, qy2, qz2 = q2[..., 0], q2[..., 1], q2[..., 2], q2[..., 3]
+
+        qw_result = qw1 * qw2 - qx1 * qx2 - qy1 * qy2 - qz1 * qz2
+        qx_result = qw1 * qx2 + qx1 * qw2 + qy1 * qz2 - qz1 * qy2
+        qy_result = qw1 * qy2 - qx1 * qz2 + qy1 * qw2 + qz1 * qx2
+        qz_result = qw1 * qz2 + qx1 * qy2 - qy1 * qx2 + qz1 * qw2
+
+        q_result = jnp.stack([qw_result, qx_result, qy_result, qz_result], axis=-1)
+        q_result = self._quaternion_normalize(q_result)
+
+        # Translation composition: t_result = R1 * t2 + t1
+        R1 = self._quaternion_to_rotation_matrix(q1)
+        t_result = R1 @ t2 + t1 if g1.ndim == 1 else jnp.einsum("...ij,...j->...i", R1, t2) + t1
+
+        return jnp.concatenate([q_result, t_result], axis=-1)
+
+    def inverse(self, g: Array) -> Array:
+        """Compute inverse of SE(3) group element.
+
+        Args:
+            g: SE(3) element as (qw, qx, qy, qz, tx, ty, tz)
+
+        Returns:
+            Inverse element g^(-1) as (qw, qx, qy, qz, tx, ty, tz)
+        """
+        # Handle both single and batched inputs
+        if g.ndim == 1:
+            q, t = g[:4], g[4:]
+        else:
+            q, t = g[..., :4], g[..., 4:]
+
+        # Quaternion inverse (conjugate for unit quaternion)
+        if g.ndim == 1:
+            q_inv = jnp.array([q[0], -q[1], -q[2], -q[3]])
+        else:
+            q_inv = jnp.stack([q[..., 0], -q[..., 1], -q[..., 2], -q[..., 3]], axis=-1)
+
+        # Translation inverse: t_inv = -R^T * t = -R_inv * t
+        R_inv = self._quaternion_to_rotation_matrix(q_inv)
+        t_inv = -R_inv @ t if g.ndim == 1 else -jnp.einsum("...ij,...j->...i", R_inv, t)
+
+        return jnp.concatenate([q_inv, t_inv], axis=-1)
+
+    def proj(self, x: Array, v: Array) -> Array:
+        """Project vector onto tangent space at point x.
+
+        For SE(3), this projects a 7D Euclidean gradient (w.r.t. quaternion + translation)
+        onto the 6D se(3) Lie algebra tangent space.
+
+        Args:
+            x: Point on SE(3) manifold as (qw, qx, qy, qz, tx, ty, tz)
+            v: Vector to project - can be 7D (Euclidean) or 6D (already in tangent)
+
+        Returns:
+            Projected vector in 6D tangent space (omega, rho)
+        """
+        # If already 6D, assume it's already in tangent space
+        if v.shape[-1] == 6:
+            return v
+
+        # If 7D, project from Euclidean gradient to tangent space
+        if v.shape[-1] == 7:
+            # Extract quaternion and translation parts of the gradient
+            q_grad = v[..., :4]  # Gradient w.r.t. quaternion
+            t_grad = v[..., 4:7]  # Gradient w.r.t. translation
+
+            # Extract current quaternion from x
+            q = x[..., :4]
+
+            # Project quaternion gradient to so(3) tangent space
+            # For quaternion q = (qw, qx, qy, qz), the tangent projection is:
+            # omega = 2 * (qw * q_vec_grad - qx * qw_grad, qy * qw_grad - qw * qy_grad, qz * qw_grad - qw * qz_grad)
+            # Simplified: omega = 2 * (q_w * q_vec_grad - q_vec * q_w_grad)
+            qw, qx, qy, qz = q[..., 0], q[..., 1], q[..., 2], q[..., 3]
+            qw_grad, qx_grad, qy_grad, qz_grad = q_grad[..., 0], q_grad[..., 1], q_grad[..., 2], q_grad[..., 3]
+
+            # Project to so(3) tangent space (3D rotation tangent)
+            omega_x = 2 * (qw * qx_grad - qx * qw_grad)
+            omega_y = 2 * (qw * qy_grad - qy * qw_grad)
+            omega_z = 2 * (qw * qz_grad - qz * qw_grad)
+
+            omega = jnp.stack([omega_x, omega_y, omega_z], axis=-1)
+
+            # Translation part remains the same
+            rho = t_grad
+
+            # Combine into 6D tangent vector
+            return jnp.concatenate([omega, rho], axis=-1)
+
+        # For other dimensions, raise error
+        raise ValueError(f"Cannot project vector of shape {v.shape} to SE(3) tangent space")
+
+    def inner(self, x: Array, v1: Array, v2: Array) -> Array:
+        """Compute inner product of tangent vectors at point x.
+
+        Uses canonical inner product on se(3) Lie algebra.
+
+        Args:
+            x: Point on SE(3) manifold
+            v1: First tangent vector
+            v2: Second tangent vector
+
+        Returns:
+            Inner product scalar
+        """
+        # Canonical inner product on se(3): <v1, v2> = tr(v1^T * v2)
+        # For 6D vectors (omega, rho), this is just dot product
+        return jnp.dot(v1, v2)
+
+    def retr(self, x: Array, v: Array) -> Array:
+        """Retraction: exponential map from tangent space to manifold.
+
+        Args:
+            x: Base point on SE(3) manifold
+            v: Tangent vector at x
+
+        Returns:
+            Point on manifold after retraction
+        """
+        # SE(3) retraction via group exponential
+        exp_v = self.exp_tangent(v)
+        return self.compose(x, exp_v)
+
+    def dist(self, x: Array, y: Array) -> Array:
+        """Compute Riemannian distance between two points.
+
+        Args:
+            x: First point on SE(3) manifold
+            y: Second point on SE(3) manifold
+
+        Returns:
+            Geodesic distance
+        """
+        # Distance via logarithm map: ||log(x^(-1) * y)||
+        x_inv = self.inverse(x)
+        xy_inv = self.compose(x_inv, y)
+        log_xy = self.log_tangent(xy_inv)
+
+        # L2 norm in se(3) Lie algebra
+        return jnp.linalg.norm(log_xy)
+
+    def transp(self, x: Array, y: Array, v: Array) -> Array:
+        """Parallel transport tangent vector from x to y.
+
+        For SE(3) as a Lie group, parallel transport is trivial
+        (tangent vectors are transported without change).
+
+        Args:
+            x: Source point
+            y: Target point
+            v: Tangent vector at x
+
+        Returns:
+            Parallel transported vector at y
+        """
+        # For Lie groups, parallel transport is identity
+        return v
+
+    def exp(self, x: Array, v: Array) -> Array:
+        """Exponential map: move from point x along tangent vector v.
+
+        Args:
+            x: Point on SE(3) manifold as (qw, qx, qy, qz, tx, ty, tz)
+            v: Tangent vector in 6D se(3) algebra (omega, rho)
+
+        Returns:
+            New point on SE(3) reached by following geodesic from x in direction v
+        """
+        # Convert tangent vector to SE(3) transformation
+        delta = self.exp_tangent(v)
+
+        # Compose with current point: result = x * delta (right multiplication)
+        return self.compose(x, delta)
+
+    def log(self, x: Array, y: Array) -> Array:
+        """Logarithmic map: compute tangent vector from x to y.
+
+        Args:
+            x: Base point on SE(3) manifold
+            y: Target point on SE(3) manifold
+
+        Returns:
+            Tangent vector in 6D se(3) algebra from x to y
+        """
+        # Compute relative transformation: delta = x^(-1) * y
+        x_inv = self.inverse(x)
+        delta = self.compose(x_inv, y)
+
+        # Convert to tangent vector
+        return self.log_tangent(delta)
 
     def __repr__(self) -> str:
         """String representation of SE(3) manifold."""

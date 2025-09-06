@@ -24,8 +24,8 @@ class TestSPDPoleLadder:
 
     def test_pole_ladder_method_exists(self):
         """Test that _pole_ladder method exists on SPD manifold."""
-        assert hasattr(self.manifold, '_pole_ladder')
-        assert callable(getattr(self.manifold, '_pole_ladder'))
+        assert hasattr(self.manifold, "_pole_ladder")
+        assert callable(getattr(self.manifold, "_pole_ladder"))
 
     def test_pole_ladder_basic_functionality(self):
         """Test basic pole ladder parallel transport functionality."""

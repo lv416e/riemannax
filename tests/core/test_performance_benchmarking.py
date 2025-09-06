@@ -7,7 +7,6 @@ Following TDD methodology - these tests define expected behavior for
 the performance measurement system.
 """
 
-
 import jax
 import jax.numpy as jnp
 import pytest

@@ -378,16 +378,22 @@ class TestComprehensivePerformanceValidation:
                 for op_name, expected_speedup in operation_baselines.items():
                     try:
                         if op_name == "proj":
+
                             def func(x_val, v_val):
                                 return manifold.proj(x_val, v_val)
+
                             args = (x, v)
                         elif op_name == "exp":
+
                             def func(x_val, v_val):
                                 return manifold.exp(x_val, v_val)
+
                             args = (x, v)
                         elif op_name == "inner":
+
                             def func(x_val, u_val, v_val):
                                 return manifold.inner(x_val, u_val, v_val)
+
                             args = (x, v, v)
                         else:
                             continue

@@ -77,7 +77,6 @@ class TestNumericalStabilityManager:
             manager.safe_matrix_exponential(A, method="invalid_method")
 
 
-
 class TestHyperbolicNumericalError:
     """Test HyperbolicNumericalError exception."""
 

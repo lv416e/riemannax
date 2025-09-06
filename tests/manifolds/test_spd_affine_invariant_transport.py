@@ -24,8 +24,8 @@ class TestSPDAffineInvariantTransport:
 
     def test_affine_invariant_transp_method_exists(self):
         """Test that _affine_invariant_transp method exists on SPD manifold."""
-        assert hasattr(self.manifold, '_affine_invariant_transp')
-        assert callable(getattr(self.manifold, '_affine_invariant_transp'))
+        assert hasattr(self.manifold, "_affine_invariant_transp")
+        assert callable(getattr(self.manifold, "_affine_invariant_transp"))
 
     def test_affine_invariant_transp_basic_functionality(self):
         """Test basic affine-invariant parallel transport functionality."""
@@ -185,8 +185,8 @@ class TestSPDBuresWassersteinTransport:
 
     def test_bures_wasserstein_transp_method_exists(self):
         """Test that _bures_wasserstein_transp method exists on SPD manifold."""
-        assert hasattr(self.manifold, '_bures_wasserstein_transp')
-        assert callable(getattr(self.manifold, '_bures_wasserstein_transp'))
+        assert hasattr(self.manifold, "_bures_wasserstein_transp")
+        assert callable(getattr(self.manifold, "_bures_wasserstein_transp"))
 
     def test_bures_wasserstein_transport_basic_functionality(self):
         """Test basic Bures-Wasserstein parallel transport functionality."""

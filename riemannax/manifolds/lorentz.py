@@ -59,6 +59,11 @@ class Lorentz(Manifold):
         """Intrinsic dimension of the hyperbolic space."""
         return self._dimension
 
+    @property
+    def ambient_dimension(self) -> int:
+        """Return ambient dimension of Minkowski space."""
+        return self._dimension + 1
+
     def _minkowski_inner(self, u: Array, v: Array) -> Array:
         """Compute the Minkowski inner product between two vectors.
 

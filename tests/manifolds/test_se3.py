@@ -382,5 +382,452 @@ class TestSE3TaylorApproximations:
             assert jnp.allclose(tangent, recovered, atol=1e-9)
 
 
+class TestSE3GroupOperations:
+    """Test SE(3) group operations: compose, inverse, and group properties."""
+
+    def test_compose_identity_left(self):
+        """Test left identity property: compose(identity, x) = x."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(42)
+
+        # Identity transform
+        identity = jnp.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+        # Random transform
+        x = manifold.random_point(key)
+
+        # Left identity: compose(identity, x) = x
+        result = manifold.compose(identity, x)
+        assert jnp.allclose(result, x, atol=manifold.atol)
+
+    def test_compose_identity_right(self):
+        """Test right identity property: compose(x, identity) = x."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(123)
+
+        # Identity transform
+        identity = jnp.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+        # Random transform
+        x = manifold.random_point(key)
+
+        # Right identity: compose(x, identity) = x
+        result = manifold.compose(x, identity)
+        assert jnp.allclose(result, x, atol=manifold.atol)
+
+    def test_compose_associativity(self):
+        """Test associativity: compose(compose(x, y), z) = compose(x, compose(y, z))."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(456)
+
+        # Generate three random transforms
+        keys = jax.random.split(key, 3)
+        x = manifold.random_point(keys[0])
+        y = manifold.random_point(keys[1])
+        z = manifold.random_point(keys[2])
+
+        # Test associativity
+        left = manifold.compose(manifold.compose(x, y), z)
+        right = manifold.compose(x, manifold.compose(y, z))
+
+        assert jnp.allclose(left, right, atol=1e-6)
+
+    def test_inverse_basic(self):
+        """Test basic inverse properties."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(789)
+
+        # Generate random transform
+        x = manifold.random_point(key)
+
+        # Compute inverse
+        x_inv = manifold.inverse(x)
+
+        # Check that result is valid
+        assert manifold.validate_point(x_inv)
+
+    def test_inverse_property(self):
+        """Test inverse property: compose(x, inverse(x)) = identity."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(321)
+
+        # Generate random transform
+        x = manifold.random_point(key)
+        x_inv = manifold.inverse(x)
+
+        # Identity transform
+        identity = jnp.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+        # Test: compose(x, inverse(x)) = identity
+        result1 = manifold.compose(x, x_inv)
+        assert jnp.allclose(result1, identity, atol=1e-6)
+
+        # Test: compose(inverse(x), x) = identity
+        result2 = manifold.compose(x_inv, x)
+        assert jnp.allclose(result2, identity, atol=1e-6)
+
+    def test_compose_batch_operations(self):
+        """Test batch composition operations."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(654)
+
+        batch_size = 5
+        x_batch = manifold.random_point(key, batch_size)
+        y_batch = manifold.random_point(key, batch_size)
+
+        # Batch composition
+        result_batch = manifold.compose(x_batch, y_batch)
+
+        # Check shape and validity
+        assert result_batch.shape == (batch_size, 7)
+        for i in range(batch_size):
+            assert manifold.validate_point(result_batch[i])
+
+
+class TestSE3ManifoldOperations:
+    """Test SE(3) manifold operations: proj, inner, retr, transp, dist."""
+
+    def test_proj_tangent_space(self):
+        """Test tangent space projection."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(42)
+
+        # Generate point and vector
+        x = manifold.random_point(key)
+        v = jax.random.normal(key, (6,))  # 6D tangent vector
+
+        # Project to tangent space
+        v_proj = manifold.proj(x, v)
+
+        # Result should be 6D tangent vector
+        assert v_proj.shape == (6,)
+
+    def test_inner_product_symmetry(self):
+        """Test inner product symmetry: inner(x, u, v) = inner(x, v, u)."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(123)
+
+        # Generate point and tangent vectors
+        x = manifold.random_point(key)
+        keys = jax.random.split(key, 2)
+        u = jax.random.normal(keys[0], (6,))
+        v = jax.random.normal(keys[1], (6,))
+
+        # Test symmetry
+        inner_uv = manifold.inner(x, u, v)
+        inner_vu = manifold.inner(x, v, u)
+
+        assert jnp.allclose(inner_uv, inner_vu, atol=manifold.atol)
+
+    def test_inner_product_positive_definite(self):
+        """Test inner product positive definiteness: inner(x, v, v) >= 0."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(456)
+
+        x = manifold.random_point(key)
+        v = jax.random.normal(key, (6,))
+
+        # Inner product with itself should be non-negative
+        inner_vv = manifold.inner(x, v, v)
+        assert inner_vv >= 0
+
+        # Should be zero only for zero vector
+        if jnp.linalg.norm(v) > 1e-10:
+            assert inner_vv > 0
+
+    def test_retr_basic(self):
+        """Test basic retraction properties."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(789)
+
+        # Generate point and tangent vector
+        x = manifold.random_point(key)
+        v = jax.random.normal(key, (6,)) * 0.1  # Small tangent vector
+
+        # Apply retraction
+        y = manifold.retr(x, v)
+
+        # Result should be valid SE(3) point
+        assert manifold.validate_point(y)
+        assert y.shape == (7,)
+
+    def test_retr_zero_vector(self):
+        """Test retraction with zero vector returns original point."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(321)
+
+        x = manifold.random_point(key)
+        zero_v = jnp.zeros(6)
+
+        # Retraction with zero vector
+        y = manifold.retr(x, zero_v)
+
+        # Should return original point
+        assert jnp.allclose(y, x, atol=manifold.atol)
+
+    def test_dist_basic_properties(self):
+        """Test basic distance properties."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(654)
+
+        # Generate two points
+        keys = jax.random.split(key, 2)
+        x = manifold.random_point(keys[0])
+        y = manifold.random_point(keys[1])
+
+        # Distance should be non-negative
+        d = manifold.dist(x, y)
+        assert d >= 0
+
+        # Distance should be symmetric
+        d_yx = manifold.dist(y, x)
+        assert jnp.allclose(d, d_yx, atol=manifold.atol)
+
+    def test_dist_self_zero(self):
+        """Test distance from point to itself is zero."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(987)
+
+        x = manifold.random_point(key)
+        d = manifold.dist(x, x)
+
+        assert jnp.allclose(d, 0.0, atol=manifold.atol)
+
+    def test_transp_basic(self):
+        """Test basic parallel transport properties."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(147)
+
+        # Generate points and tangent vector
+        keys = jax.random.split(key, 2)
+        x = manifold.random_point(keys[0])
+        y = manifold.random_point(keys[1])
+        v = jax.random.normal(key, (6,))
+
+        # Transport vector from x to y
+        v_transported = manifold.transp(x, y, v)
+
+        # Result should be 6D tangent vector
+        assert v_transported.shape == (6,)
+
+    def test_transp_preserves_norm(self):
+        """Test parallel transport preserves vector norm."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(258)
+
+        keys = jax.random.split(key, 2)
+        x = manifold.random_point(keys[0])
+        y = manifold.random_point(keys[1])
+        v = jax.random.normal(key, (6,))
+
+        # Original norm
+        norm_original = jnp.sqrt(manifold.inner(x, v, v))
+
+        # Transport and compute norm
+        v_transported = manifold.transp(x, y, v)
+        norm_transported = jnp.sqrt(manifold.inner(y, v_transported, v_transported))
+
+        # Norms should be preserved
+        assert jnp.allclose(norm_original, norm_transported, atol=1e-6)
+
+class TestSE3MathematicalProperties:
+    """Property-based tests for SE(3) mathematical properties."""
+
+    def test_group_closure(self):
+        """Test SE(3) group closure property."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(888)
+
+        # Generate random SE(3) elements
+        g1 = manifold.random_point(key)
+        key, subkey = jax.random.split(key)
+        g2 = manifold.random_point(subkey)
+
+        # Test closure: g1 * g2 ∈ SE(3)
+        g_composed = manifold.compose(g1, g2)
+        assert manifold.validate_point(g_composed), "Group composition should stay in SE(3)"
+
+    def test_group_identity_properties(self):
+        """Test identity element properties."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(999)
+
+        # Identity element: (1, 0, 0, 0, 0, 0, 0)
+        identity = jnp.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+        # Generate random element
+        g = manifold.random_point(key)
+
+        # Test left identity: e * g = g
+        left_result = manifold.compose(identity, g)
+        assert jnp.allclose(left_result, g, atol=1e-10)
+
+        # Test right identity: g * e = g
+        right_result = manifold.compose(g, identity)
+        assert jnp.allclose(right_result, g, atol=1e-10)
+
+    def test_group_inverse_properties(self):
+        """Test inverse element properties."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(777)
+
+        identity = jnp.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        g = manifold.random_point(key)
+        g_inv = manifold.inverse(g)
+
+        # Test g * g^(-1) = e
+        right_inverse = manifold.compose(g, g_inv)
+        assert jnp.allclose(right_inverse, identity, atol=1e-10)
+
+        # Test g^(-1) * g = e
+        left_inverse = manifold.compose(g_inv, g)
+        assert jnp.allclose(left_inverse, identity, atol=1e-10)
+
+    def test_group_associativity(self):
+        """Test group associativity: (g1 * g2) * g3 = g1 * (g2 * g3)."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(666)
+
+        # Generate three random elements
+        g1 = manifold.random_point(key)
+        key, subkey = jax.random.split(key)
+        g2 = manifold.random_point(subkey)
+        key, subkey = jax.random.split(key)
+        g3 = manifold.random_point(subkey)
+
+        # Test (g1 * g2) * g3 = g1 * (g2 * g3)
+        left_assoc = manifold.compose(manifold.compose(g1, g2), g3)
+        right_assoc = manifold.compose(g1, manifold.compose(g2, g3))
+
+        assert jnp.allclose(left_assoc, right_assoc, atol=1e-10)
+
+    def test_exp_log_consistency(self):
+        """Test exponential-logarithm consistency."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(555)
+
+        # Test log(exp(v)) = v for small tangent vectors
+        v = 0.1 * jax.random.normal(key, (6,))  # Small tangent vector
+
+        g = manifold.exp_tangent(v)
+        v_recovered = manifold.log_tangent(g)
+
+        assert jnp.allclose(v_recovered, v, atol=1e-10)
+
+    def test_log_exp_consistency(self):
+        """Test logarithm-exponential consistency."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(444)
+
+        # Test exp(log(g)) = g for points near identity
+        identity = jnp.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+        # Small perturbation from identity
+        small_tangent = 0.1 * jax.random.normal(key, (6,))
+        g = manifold.retr(identity, small_tangent)
+
+        v = manifold.log_tangent(g)
+        g_recovered = manifold.exp_tangent(v)
+
+        assert jnp.allclose(g_recovered, g, atol=1e-10)
+
+    def test_metric_positive_definite(self):
+        """Test inner product is positive definite."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(333)
+
+        g = manifold.random_point(key)
+        v = jax.random.normal(key, (6,))
+
+        # Test <v, v> ≥ 0
+        inner_product = manifold.inner(g, v, v)
+        assert inner_product >= 0
+
+        # Test <v, v> = 0 iff v = 0
+        zero_v = jnp.zeros(6)
+        zero_inner = manifold.inner(g, zero_v, zero_v)
+        assert jnp.allclose(zero_inner, 0.0, atol=1e-15)
+
+    def test_metric_symmetry(self):
+        """Test inner product symmetry."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(222)
+
+        g = manifold.random_point(key)
+        key, subkey = jax.random.split(key)
+        v1 = jax.random.normal(subkey, (6,))
+        key, subkey = jax.random.split(key)
+        v2 = jax.random.normal(subkey, (6,))
+
+        # Test <v1, v2> = <v2, v1>
+        inner12 = manifold.inner(g, v1, v2)
+        inner21 = manifold.inner(g, v2, v1)
+
+        assert jnp.allclose(inner12, inner21, atol=1e-15)
+
+    def test_distance_properties(self):
+        """Test distance function properties."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(111)
+
+        # Generate random points
+        g1 = manifold.random_point(key)
+        key, subkey = jax.random.split(key)
+        g2 = manifold.random_point(subkey)
+        key, subkey = jax.random.split(key)
+        g3 = manifold.random_point(subkey)
+
+        # Test non-negativity: d(g1, g2) ≥ 0
+        d12 = manifold.dist(g1, g2)
+        assert d12 >= 0
+
+        # Test identity of indiscernibles: d(g, g) = 0
+        d11 = manifold.dist(g1, g1)
+        assert jnp.allclose(d11, 0.0, atol=1e-15)
+
+        # Test symmetry: d(g1, g2) = d(g2, g1)
+        d21 = manifold.dist(g2, g1)
+        assert jnp.allclose(d12, d21, atol=1e-10)
+
+        # Test triangle inequality: d(g1, g3) ≤ d(g1, g2) + d(g2, g3)
+        d13 = manifold.dist(g1, g3)
+        d23 = manifold.dist(g2, g3)
+        assert d13 <= d12 + d23 + 1e-10  # Small tolerance for numerical errors  # Small tolerance for numerical errors
+
+    def test_retraction_properties(self):
+        """Test retraction properties."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(000)
+
+        g = manifold.random_point(key)
+
+        # Test retr(g, 0) = g
+        zero_v = jnp.zeros(6)
+        g_retr = manifold.retr(g, zero_v)
+        assert jnp.allclose(g_retr, g, atol=1e-15)
+
+    def test_validate_tangent_function(self):
+        """Test validate_tangent function."""
+        manifold = SE3()
+        key = jax.random.PRNGKey(123)
+
+        g = manifold.random_point(key)
+
+        # Test valid 6D tangent vector
+        v_valid = jax.random.normal(key, (6,))
+        assert manifold.validate_tangent(g, v_valid)
+
+        # Test invalid dimensions
+        v_invalid = jax.random.normal(key, (5,))
+        assert not manifold.validate_tangent(g, v_invalid)
+
+        # Test batch validation
+        v_batch = jax.random.normal(key, (3, 6))
+        assert manifold.validate_tangent(g, v_batch)
+
+        v_batch_invalid = jax.random.normal(key, (3, 5))
+        assert not manifold.validate_tangent(g, v_batch_invalid)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

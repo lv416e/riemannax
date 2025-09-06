@@ -27,7 +27,7 @@ class GrassmannPerformanceComparison:
         operation_name: str,
         batch_sizes: List[int],
         num_trials: int = 5,
-        warmup_trials: int = 2
+        warmup_trials: int = 2,
     ) -> Dict[str, Any]:
         """Compare batch vs sequential operation performance.
 
@@ -42,13 +42,13 @@ class GrassmannPerformanceComparison:
             Dictionary containing comparison results
         """
         results = {
-            'manifold': f'Gr({manifold.p},{manifold.n})',
-            'operation': operation_name,
-            'batch_sizes': batch_sizes,
-            'batch_times': {},
-            'sequential_times': {},
-            'speedups': {},
-            'efficiency_analysis': {}
+            "manifold": f"Gr({manifold.p},{manifold.n})",
+            "operation": operation_name,
+            "batch_sizes": batch_sizes,
+            "batch_times": {},
+            "sequential_times": {},
+            "speedups": {},
+            "efficiency_analysis": {},
         }
 
         key = jax.random.PRNGKey(42)
@@ -59,17 +59,17 @@ class GrassmannPerformanceComparison:
             x_batch = jax.vmap(manifold.random_point)(keys)
 
             # Prepare arguments based on operation
-            if operation_name in ['proj', 'exp', 'retr', 'transp']:
+            if operation_name in ["proj", "exp", "retr", "transp"]:
                 v_keys = jax.random.split(jax.random.PRNGKey(123), batch_size)
                 v_batch = jax.vmap(manifold.random_tangent)(v_keys, x_batch)
                 test_args_batch = (x_batch, v_batch)
                 test_args_individual = [(x_batch[i], v_batch[i]) for i in range(batch_size)]
-            elif operation_name in ['log', 'dist']:
+            elif operation_name in ["log", "dist"]:
                 y_keys = jax.random.split(jax.random.PRNGKey(124), batch_size)
                 y_batch = jax.vmap(manifold.random_point)(y_keys)
                 test_args_batch = (x_batch, y_batch)
                 test_args_individual = [(x_batch[i], y_batch[i]) for i in range(batch_size)]
-            elif operation_name == 'inner':
+            elif operation_name == "inner":
                 v_keys = jax.random.split(jax.random.PRNGKey(125), batch_size)
                 v_batch = jax.vmap(manifold.random_tangent)(v_keys, x_batch)
                 u_keys = jax.random.split(jax.random.PRNGKey(126), batch_size)
@@ -80,7 +80,7 @@ class GrassmannPerformanceComparison:
                 raise ValueError(f"Unknown operation: {operation_name}")
 
             # Get operation functions
-            batch_func = getattr(manifold, f'batch_{operation_name}')
+            batch_func = getattr(manifold, f"batch_{operation_name}")
             sequential_func = getattr(manifold, operation_name)
 
             # JIT compile both versions
@@ -94,7 +94,7 @@ class GrassmannPerformanceComparison:
 
             # Enhanced warmup for sequential version with proper blocking
             for _ in range(warmup_trials):
-                for args in test_args_individual[:min(3, len(test_args_individual))]:
+                for args in test_args_individual[: min(3, len(test_args_individual))]:
                     result = jit_sequential_func(*args)
                     jax.block_until_ready(result)
 
@@ -104,15 +104,15 @@ class GrassmannPerformanceComparison:
                 warmup_keys = jax.random.split(jax.random.PRNGKey(1000 + warmup_iter), batch_size)
                 warmup_x = jax.vmap(manifold.random_point)(warmup_keys)
 
-                if operation_name in ['proj', 'exp', 'retr', 'transp']:
+                if operation_name in ["proj", "exp", "retr", "transp"]:
                     warmup_v_keys = jax.random.split(jax.random.PRNGKey(2000 + warmup_iter), batch_size)
                     warmup_v = jax.vmap(manifold.random_tangent)(warmup_v_keys, warmup_x)
                     warmup_args_batch = (warmup_x, warmup_v)
-                elif operation_name in ['log', 'dist']:
+                elif operation_name in ["log", "dist"]:
                     warmup_y_keys = jax.random.split(jax.random.PRNGKey(3000 + warmup_iter), batch_size)
                     warmup_y = jax.vmap(manifold.random_point)(warmup_y_keys)
                     warmup_args_batch = (warmup_x, warmup_y)
-                elif operation_name == 'inner':
+                elif operation_name == "inner":
                     warmup_v_keys = jax.random.split(jax.random.PRNGKey(4000 + warmup_iter), batch_size)
                     warmup_v = jax.vmap(manifold.random_tangent)(warmup_v_keys, warmup_x)
                     warmup_u_keys = jax.random.split(jax.random.PRNGKey(5000 + warmup_iter), batch_size)
@@ -151,64 +151,60 @@ class GrassmannPerformanceComparison:
             sequential_mean = np.mean(sequential_times)
             speedup = sequential_mean / batch_mean if batch_mean > 0 else 0
 
-            results['batch_times'][batch_size] = {
-                'mean': batch_mean,
-                'std': np.std(batch_times),
-                'min': np.min(batch_times),
-                'max': np.max(batch_times)
+            results["batch_times"][batch_size] = {
+                "mean": batch_mean,
+                "std": np.std(batch_times),
+                "min": np.min(batch_times),
+                "max": np.max(batch_times),
             }
 
-            results['sequential_times'][batch_size] = {
-                'mean': sequential_mean,
-                'std': np.std(sequential_times),
-                'min': np.min(sequential_times),
-                'max': np.max(sequential_times)
+            results["sequential_times"][batch_size] = {
+                "mean": sequential_mean,
+                "std": np.std(sequential_times),
+                "min": np.min(sequential_times),
+                "max": np.max(sequential_times),
             }
 
-            results['speedups'][batch_size] = speedup
+            results["speedups"][batch_size] = speedup
 
             # Verify results are equivalent (within numerical tolerance)
-            self._verify_result_equivalence(
-                batch_result, sequential_results, operation_name, batch_size
-            )
+            self._verify_result_equivalence(batch_result, sequential_results, operation_name, batch_size)
 
         # Analyze efficiency
-        results['efficiency_analysis'] = self._analyze_efficiency(results)
+        results["efficiency_analysis"] = self._analyze_efficiency(results)
 
         return results
 
     def _verify_result_equivalence(
-        self,
-        batch_result: jnp.ndarray,
-        sequential_results: List[jnp.ndarray],
-        operation_name: str,
-        batch_size: int
+        self, batch_result: jnp.ndarray, sequential_results: List[jnp.ndarray], operation_name: str, batch_size: int
     ) -> None:
         """Verify that batch and sequential results are equivalent."""
         sequential_stacked = jnp.stack(sequential_results, axis=0)
 
-        if operation_name in ['dist', 'inner']:
+        if operation_name in ["dist", "inner"]:
             # Scalar results
             max_error = jnp.max(jnp.abs(batch_result - sequential_stacked))
-            assert max_error < 1e-10, \
+            assert max_error < 1e-10, (
                 f"Results differ for {operation_name} (batch {batch_size}): max_error = {max_error}"
+            )
         else:
             # Matrix results
             max_error = jnp.max(jnp.abs(batch_result - sequential_stacked))
-            assert max_error < 1e-10, \
+            assert max_error < 1e-10, (
                 f"Results differ for {operation_name} (batch {batch_size}): max_error = {max_error}"
+            )
 
     def _analyze_efficiency(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze efficiency metrics from comparison results."""
-        batch_sizes = results['batch_sizes']
-        speedups = [results['speedups'][bs] for bs in batch_sizes]
+        batch_sizes = results["batch_sizes"]
+        speedups = [results["speedups"][bs] for bs in batch_sizes]
 
         analysis = {
-            'mean_speedup': np.mean(speedups),
-            'max_speedup': np.max(speedups),
-            'min_speedup': np.min(speedups),
-            'speedup_scaling': {},
-            'efficiency_rating': 'UNKNOWN'
+            "mean_speedup": np.mean(speedups),
+            "max_speedup": np.max(speedups),
+            "min_speedup": np.min(speedups),
+            "speedup_scaling": {},
+            "efficiency_rating": "UNKNOWN",
         }
 
         # Analyze how speedup scales with batch size
@@ -217,30 +213,26 @@ class GrassmannPerformanceComparison:
             coeffs = np.polyfit(batch_sizes, speedups, 1)
             correlation = np.corrcoef(batch_sizes, speedups)[0, 1] if len(speedups) > 1 else 0
 
-            analysis['speedup_scaling'] = {
-                'slope': coeffs[0],
-                'intercept': coeffs[1],
-                'correlation': correlation
-            }
+            analysis["speedup_scaling"] = {"slope": coeffs[0], "intercept": coeffs[1], "correlation": correlation}
 
         # Rate efficiency
-        mean_speedup = analysis['mean_speedup']
+        mean_speedup = analysis["mean_speedup"]
         if mean_speedup > 2.0:
-            analysis['efficiency_rating'] = 'EXCELLENT'
+            analysis["efficiency_rating"] = "EXCELLENT"
         elif mean_speedup > 1.5:
-            analysis['efficiency_rating'] = 'GOOD'
+            analysis["efficiency_rating"] = "GOOD"
         elif mean_speedup > 1.1:
-            analysis['efficiency_rating'] = 'MODERATE'
+            analysis["efficiency_rating"] = "MODERATE"
         else:
-            analysis['efficiency_rating'] = 'POOR'
+            analysis["efficiency_rating"] = "POOR"
 
         return analysis
 
     def generate_performance_report(self, results: Dict[str, Any]) -> str:
         """Generate a human-readable performance comparison report."""
-        manifold = results['manifold']
-        operation = results['operation']
-        efficiency = results['efficiency_analysis']
+        manifold = results["manifold"]
+        operation = results["operation"]
+        efficiency = results["efficiency_analysis"]
 
         report = [
             f"=== Performance Comparison: {manifold} {operation.upper()} ===",
@@ -250,31 +242,35 @@ class GrassmannPerformanceComparison:
             f"Min Speedup: {efficiency['min_speedup']:.2f}x",
             "",
             "Detailed Results by Batch Size:",
-            ""
+            "",
         ]
 
-        for batch_size in results['batch_sizes']:
-            batch_time = results['batch_times'][batch_size]['mean']
-            sequential_time = results['sequential_times'][batch_size]['mean']
-            speedup = results['speedups'][batch_size]
+        for batch_size in results["batch_sizes"]:
+            batch_time = results["batch_times"][batch_size]["mean"]
+            sequential_time = results["sequential_times"][batch_size]["mean"]
+            speedup = results["speedups"][batch_size]
 
-            report.extend([
-                f"  Batch Size {batch_size}:",
-                f"    Batch Time: {batch_time:.4f}s ± {results['batch_times'][batch_size]['std']:.4f}s",
-                f"    Sequential Time: {sequential_time:.4f}s ± {results['sequential_times'][batch_size]['std']:.4f}s",
-                f"    Speedup: {speedup:.2f}x",
-                ""
-            ])
+            report.extend(
+                [
+                    f"  Batch Size {batch_size}:",
+                    f"    Batch Time: {batch_time:.4f}s ± {results['batch_times'][batch_size]['std']:.4f}s",
+                    f"    Sequential Time: {sequential_time:.4f}s ± {results['sequential_times'][batch_size]['std']:.4f}s",
+                    f"    Speedup: {speedup:.2f}x",
+                    "",
+                ]
+            )
 
-        if 'speedup_scaling' in efficiency and efficiency['speedup_scaling']:
-            scaling = efficiency['speedup_scaling']
-            report.extend([
-                "Speedup Scaling Analysis:",
-                f"  Correlation with batch size: {scaling['correlation']:.3f}",
-                f"  Scaling slope: {scaling['slope']:.4f}",
-                f"  Interpretation: {'POSITIVE' if scaling['slope'] > 0 else 'NEGATIVE'} scaling with batch size",
-                ""
-            ])
+        if "speedup_scaling" in efficiency and efficiency["speedup_scaling"]:
+            scaling = efficiency["speedup_scaling"]
+            report.extend(
+                [
+                    "Speedup Scaling Analysis:",
+                    f"  Correlation with batch size: {scaling['correlation']:.3f}",
+                    f"  Scaling slope: {scaling['slope']:.4f}",
+                    f"  Interpretation: {'POSITIVE' if scaling['slope'] > 0 else 'NEGATIVE'} scaling with batch size",
+                    "",
+                ]
+            )
 
         return "\n".join(report)
 
@@ -299,24 +295,23 @@ class TestGrassmannPerformanceComparison:
             with self.subTest(manifold=f"Gr({manifold.p},{manifold.n})"):
                 results = self.comparison.compare_batch_vs_sequential(
                     manifold=manifold,
-                    operation_name='proj',
+                    operation_name="proj",
                     batch_sizes=self.test_batch_sizes,
                     num_trials=3,
-                    warmup_trials=1
+                    warmup_trials=1,
                 )
 
                 # Verify performance improvements
-                efficiency = results['efficiency_analysis']
+                efficiency = results["efficiency_analysis"]
 
                 # Should show meaningful speedup for larger batch sizes
-                large_batch_speedups = [
-                    results['speedups'][bs] for bs in self.test_batch_sizes if bs >= 10
-                ]
+                large_batch_speedups = [results["speedups"][bs] for bs in self.test_batch_sizes if bs >= 10]
 
                 if large_batch_speedups:
                     avg_large_batch_speedup = np.mean(large_batch_speedups)
-                    assert avg_large_batch_speedup > 1.1, \
+                    assert avg_large_batch_speedup > 1.1, (
                         f"Insufficient speedup for {manifold}: {avg_large_batch_speedup:.2f}x"
+                    )
 
                 # Print detailed report
                 report = self.comparison.generate_performance_report(results)
@@ -330,18 +325,19 @@ class TestGrassmannPerformanceComparison:
 
         results = self.comparison.compare_batch_vs_sequential(
             manifold=manifold,
-            operation_name='exp',
+            operation_name="exp",
             batch_sizes=[1, 5, 10],  # Smaller batch sizes for intensive operation
             num_trials=3,
-            warmup_trials=1
+            warmup_trials=1,
         )
 
         # Verify performance improvements
-        efficiency = results['efficiency_analysis']
+        efficiency = results["efficiency_analysis"]
 
         # Even small speedup is valuable for expensive operations
-        assert efficiency['mean_speedup'] > 1.0, \
+        assert efficiency["mean_speedup"] > 1.0, (
             f"No speedup observed for exponential map: {efficiency['mean_speedup']:.2f}x"
+        )
 
         # Print detailed report
         report = self.comparison.generate_performance_report(results)
@@ -353,20 +349,21 @@ class TestGrassmannPerformanceComparison:
 
         results = self.comparison.compare_batch_vs_sequential(
             manifold=manifold,
-            operation_name='dist',
+            operation_name="dist",
             batch_sizes=[1, 5, 10, 15],
             num_trials=5,  # Increased from 3
-            warmup_trials=3  # Increased from 1
+            warmup_trials=3,  # Increased from 1
         )
 
         # Distance computation should show reasonable speedup
         # For small matrix operations (5x3), vmap overhead can limit speedup benefits
-        efficiency = results['efficiency_analysis']
+        efficiency = results["efficiency_analysis"]
 
         # Adjusted threshold from 1.2x to 1.1x for more realistic expectations
         # Small matrices and small batch sizes naturally have limited speedup potential
-        assert efficiency['mean_speedup'] > 1.1, \
+        assert efficiency["mean_speedup"] > 1.1, (
             f"Poor speedup for distance computation: {efficiency['mean_speedup']:.2f}x"
+        )
 
         # Print detailed report
         report = self.comparison.generate_performance_report(results)
@@ -381,21 +378,17 @@ class TestGrassmannPerformanceComparison:
         - JIT compilation effects that differ by operation complexity
         """
         manifold = Grassmann(4, 3)
-        operations = ['proj', 'dist']  # Use faster operations for this test
+        operations = ["proj", "dist"]  # Use faster operations for this test
         batch_size = 10
 
         speedup_results = {}
 
         for operation in operations:
             results = self.comparison.compare_batch_vs_sequential(
-                manifold=manifold,
-                operation_name=operation,
-                batch_sizes=[batch_size],
-                num_trials=3,
-                warmup_trials=1
+                manifold=manifold, operation_name=operation, batch_sizes=[batch_size], num_trials=3, warmup_trials=1
             )
 
-            speedup_results[operation] = results['speedups'][batch_size]
+            speedup_results[operation] = results["speedups"][batch_size]
 
         # At least one operation should show meaningful speedup
         max_speedup = max(speedup_results.values())
@@ -431,7 +424,7 @@ class TestGrassmannPerformanceComparison:
         ]
 
         batch_size = 10
-        operation = 'proj'  # Use projection for consistent comparison
+        operation = "proj"  # Use projection for consistent comparison
 
         speedups = {}
 
@@ -439,14 +432,10 @@ class TestGrassmannPerformanceComparison:
             complexity = manifold.n * manifold.p * manifold.p
 
             results = self.comparison.compare_batch_vs_sequential(
-                manifold=manifold,
-                operation_name=operation,
-                batch_sizes=[batch_size],
-                num_trials=3,
-                warmup_trials=1
+                manifold=manifold, operation_name=operation, batch_sizes=[batch_size], num_trials=3, warmup_trials=1
             )
 
-            speedups[complexity] = results['speedups'][batch_size]
+            speedups[complexity] = results["speedups"][batch_size]
 
         # At least one manifold should show meaningful speedup
         max_speedup = max(speedups.values())

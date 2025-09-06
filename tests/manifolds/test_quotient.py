@@ -34,13 +34,13 @@ class TestQuotientManifoldAbstractInterface:
         """QuotientManifold should define required abstract methods."""
         # These methods should exist in the abstract class
         required_methods = [
-            'horizontal_proj',
-            'group_action',
-            'quotient_exp',
-            'quotient_log',
-            'quotient_dist',
-            'lift_tangent',
-            'project_tangent'
+            "horizontal_proj",
+            "group_action",
+            "quotient_exp",
+            "quotient_log",
+            "quotient_dist",
+            "lift_tangent",
+            "project_tangent",
         ]
 
         for method in required_methods:
@@ -49,6 +49,7 @@ class TestQuotientManifoldAbstractInterface:
     def test_quotient_manifold_inheritance_structure(self):
         """QuotientManifold should properly inherit from Manifold."""
         from riemannax.manifolds.base import Manifold
+
         assert issubclass(QuotientManifold, Manifold)
 
 
@@ -231,7 +232,7 @@ class TestQuotientManifoldNumericalStability:
         u, s, vh = jnp.linalg.svd(jr.normal(key, (5, 3)), full_matrices=False)
         s_small = jnp.array([1.0, 1e-8, 1e-12])  # Very small singular values
         x = u @ jnp.diag(s_small) @ vh
-        x, _ = jnp.linalg.qr(x, mode='reduced')  # Ensure orthogonality
+        x, _ = jnp.linalg.qr(x, mode="reduced")  # Ensure orthogonality
 
         # Random ambient vector
         v = jr.normal(jr.fold_in(key, 1), x.shape)

@@ -49,7 +49,7 @@ class TestPoincareBallGeometricOperations:
         # Test conformal factor scaling
         inner_vv = manifold.inner(x, v, v)
         norm_sq = jnp.sum(x**2)
-        conformal_factor = 4 / (1 - norm_sq)**2
+        conformal_factor = 4 / (1 - norm_sq) ** 2
         expected = conformal_factor * jnp.sum(v**2)
         assert jnp.allclose(inner_vv, expected, atol=1e-6)
 

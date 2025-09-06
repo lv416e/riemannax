@@ -27,7 +27,7 @@ from riemannax.solvers.optimistix_adapter import (
     RiemannianProblemAdapter,
     euclidean_to_riemannian_gradient,
     minimize_on_manifold,
-    least_squares_on_manifold
+    least_squares_on_manifold,
 )
 from riemannax.problems.base import RiemannianProblem
 
@@ -45,8 +45,8 @@ class TestManifoldMinimizerCreation:
 
         assert adapter.manifold is manifold
         assert adapter.base_solver is base_solver
-        assert hasattr(adapter, 'rtol')
-        assert hasattr(adapter, 'atol')
+        assert hasattr(adapter, "rtol")
+        assert hasattr(adapter, "atol")
 
     def test_manifold_minimizer_inherits_from_abstract_minimiser(self):
         """ManifoldMinimizer should inherit from Optimistix AbstractMinimiser."""
@@ -110,11 +110,7 @@ class TestGradientConversion:
     def test_gradient_conversion_with_different_manifolds(self):
         """Gradient conversion should work with different manifold types."""
         key = jr.PRNGKey(42)
-        manifolds = [
-            Sphere(3),
-            Grassmann(4, 2),
-            SymmetricPositiveDefinite(3)
-        ]
+        manifolds = [Sphere(3), Grassmann(4, 2), SymmetricPositiveDefinite(3)]
 
         for manifold in manifolds:
             x = manifold.random_point(key)
@@ -140,7 +136,7 @@ class TestRiemannianProblemAdapter:
         adapter = RiemannianProblemAdapter(problem)
 
         assert adapter.problem is problem
-        assert hasattr(adapter, '__call__')
+        assert hasattr(adapter, "__call__")
 
     def test_adapter_function_signature(self):
         """Adapter should provide Optimistix-compatible function signature."""
@@ -195,7 +191,7 @@ class TestOptimistixMinimizeIntegration:
         def cost_fn(x):
             # Simple quadratic function
             target = jnp.array([1.0, 0.0, 0.0, 0.0])  # 4D target for Sphere(3)
-            return 0.5 * jnp.sum((x - target)**2)
+            return 0.5 * jnp.sum((x - target) ** 2)
 
         # Use more relaxed tolerances for integration testing
         solver = optx.BFGS(rtol=1e-3, atol=1e-3)
@@ -223,12 +219,9 @@ class TestOptimistixMinimizeIntegration:
         def cost_fn(x):
             # Simple quadratic cost function
             target = jnp.array([1.0, 0.0, 0.0])
-            return 0.5 * jnp.sum((x - target)**2)
+            return 0.5 * jnp.sum((x - target) ** 2)
 
-        solvers = [
-            optx.BFGS(rtol=1e-3, atol=1e-3),
-            optx.GradientDescent(learning_rate=1e-2, rtol=1e-3, atol=1e-3)
-        ]
+        solvers = [optx.BFGS(rtol=1e-3, atol=1e-3), optx.GradientDescent(learning_rate=1e-2, rtol=1e-3, atol=1e-3)]
 
         key = jr.PRNGKey(42)
         x0 = manifold.random_point(key)
@@ -249,11 +242,7 @@ class TestOptimistixLeastSquaresIntegration:
         manifold = Sphere(3)
 
         # Target points for least squares fit - 4D for Sphere(3)
-        targets = jnp.array([
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0]
-        ])
+        targets = jnp.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
 
         def residual_fn(x):
             # Residuals from fitting to target points

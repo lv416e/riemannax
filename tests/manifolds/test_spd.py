@@ -283,6 +283,7 @@ def test_spd_integration_with_optimization():
 
 # Log-Euclidean Metric Tests
 
+
 def test_log_euclidean_exp(spd3, point_on_spd3, tangent_vec):
     """Test Log-Euclidean exponential map."""
     # Compute Log-Euclidean exponential

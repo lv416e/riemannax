@@ -23,7 +23,7 @@ from riemannax.manifolds.errors import (
     NumericalStabilityError,
     GeometricError,
     InvalidPointError,
-    InvalidTangentVectorError
+    InvalidTangentVectorError,
 )
 
 
@@ -111,7 +111,7 @@ class TestSVDBasedExponentialMap:
         # Different t values should give different results (unless tangent is zero)
         if jnp.linalg.norm(tangent) > 1e-10:
             for i in range(len(exp_results) - 1):
-                assert not jnp.allclose(exp_results[i], exp_results[i+1], atol=1e-6)
+                assert not jnp.allclose(exp_results[i], exp_results[i + 1], atol=1e-6)
 
     def test_exp_svd_zero_tangent_handling(self):
         """Test handling of zero tangent vectors."""
@@ -162,13 +162,11 @@ class TestSVDBasedExponentialMap:
         x_batch = jnp.stack([manifold.random_point(k) for k in keys])
 
         keys = random.split(key, batch_size)
-        tangent_batch = jnp.stack([
-            manifold.random_tangent(keys[i], x_batch[i])
-            for i in range(batch_size)
-        ])
+        tangent_batch = jnp.stack([manifold.random_tangent(keys[i], x_batch[i]) for i in range(batch_size)])
 
         # Apply exp to batch using vmap
         from jax import vmap
+
         batched_exp = vmap(manifold.exp, in_axes=(0, 0))
         results = batched_exp(x_batch, tangent_batch)
 
@@ -398,7 +396,9 @@ class TestSVDImplementationIntegration:
         recovered_tangent = jit_log(x, y)
 
         # Use generous tolerance for exp/log invertibility under JIT
-        assert jnp.allclose(tangent, recovered_tangent, atol=2.0) or jnp.max(jnp.abs(tangent - recovered_tangent)) < 4.0  # Relaxed for CI
+        assert (
+            jnp.allclose(tangent, recovered_tangent, atol=2.0) or jnp.max(jnp.abs(tangent - recovered_tangent)) < 4.0
+        )  # Relaxed for CI
 
     def test_svd_error_handling(self):
         """Test proper error handling for edge cases."""
@@ -432,6 +432,7 @@ class TestSVDImplementationIntegration:
             return manifold.dist(x, manifold.exp(x, t * tangent))
 
         from jax import grad
+
         # Numerical derivative at t=0
         derivative = grad(dist_along_geodesic)(0.0)
         expected = jnp.sqrt(manifold.inner(x, tangent, tangent))
