@@ -14,6 +14,17 @@ from jaxtyping import Array, PRNGKeyArray
 
 from riemannax.manifolds.base import Manifold, ManifoldPoint
 
+# Numerical constants for Taylor expansions and stability thresholds
+_SMALL_ANGLE_THRESHOLD = 1e-8
+_TAYLOR_EPS = 1e-12  # Numerical stability threshold
+_SINC_TAYLOR_C2 = 1.0 / 6.0      # -theta²/6
+_SINC_TAYLOR_C4 = 1.0 / 120.0    # theta⁴/120
+_ONE_MINUS_COS_C0 = 0.5          # 1/2
+_ONE_MINUS_COS_C2 = 1.0 / 24.0   # -theta²/24
+_ONE_MINUS_COS_C4 = 1.0 / 720.0  # theta⁴/720
+_V_INVERSE_C0 = 1.0 / 12.0       # 1/12 for small angle V^(-1)
+_V_INVERSE_C2 = 1.0 / 720.0      # -theta²/720 for small angle V^(-1)
+
 
 class SE3(Manifold):
     """SE(3) Special Euclidean Group manifold.
@@ -262,6 +273,37 @@ class SE3(Manifold):
 
         return self._quaternion_normalize(q)
 
+    def _compute_rodrigues_coefficients(self, theta: Array) -> tuple[Array, Array]:
+        """Compute Rodrigues formula coefficients with numerical stability.
+
+        Computes sin(θ)/θ and (1-cos(θ))/θ² with Taylor expansions for small angles.
+
+        Args:
+            theta: Angle magnitudes of shape (..., 1).
+
+        Returns:
+            Tuple of (sin_over_theta, one_minus_cos_over_theta_sq) coefficients.
+        """
+        small_angle = theta < _SMALL_ANGLE_THRESHOLD
+        theta_sq = theta * theta
+        theta_4 = theta_sq * theta_sq
+
+        # sin(θ)/θ ≈ 1 - θ²/6 + θ⁴/120
+        sin_over_theta = jnp.where(
+            small_angle,
+            1.0 - theta_sq * _SINC_TAYLOR_C2 + theta_4 * _SINC_TAYLOR_C4,
+            jnp.sin(theta) / jnp.maximum(theta, _TAYLOR_EPS)
+        )
+
+        # (1-cos(θ))/θ² ≈ 1/2 - θ²/24 + θ⁴/720
+        one_minus_cos_over_theta_sq = jnp.where(
+            small_angle,
+            _ONE_MINUS_COS_C0 - theta_sq * _ONE_MINUS_COS_C2 + theta_4 * _ONE_MINUS_COS_C4,
+            (1.0 - jnp.cos(theta)) / jnp.maximum(theta_sq, _TAYLOR_EPS)
+        )
+
+        return sin_over_theta, one_minus_cos_over_theta_sq
+
     def _matrix_exp_so3(self, omega: Array) -> Array:
         """Compute SO(3) matrix exponential using Rodrigues formula.
 
@@ -275,23 +317,7 @@ class SE3(Manifold):
             Rotation matrix of shape (..., 3, 3).
         """
         theta = jnp.linalg.norm(omega, axis=-1, keepdims=True)
-
-        # Handle numerical stability near zero
-        small_angle = theta < 1e-8
-
-        # Taylor expansion coefficients for small angles
-        # sin(theta)/theta ≈ 1 - theta²/6 + theta⁴/120
-        # (1-cos(theta))/theta² ≈ 1/2 - theta²/24 + theta⁴/720
-        theta_sq = theta * theta
-        theta_4 = theta_sq * theta_sq
-
-        sin_over_theta = jnp.where(
-            small_angle, 1.0 - theta_sq / 6.0 + theta_4 / 120.0, jnp.sin(theta) / jnp.maximum(theta, 1e-12)
-        )
-
-        one_minus_cos_over_theta_sq = jnp.where(
-            small_angle, 0.5 - theta_sq / 24.0 + theta_4 / 720.0, (1.0 - jnp.cos(theta)) / jnp.maximum(theta_sq, 1e-12)
-        )
+        sin_over_theta, one_minus_cos_over_theta_sq = self._compute_rodrigues_coefficients(theta)
 
         # Skew-symmetric matrix
         K = self._skew_symmetric(omega)
@@ -301,8 +327,7 @@ class SE3(Manifold):
         if omega.ndim > 1:
             I = jnp.broadcast_to(I, (*omega.shape[:-1], 3, 3))
 
-        R = I + sin_over_theta[..., None] * K + one_minus_cos_over_theta_sq[..., None] * (K @ K)
-        return R
+        return I + sin_over_theta[..., None] * K + one_minus_cos_over_theta_sq[..., None] * (K @ K)
 
     def _matrix_log_so3(self, R: Array) -> Array:
         """Compute SO(3) matrix logarithm.
@@ -366,6 +391,76 @@ class SE3(Manifold):
 
         return omega
 
+    def _compute_v_matrix(self, omega: Array) -> Array:
+        """Compute V matrix for SE(3) exponential map.
+
+        V = I + (1-cos(θ))/θ² * K + (θ-sin(θ))/θ³ * K²
+        where K is the skew-symmetric matrix of omega.
+
+        Args:
+            omega: Rotation vector of shape (..., 3).
+
+        Returns:
+            V matrix of shape (..., 3, 3).
+        """
+        theta = jnp.linalg.norm(omega, axis=-1, keepdims=True)
+        small_angle = theta < _SMALL_ANGLE_THRESHOLD
+
+        theta_sq = theta * theta
+        theta_4 = theta_sq * theta_sq
+
+        # Reuse coefficients from Rodrigues formula
+        _, one_minus_cos_over_theta_sq = self._compute_rodrigues_coefficients(theta)
+
+        # (θ-sin(θ))/θ³ ≈ 1/6 - θ²/120 + θ⁴/5040
+        theta_minus_sin_over_theta_cubed = jnp.where(
+            small_angle,
+            1.0/6.0 - theta_sq/120.0 + theta_4/5040.0,
+            (theta - jnp.sin(theta)) / jnp.maximum(theta * theta_sq, _TAYLOR_EPS)
+        )
+
+        # Build V matrix
+        I = jnp.eye(3)
+        if omega.ndim > 1:
+            I = jnp.broadcast_to(I, (*omega.shape[:-1], 3, 3))
+
+        K = self._skew_symmetric(omega)
+        return I + one_minus_cos_over_theta_sq[..., None] * K + theta_minus_sin_over_theta_cubed[..., None] * (K @ K)
+
+    def _compute_v_inverse_matrix(self, omega: Array) -> Array:
+        """Compute V^(-1) matrix for SE(3) logarithm map.
+
+        Args:
+            omega: Rotation vector of shape (..., 3).
+
+        Returns:
+            V^(-1) matrix of shape (..., 3, 3).
+        """
+        theta = jnp.linalg.norm(omega, axis=-1, keepdims=True)
+        small_angle = theta < _SMALL_ANGLE_THRESHOLD
+
+        theta_sq = theta * theta
+        sin_theta = jnp.sin(theta)
+        cos_theta = jnp.cos(theta)
+
+        # Taylor expansion for small angles: B ≈ 1/12 - θ²/720
+        B_small = _V_INVERSE_C0 - theta_sq * _V_INVERSE_C2
+
+        # Regular case: B = (2*sin(θ)-θ*(1+cos(θ)))/(2*θ²*sin(θ))
+        numerator = 2.0 * sin_theta - theta * (1.0 + cos_theta)
+        denominator = 2.0 * theta_sq * jnp.maximum(jnp.abs(sin_theta), _TAYLOR_EPS)
+        B_regular = numerator / denominator
+
+        B = jnp.where(small_angle, B_small, B_regular)
+
+        # Build V^(-1) matrix
+        I = jnp.eye(3)
+        if omega.ndim > 1:
+            I = jnp.broadcast_to(I, (*omega.shape[:-1], 3, 3))
+
+        K = self._skew_symmetric(omega)
+        return I - 0.5 * K + B[..., None] * (K @ K)
+
     def exp_tangent(self, xi: Array) -> ManifoldPoint:
         """SE(3) exponential map from se(3) to SE(3).
 
@@ -385,34 +480,8 @@ class SE3(Manifold):
         # Compute rotation matrix from rotation vector
         R = self._matrix_exp_so3(omega)
 
-        # Compute V matrix for translation transformation
-        theta = jnp.linalg.norm(omega, axis=-1, keepdims=True)
-        small_angle = theta < 1e-8
-
-        # Taylor expansions for small angles
-        theta_sq = theta * theta
-        theta_4 = theta_sq * theta_sq
-
-        # V = I + (1-cos(θ))/θ² * K + (θ-sin(θ))/θ³ * K²
-        one_minus_cos_over_theta_sq = jnp.where(
-            small_angle, 0.5 - theta_sq / 24.0 + theta_4 / 720.0, (1.0 - jnp.cos(theta)) / jnp.maximum(theta_sq, 1e-12)
-        )
-
-        theta_minus_sin_over_theta_cubed = jnp.where(
-            small_angle,
-            1.0 / 6.0 - theta_sq / 120.0 + theta_4 / 5040.0,
-            (theta - jnp.sin(theta)) / jnp.maximum(theta * theta_sq, 1e-12),
-        )
-
-        # Build V matrix
-        I = jnp.eye(3)
-        if omega.ndim > 1:
-            I = jnp.broadcast_to(I, (*omega.shape[:-1], 3, 3))
-
-        K = self._skew_symmetric(omega)
-        V = I + one_minus_cos_over_theta_sq[..., None] * K + theta_minus_sin_over_theta_cubed[..., None] * (K @ K)
-
-        # Apply V transformation to translation
+        # Compute V matrix and apply to translation
+        V = self._compute_v_matrix(omega)
         t = jnp.einsum("...ij,...j->...i", V, rho)  # V @ rho
 
         # Convert rotation matrix to quaternion
@@ -443,43 +512,8 @@ class SE3(Manifold):
         # Get rotation vector from matrix logarithm
         omega = self._matrix_log_so3(R)
 
-        # Compute V^(-1) to recover original rho
-        theta = jnp.linalg.norm(omega, axis=-1, keepdims=True)
-        small_angle = theta < 1e-8
-
-        # For small angles: V^(-1) ≈ I - 1/2 * K + 1/12 * K²
-        # For regular case: V^(-1) has more complex formula
-
-        theta_sq = theta * theta
-        0.5 * theta
-
-        # Use more accurate V^(-1) formula
-        # V^(-1) = I - 1/2 * K + B * K²
-        # where B = (2*sin(θ)-θ*(1+cos(θ)))/(2*θ²*sin(θ))
-
-        sin_theta = jnp.sin(theta)
-        cos_theta = jnp.cos(theta)
-
-        # Taylor expansion for small angles
-        # B ≈ 1/12 - θ²/720 + ...
-        B_small = 1.0 / 12.0 - theta_sq / 720.0
-
-        # Regular case
-        numerator = 2.0 * sin_theta - theta * (1.0 + cos_theta)
-        denominator = 2.0 * theta_sq * jnp.maximum(jnp.abs(sin_theta), 1e-12)
-        B_regular = numerator / denominator
-
-        B = jnp.where(small_angle, B_small, B_regular)
-
-        # Build V^(-1) matrix
-        I = jnp.eye(3)
-        if omega.ndim > 1:
-            I = jnp.broadcast_to(I, (*omega.shape[:-1], 3, 3))
-
-        K = self._skew_symmetric(omega)
-        V_inv = I - 0.5 * K + B[..., None] * (K @ K)
-
-        # Apply V^(-1) to translation to get original rho
+        # Compute V^(-1) and apply to translation to recover original rho
+        V_inv = self._compute_v_inverse_matrix(omega)
         rho = jnp.einsum("...ij,...j->...i", V_inv, t)  # V_inv @ t
 
         # Combine rotation and translation parts
