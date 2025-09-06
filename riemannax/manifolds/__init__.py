@@ -2,6 +2,7 @@
 
 from .base import DimensionError, Manifold, ManifoldError
 from .grassmann import Grassmann
+from .lorentz import Lorentz
 from .product import ProductManifold
 from .so import SpecialOrthogonal
 from .spd import SymmetricPositiveDefinite
@@ -158,6 +159,7 @@ __all__ = [
     # Core classes and exceptions
     "DimensionError",
     "Grassmann",
+    "Lorentz",
     "Manifold",
     "ManifoldError",
     "ProductManifold",
