@@ -4,7 +4,6 @@ The Poincaré ball model represents hyperbolic space as the interior of the unit
 in Euclidean space, with the hyperbolic metric induced by the conformal factor.
 """
 
-
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, PRNGKeyArray

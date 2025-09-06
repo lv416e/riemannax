@@ -55,7 +55,7 @@ class TestNumericalStabilityManager:
         assert jnp.all(jnp.isfinite(result))
         # Result should be approximately identity + A for small matrices
         expected_approx = jnp.eye(2) + A
-        np.testing.assert_allclose(result, expected_approx, atol=0.5)
+        np.testing.assert_allclose(result, expected_approx, atol=0.05)
 
     def test_safe_matrix_exponential_near_singular(self):
         """Test safe matrix exponential near singularities."""
@@ -76,30 +76,6 @@ class TestNumericalStabilityManager:
         with pytest.raises(SE3SingularityError):
             manager.safe_matrix_exponential(A, method="invalid_method")
 
-    def test_taylor_approximation_near_zero(self):
-        """Test Taylor approximation for functions near zero."""
-        manager = NumericalStabilityManager()
-
-        # Values near zero
-        x_near_zero = jnp.array([1e-10, 1e-8, 1e-6])
-        result = manager.taylor_approximation_near_zero(x_near_zero, threshold=1e-7)
-
-        # Should return finite values
-        assert jnp.all(jnp.isfinite(result))
-        # Should have same shape as input
-        assert result.shape == x_near_zero.shape
-
-    def test_taylor_approximation_not_near_zero(self):
-        """Test Taylor approximation for values not near zero."""
-        manager = NumericalStabilityManager()
-
-        # Values not near zero
-        x_normal = jnp.array([0.5, 1.0, 2.0])
-        result = manager.taylor_approximation_near_zero(x_normal, threshold=1e-7)
-
-        # Should return the original values processed normally
-        assert jnp.all(jnp.isfinite(result))
-        assert result.shape == x_normal.shape
 
 
 class TestHyperbolicNumericalError:

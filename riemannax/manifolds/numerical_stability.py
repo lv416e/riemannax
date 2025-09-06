@@ -11,16 +11,19 @@ from riemannax.manifolds.base import ManifoldError
 
 class HyperbolicNumericalError(ManifoldError):
     """Raised when hyperbolic operations encounter numerical instability."""
+
     pass
 
 
 class SE3SingularityError(ManifoldError):
     """Raised when SE(3) operations encounter singularities."""
+
     pass
 
 
 class CurvatureBoundsError(ManifoldError):
     """Raised when curvature parameters exceed stable bounds."""
+
     pass
 
 
@@ -56,9 +59,7 @@ class NumericalStabilityManager:
 
         # Check if norm exceeds safety threshold
         if norm > max_norm:
-            raise HyperbolicNumericalError(
-                f"Vector norm {norm:.6f} exceeds {model} model limit {max_norm}"
-            )
+            raise HyperbolicNumericalError(f"Vector norm {norm:.6f} exceeds {model} model limit {max_norm}")
 
         return v
 
@@ -84,34 +85,6 @@ class NumericalStabilityManager:
             return _taylor_matrix_exp(A)
         else:
             raise SE3SingularityError(f"Invalid matrix exponential method: {method}")
-
-    @staticmethod
-    def taylor_approximation_near_zero(
-        x: Float[Array, "..."],
-        threshold: float = 1e-8
-    ) -> Array:
-        """Taylor approximation for functions near singularities.
-
-        Uses Taylor expansion for values close to zero to avoid numerical issues.
-
-        Args:
-            x: Input values
-            threshold: Threshold below which to use Taylor approximation
-
-        Returns:
-            Stabilized function values
-        """
-        # For demonstration, implement a stable version of log(1 + exp(x))
-        # This avoids overflow for large x and underflow for small x
-        is_small = jnp.abs(x) < threshold
-
-        # For small values, use Taylor expansion: x + x²/2 - x³/6 + ...
-        taylor_result = x + x**2 / 2.0
-
-        # For normal values, use standard computation
-        normal_result = jnp.log1p(jnp.exp(x))
-
-        return jnp.where(is_small, taylor_result, normal_result)
 
 
 def _taylor_matrix_exp(A: Array, order: int = 10) -> Array:

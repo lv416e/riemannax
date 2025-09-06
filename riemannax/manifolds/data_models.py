@@ -11,6 +11,7 @@ from riemannax.manifolds.base import ManifoldError
 
 class DataModelError(ManifoldError):
     """Raised when data model validation fails."""
+
     pass
 
 
@@ -34,7 +35,8 @@ class HyperbolicPoint:
             self._validate_constraints()
             self.is_valid = True
         else:
-            self.is_valid = self._check_validity()
+            # Skip validation entirely for JIT compatibility
+            self.is_valid = False
 
     def _validate_constraints(self) -> None:
         """Validate hyperbolic manifold constraints.
@@ -62,15 +64,12 @@ class HyperbolicPoint:
         if len(self.coordinates) < 2:
             raise DataModelError("Lorentz model requires at least 2 coordinates")
 
-        lorentz_product = (
-            self.coordinates[0]**2 - jnp.sum(self.coordinates[1:]**2)
-        )
+        lorentz_product = self.coordinates[0] ** 2 - jnp.sum(self.coordinates[1:] ** 2)
         expected_value = -self.curvature
 
         if jnp.abs(lorentz_product - expected_value) > 1e-6:
             raise DataModelError(
-                f"Point violates Lorentz constraint: x₀² - Σxᵢ² = {lorentz_product:.6f}, "
-                f"expected {expected_value:.6f}"
+                f"Point violates Lorentz constraint: x₀² - Σxᵢ² = {lorentz_product:.6f}, expected {expected_value:.6f}"
             )
 
         # Additional constraint: x₀ > 0 for the upper hyperboloid sheet
@@ -85,15 +84,15 @@ class HyperbolicPoint:
         except DataModelError:
             return False
 
-    def norm(self) -> float:
+    def norm(self) -> Array:
         """Calculate Euclidean norm of coordinates.
 
         Returns:
             Euclidean norm of the coordinate vector.
         """
-        return float(jnp.linalg.norm(self.coordinates))
+        return jnp.linalg.norm(self.coordinates)
 
-    def distance_to_origin(self) -> float:
+    def distance_to_origin(self) -> Array:
         """Calculate hyperbolic distance to origin.
 
         Returns:
@@ -101,10 +100,10 @@ class HyperbolicPoint:
         """
         if self.model == "poincare":
             norm_sq = jnp.sum(self.coordinates**2)
-            return float(jnp.sqrt(-self.curvature) * jnp.arctanh(jnp.sqrt(norm_sq)))
+            return jnp.sqrt(-self.curvature) * jnp.arctanh(jnp.sqrt(norm_sq))
         elif self.model == "lorentz":
             # Lorentz distance to origin: arccosh(x₀ / sqrt(-c))
-            return float(jnp.arccosh(self.coordinates[0] / jnp.sqrt(-self.curvature)))
+            return jnp.arccosh(self.coordinates[0] / jnp.sqrt(-self.curvature))
         else:
             raise DataModelError(f"Unknown hyperbolic model: {self.model}")
 
@@ -128,7 +127,8 @@ class SE3Transform:
             self._validate_constraints()
             self.is_valid = True
         else:
-            self.is_valid = self._check_validity()
+            # Skip validation entirely for JIT compatibility
+            self.is_valid = False
 
     @classmethod
     def identity(cls) -> "SE3Transform":
@@ -137,11 +137,7 @@ class SE3Transform:
         Returns:
             Identity SE(3) transformation.
         """
-        return cls(
-            rotation=jnp.eye(3),
-            translation=jnp.zeros(3),
-            validate=True
-        )
+        return cls(rotation=jnp.eye(3), translation=jnp.zeros(3), validate=True)
 
     def _validate_constraints(self) -> None:
         """Validate SE(3) transformation constraints.
@@ -200,7 +196,7 @@ class SE3Transform:
         return SE3Transform(
             rotation=inv_rotation,
             translation=inv_translation,
-            validate=False  # Skip validation since we know it's valid
+            validate=False,  # Skip validation since we know it's valid
         )
 
     def compose(self, other: "SE3Transform") -> "SE3Transform":
@@ -220,7 +216,7 @@ class SE3Transform:
         return SE3Transform(
             rotation=composed_rotation,
             translation=composed_translation,
-            validate=False  # Skip validation since both inputs are valid
+            validate=False,  # Skip validation since both inputs are valid
         )
 
 
@@ -307,17 +303,8 @@ class ManifoldParameters:
         Returns:
             New ManifoldParameters instance with modifications.
         """
-        # Get current values with explicit typing
-        tolerance = kwargs.get("tolerance", self.tolerance)
-        max_iterations = kwargs.get("max_iterations", self.max_iterations)
-        step_size = kwargs.get("step_size", self.step_size)
-        use_retraction = kwargs.get("use_retraction", self.use_retraction)
-        manifold_type = kwargs.get("manifold_type", self.manifold_type)
+        from dataclasses import replace
 
-        return ManifoldParameters(
-            tolerance=tolerance,
-            max_iterations=max_iterations,
-            step_size=step_size,
-            use_retraction=use_retraction,
-            manifold_type=manifold_type,
-        )
+        new_instance = replace(self, **kwargs)
+        new_instance._validate_parameters()
+        return new_instance
