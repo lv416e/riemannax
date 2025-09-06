@@ -1,4 +1,4 @@
-name: continuous-integration
+name: ci
 
 on:
   pull_request:
@@ -6,13 +6,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-
-# Optimize for GitHub Actions free tier (2000 min/month)
-# Strategy: Hierarchical testing with early failure detection
-# - fast-gate: lint + type-check (Python 3.10 only, ~2min)
-# - test-with-coverage: comprehensive tests (Python 3.10 only, ~3min)
-# - compatibility-tests: basic tests (Python 3.11, 3.12 parallel, ~4min)
-# Total: ~6min per PR (vs current ~18-30min = 82% reduction)
 
 env:
   PYTHONPATH: ${{ github.workspace }}
@@ -24,7 +17,7 @@ env:
 jobs:
   # Fast feedback loop - fail early on code quality issues
   fast-gate:
-    name: "🚦 Fast Gate: Lint & Type Check"
+    name: "lint-and-type-check"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -67,7 +60,7 @@ jobs:
 
   # Comprehensive testing with coverage (Python 3.10 only for efficiency)
   test-with-coverage:
-    name: "🧪 Tests & Coverage (Python 3.10)"
+    name: "test-with-coverage-py310"
     runs-on: ubuntu-latest
     needs: fast-gate
     timeout-minutes: 10
@@ -120,7 +113,7 @@ jobs:
 
   # Compatibility testing across Python versions (lightweight)
   compatibility-tests:
-    name: "🔄 Compatibility Tests"
+    name: "compatibility-tests"
     runs-on: ubuntu-latest
     needs: fast-gate
     timeout-minutes: 8
@@ -169,7 +162,7 @@ jobs:
 
   # Performance benchmarking (manual trigger only to save free tier minutes)
   performance-benchmarks:
-    name: "⚡ Performance Benchmarks"
+    name: "performance-benchmarks"
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 20
@@ -210,8 +203,8 @@ jobs:
           retention-days: 7
 
   # CI status summary
-  ci-status-summary:
-    name: "📋 CI Status Summary"
+  ci-summary:
+    name: "ci-summary"
     runs-on: ubuntu-latest
     if: always()
     needs: [fast-gate, test-with-coverage, compatibility-tests]
