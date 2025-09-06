@@ -200,8 +200,8 @@ class PoincareBall(Manifold):
         y_norm_sq = jnp.sum(y**2)
 
         # Standard Möbius addition formula
-        numerator = (1 + 2*x_dot_y + y_norm_sq) * x + (1 - x_norm_sq) * y
-        denominator = 1 + 2*x_dot_y + x_norm_sq * y_norm_sq
+        numerator = (1 + 2 * x_dot_y + y_norm_sq) * x + (1 - x_norm_sq) * y
+        denominator = 1 + 2 * x_dot_y + x_norm_sq * y_norm_sq
 
         # Handle numerical stability
         safe_denominator = jnp.where(jnp.abs(denominator) > 1e-10, denominator, 1e-10)
@@ -277,7 +277,7 @@ class PoincareBall(Manifold):
         # Conformal factor for Poincaré ball metric
         # Scale by inverse curvature radius squared
         radius_sq = -1.0 / self.curvature
-        conformal_factor = 4 * radius_sq / (1 - norm_sq / radius_sq)**2
+        conformal_factor = 4 * radius_sq / (1 - norm_sq / radius_sq) ** 2
 
         # Euclidean inner product scaled by conformal factor
         return conformal_factor * jnp.sum(u * v)
@@ -372,7 +372,6 @@ class PoincareBall(Manifold):
         y = jnp.where(y_norm >= radius, scale * y, y)
 
         return y
-
 
     def dist(self, x: ManifoldPoint, y: ManifoldPoint) -> Array:
         """Compute geodesic distance between two points.
