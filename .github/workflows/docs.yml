@@ -1,30 +1,31 @@
-name: Docs
+name: documentation
 
 on:
   push:
     branches: [main]
     paths:
       - "docs/**"
-      - "riemannax/**"
+      - "riemannax/**/*.py"
       - ".github/workflows/docs.yml"
   pull_request:
     branches: [main]
     paths:
       - "docs/**"
-      - "riemannax/**"
+      - "riemannax/**/*.py"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 jobs:
-  build:
+  build-documentation:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
-      - name: Checkout
+      - name: checkout-code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Python
+      - name: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -34,19 +35,19 @@ jobs:
             pyproject.toml
             setup.py
 
-      - name: Install dependencies
+      - name: install-documentation-dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[docs]"
           pip install sphinx==7.2.6 sphinx-rtd-theme==2.0.0 nbsphinx==0.9.3 myst-parser==2.0.0
 
-      - name: Build documentation
+      - name: build-documentation
         run: |
           cd docs
           mkdir -p _static
           python build_docs.py
 
-      - name: Verify documentation build
+      - name: verify-documentation-build
         run: |
           if [ ! -f docs/_build/html/index.html ]; then
             echo "Documentation build failed: index.html not found"
