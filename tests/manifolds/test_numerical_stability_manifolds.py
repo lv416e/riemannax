@@ -1,15 +1,14 @@
 """Tests for numerical stability core infrastructure."""
 
-import pytest
-import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 from riemannax.manifolds.numerical_stability import (
-    NumericalStabilityManager,
-    HyperbolicNumericalError,
-    SE3SingularityError,
     CurvatureBoundsError,
+    HyperbolicNumericalError,
+    NumericalStabilityManager,
+    SE3SingularityError,
 )
 
 

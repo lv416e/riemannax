@@ -1,14 +1,13 @@
 """Tests for hyperbolic-specific data models."""
 
-import pytest
 import jax.numpy as jnp
-import numpy as np
+import pytest
 
 from riemannax.manifolds.data_models import (
-    HyperbolicPoint,
-    SE3Transform,
-    ManifoldParameters,
     DataModelError,
+    HyperbolicPoint,
+    ManifoldParameters,
+    SE3Transform,
 )
 
 
