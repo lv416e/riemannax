@@ -237,18 +237,26 @@ class TestPoincareBallMobiusOperations:
         # Result should be close to origin
         assert jnp.linalg.norm(result) < 1e-6
 
-    def test_mobius_add_commutativity(self):
-        """Test Möbius addition commutativity."""
+    def test_mobius_add_non_commutativity(self):
+        """Test that Möbius addition is generally non-commutative."""
         manifold = PoincareBall(dimension=2)
 
         point1 = jnp.array([0.2, 0.3])
         point2 = jnp.array([0.1, 0.4])
 
-        # x ⊕ y = y ⊕ x
+        # x ⊕ y ≠ y ⊕ x in general
         result1 = manifold._mobius_add(point1, point2)
         result2 = manifold._mobius_add(point2, point1)
 
-        assert jnp.allclose(result1, result2, atol=1e-6)
+        # They should be different in general
+        assert not jnp.allclose(result1, result2, atol=1e-6)
+
+        # Special case: commutative when one point is origin
+        origin = jnp.zeros(2)
+        result_origin1 = manifold._mobius_add(origin, point1)
+        result_origin2 = manifold._mobius_add(point1, origin)
+        assert jnp.allclose(result_origin1, point1, atol=1e-6)
+        assert jnp.allclose(result_origin2, point1, atol=1e-6)
 
     def test_mobius_add_stays_in_ball(self):
         """Test that Möbius addition keeps results in ball."""

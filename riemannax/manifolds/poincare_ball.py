@@ -194,23 +194,24 @@ class PoincareBall(Manifold):
         Returns:
             Result of Möbius addition x ⊕ y.
         """
-        # For simplicity and numerical stability, use the basic Einstein formula
-        # x ⊕ y = (x + y) / (1 + ⟨x,y⟩)
-
+        # Compute inner product and norms
         x_dot_y = jnp.sum(x * y)
-        numerator = x + y
-        denominator = 1 + x_dot_y
+        x_norm_sq = jnp.sum(x**2)
+        y_norm_sq = jnp.sum(y**2)
 
-        # Handle numerical stability for denominator near zero
+        # Standard Möbius addition formula
+        numerator = (1 + 2*x_dot_y + y_norm_sq) * x + (1 - x_norm_sq) * y
+        denominator = 1 + 2*x_dot_y + x_norm_sq * y_norm_sq
+
+        # Handle numerical stability
         safe_denominator = jnp.where(jnp.abs(denominator) > 1e-10, denominator, 1e-10)
-
         result = numerator / safe_denominator
 
         # Ensure result stays in ball (project back if necessary)
         result_norm = jnp.linalg.norm(result)
-        if result_norm >= 1.0:
-            # Project back into ball
-            result = result * (0.99 / result_norm)
+        radius = jnp.sqrt(-1.0 / self.curvature)
+        scale = jnp.minimum(1.0, (radius - 1e-7) / jnp.maximum(result_norm, 1e-15))
+        result = jnp.where(result_norm >= radius, scale * result, result)
 
         return result
 
@@ -230,6 +231,177 @@ class PoincareBall(Manifold):
         """
         # In Poincaré ball, all vectors are tangent vectors if shapes match
         return x.shape == v.shape
+
+    def proj(self, x: ManifoldPoint, v: TangentVector) -> TangentVector:
+        """Project vector to tangent space.
+
+        In the Poincaré ball, tangent vectors are in Euclidean space,
+        but we need to ensure they don't push the point outside the ball.
+
+        Args:
+            x: Point on the manifold.
+            v: Vector to project.
+
+        Returns:
+            Projected tangent vector.
+        """
+        # In Poincaré ball, tangent space is the ambient Euclidean space
+        # However, we scale to prevent leaving the ball for large vectors
+        norm_x = jnp.linalg.norm(x)
+        norm_v = jnp.linalg.norm(v)
+
+        # If v is large enough to potentially push x outside the ball,
+        # scale it down to maintain validity
+        # This is a simple heuristic to ensure numerical stability
+        radius = jnp.sqrt(-1.0 / self.curvature)
+        remaining_radius = radius - norm_x - 1e-7
+
+        # Only scale if necessary
+        scale = jnp.minimum(1.0, remaining_radius / (norm_v + 1e-15))
+        return jnp.where(norm_v > remaining_radius, scale * v, v)
+
+    def inner(self, x: ManifoldPoint, u: TangentVector, v: TangentVector) -> Array:
+        """Compute Riemannian inner product in tangent space.
+
+        The Poincaré metric has conformal factor: 4 / (1 - |x|²)²
+
+        Args:
+            x: Point on the manifold.
+            u: First tangent vector.
+            v: Second tangent vector.
+
+        Returns:
+            Inner product scalar.
+        """
+        norm_sq = jnp.sum(x**2)
+        # Conformal factor for Poincaré ball metric
+        # Scale by inverse curvature radius squared
+        radius_sq = -1.0 / self.curvature
+        conformal_factor = 4 * radius_sq / (1 - norm_sq / radius_sq)**2
+
+        # Euclidean inner product scaled by conformal factor
+        return conformal_factor * jnp.sum(u * v)
+
+    def exp(self, x: ManifoldPoint, v: TangentVector) -> ManifoldPoint:
+        """Exponential map from tangent space to manifold.
+
+        Uses the closed-form exponential map for the Poincaré ball.
+
+        Args:
+            x: Point on the manifold.
+            v: Tangent vector.
+
+        Returns:
+            Point on the manifold.
+        """
+        # Compute norm of v in Euclidean metric
+        v_norm = jnp.linalg.norm(v)
+
+        # Scale factor for curvature
+        radius = jnp.sqrt(-1.0 / self.curvature)
+
+        # Compute the scaling for the tangent vector
+        # tanh(|v|/(2*radius)) where |v| is Euclidean norm
+        tanh_factor = jnp.tanh(v_norm / radius)
+
+        # Normalized direction
+        v_normalized = v / jnp.maximum(v_norm, 1e-15)
+
+        # The scaled vector for Möbius addition
+        y = tanh_factor * v_normalized
+
+        # Apply Möbius addition
+        result = self._mobius_add(x, y)
+
+        return result
+
+    def log(self, x: ManifoldPoint, y: ManifoldPoint) -> TangentVector:
+        """Logarithmic map from manifold to tangent space.
+
+        Inverse of the exponential map.
+
+        Args:
+            x: Base point on the manifold.
+            y: Target point on the manifold.
+
+        Returns:
+            Tangent vector at x pointing toward y.
+        """
+        # Standard formula: first translate x to origin using Möbius translation
+        neg_x = -x
+        y_at_origin = self._mobius_add(neg_x, y)
+
+        # Compute norm
+        y_norm = jnp.linalg.norm(y_at_origin)
+
+        # Curvature radius
+        radius = jnp.sqrt(-1.0 / self.curvature)
+
+        # Apply the log formula at origin: arctanh(|y|/radius) * radius * y/|y|
+        scale = radius * jnp.arctanh(jnp.minimum(y_norm, 1 - 1e-7)) / jnp.maximum(y_norm, 1e-15)
+
+        # The tangent vector is just the scaled translated point
+        # No parallel transport needed - this gives the tangent vector at x
+        v = scale * y_at_origin
+
+        return v
+
+    def retr(self, x: ManifoldPoint, v: TangentVector) -> ManifoldPoint:
+        """Retraction operation.
+
+        A computationally efficient approximation to the exponential map.
+        Uses the projective retraction for the Poincaré ball.
+
+        Args:
+            x: Point on the manifold.
+            v: Tangent vector.
+
+        Returns:
+            Point on the manifold.
+        """
+        # Simple projective retraction
+        # Move in ambient space and project back to ball
+        y = x + v
+
+        # Project back to ball if needed
+        y_norm = jnp.linalg.norm(y)
+        radius = jnp.sqrt(-1.0 / self.curvature)
+
+        # Ensure we stay inside the ball
+        scale = jnp.minimum(1.0, (radius - 1e-7) / jnp.maximum(y_norm, 1e-15))
+        y = jnp.where(y_norm >= radius, scale * y, y)
+
+        return y
+
+
+    def dist(self, x: ManifoldPoint, y: ManifoldPoint) -> Array:
+        """Compute geodesic distance between two points.
+
+        Uses the hyperbolic distance formula for the Poincaré ball.
+
+        Args:
+            x: First point on the manifold.
+            y: Second point on the manifold.
+
+        Returns:
+            Geodesic distance.
+        """
+        # Use the direct hyperbolic distance formula
+        # d(x, y) = 2 * radius * arctanh(|| x ⊖ y ||)
+        # where x ⊖ y is Möbius subtraction
+
+        # Möbius subtraction: -x ⊕ y
+        neg_x = -x
+        diff = self._mobius_add(neg_x, y)
+        diff_norm = jnp.linalg.norm(diff)
+
+        # Curvature radius
+        radius = jnp.sqrt(-1.0 / self.curvature)
+
+        # Hyperbolic distance
+        distance = 2 * radius * jnp.arctanh(jnp.minimum(diff_norm, 1 - 1e-7))
+
+        return distance
 
     def __repr__(self) -> str:
         """String representation of the Poincaré ball manifold."""
