@@ -343,14 +343,23 @@ class PoincareBall(Manifold):
     def exp(self, x: ManifoldPoint, v: TangentVector) -> ManifoldPoint:
         """Exponential map from tangent space to manifold.
 
-        Uses the closed-form exponential map for the Poincaré ball.
+        Uses a simplified exponential map for the Poincaré ball that applies
+        Möbius addition after scaling the tangent vector.
+
+        Note: This implementation may not be fully accurate for non-origin base points.
+        The correct exponential map should incorporate the conformal factor λₓ = 2/(1-‖x‖²/R²)
+        and follow the formulation in György Bécigneul & Octavian-Eugen Ganea (2019)
+        "Riemannian Adaptive Optimization Methods", Appendix.
+
+        TODO: Implement the mathematically complete exponential map using conformal factors
+        and proper Möbius transformations for arbitrary base points.
 
         Args:
             x: Point on the manifold.
-            v: Tangent vector.
+            v: Tangent vector at x.
 
         Returns:
-            Point on the manifold.
+            Point on the manifold reached by exponential map.
         """
         # Compute norm of v in Euclidean metric
         v_norm = jnp.linalg.norm(v)
