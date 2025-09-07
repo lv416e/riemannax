@@ -52,11 +52,18 @@ class HyperbolicPoint:
             raise DataModelError(f"Unknown hyperbolic model: {self.model}")
 
     def _validate_poincare_constraint(self) -> None:
-        """Validate Poincaré ball constraint (norm < 1)."""
+        """Validate Poincaré ball constraint for general curvature.
+
+        For curvature c < 0, the constraint is ||x|| < R where R = 1/√(-c).
+        """
         norm_sq = jnp.sum(self.coordinates**2)
-        if norm_sq >= 1.0:
+        radius = 1.0 / jnp.sqrt(-self.curvature)  # R = 1/√(-c)
+        radius_sq = radius**2
+
+        if norm_sq >= radius_sq:
             raise DataModelError(
-                f"Point norm {jnp.sqrt(norm_sq):.6f} violates Poincaré ball constraint (must be < 1.0)"
+                f"Point norm {jnp.sqrt(norm_sq):.6f} violates Poincaré ball constraint "
+                f"(must be < {radius:.6f} for curvature {self.curvature})"
             )
 
     def _validate_lorentz_constraint(self) -> None:
@@ -96,14 +103,19 @@ class HyperbolicPoint:
         """Calculate hyperbolic distance to origin.
 
         Returns:
-            Hyperbolic distance to origin in the given model.
+            Hyperbolic distance to origin in the given model with proper curvature scaling.
         """
         if self.model == "poincare":
             norm_sq = jnp.sum(self.coordinates**2)
-            return jnp.sqrt(-self.curvature) * jnp.arctanh(jnp.sqrt(norm_sq))
+            norm = jnp.sqrt(norm_sq)
+            radius = 1.0 / jnp.sqrt(-self.curvature)  # R = 1/√(-c)
+
+            # Poincaré ball distance: d = R * artanh(||x||/R) = (1/√(-c)) * artanh(||x|| * √(-c))
+            return radius * jnp.arctanh(norm * jnp.sqrt(-self.curvature))
         elif self.model == "lorentz":
-            # Lorentz distance to origin: arccosh(x₀ / sqrt(-c))
-            return jnp.arccosh(self.coordinates[0] / jnp.sqrt(-self.curvature))
+            # Lorentz distance to origin: (1/√(-c)) * arccosh(x₀ * √(-c))
+            curvature_scale = 1.0 / jnp.sqrt(-self.curvature)
+            return curvature_scale * jnp.arccosh(self.coordinates[0] * jnp.sqrt(-self.curvature))
         else:
             raise DataModelError(f"Unknown hyperbolic model: {self.model}")
 
