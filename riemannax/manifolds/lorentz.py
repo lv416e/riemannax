@@ -314,7 +314,9 @@ class Lorentz(Manifold):
     def dist(self, x: ManifoldPoint, y: ManifoldPoint) -> Array:
         """Distance between two points on the hyperboloid.
 
-        Uses the hyperbolic distance formula based on the Minkowski inner product.
+        Uses the hyperbolic distance formula with proper curvature scaling:
+        d_K(x,y) = (1/√(-c)) * arccosh(-c * B(x,y))
+        where B is the Minkowski inner product and c is the curvature.
 
         Args:
             x: First point on hyperboloid.
@@ -330,9 +332,15 @@ class Lorentz(Manifold):
             return 0.0
 
         def different_points():
+            # Apply curvature scaling: -c * B(x,y)
+            scaled_inner_product = -self.curvature * minkowski_xy
+
             # Clamp to handle numerical errors (should be >= 1)
-            clamped = jnp.clip(minkowski_xy, 1.0 + 1e-15, jnp.inf)
-            return jnp.arccosh(clamped)
+            clamped = jnp.clip(scaled_inner_product, 1.0 + 1e-15, jnp.inf)
+
+            # Distance formula with curvature scaling: (1/√(-c)) * arccosh(-c * B(x,y))
+            curvature_scale = 1.0 / jnp.sqrt(-self.curvature)
+            return curvature_scale * jnp.arccosh(clamped)
 
         # Check if points are essentially the same
         same = jnp.allclose(x, y, atol=1e-12)
@@ -356,6 +364,9 @@ class Lorentz(Manifold):
     def proj(self, x: ManifoldPoint, v: Float[Array, "..."]) -> TangentVector:
         """Project vector v onto tangent space at point x.
 
+        For the hyperboloid with constraint B(x,x) = -1/curvature,
+        the tangent space projection is: v - (B(x,v) / B(x,x)) * x
+
         Args:
             x: Point on the manifold.
             v: Vector in ambient space to project.
@@ -363,10 +374,14 @@ class Lorentz(Manifold):
         Returns:
             Projection of v onto tangent space at x.
         """
-        # Tangent vectors must be orthogonal to x in Minkowski metric
-        # proj_v = v - B(x, v) * x where B is Minkowski inner product
-        minkowski_dot = self._minkowski_inner(x, v)
-        return v - minkowski_dot[..., None] * x
+        # Compute Minkowski inner products
+        minkowski_xv = self._minkowski_inner(x, v)
+        minkowski_xx = self._minkowski_inner(x, x)
+
+        # Tangent space projection: v - (B(x,v) / B(x,x)) * x
+        # For points on hyperboloid: B(x,x) = -1/curvature
+        projection_coefficient = minkowski_xv / minkowski_xx
+        return v - projection_coefficient[..., None] * x
 
     def proj_to_manifold(self, x: Array) -> ManifoldPoint:
         """Project point to hyperboloid manifold.
