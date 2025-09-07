@@ -146,7 +146,7 @@ class PoincareBall(Manifold):
 
         # Uniform distribution in [0,1) and then take (1/dimension)-th power for proper distribution
         uniform_radii = jax.random.uniform(subkey, radii_shape)
-        proper_radii = uniform_radii**(1.0 / self.dimension)
+        proper_radii = uniform_radii ** (1.0 / self.dimension)
 
         # Normalize points to unit vectors and scale by radii
         point_norms = jnp.linalg.norm(points, axis=-1, keepdims=True)
@@ -209,7 +209,7 @@ class PoincareBall(Manifold):
         """
         # Compute curvature scaling factor
         s_squared = -1.0 / self.curvature  # s² = -1/c
-        s_fourth = s_squared * s_squared   # s⁴
+        s_fourth = s_squared * s_squared  # s⁴
 
         # Compute inner product and norms
         x_dot_y = jnp.sum(x * y)
@@ -217,9 +217,8 @@ class PoincareBall(Manifold):
         y_norm_sq = jnp.sum(y**2)
 
         # Möbius addition formula with proper curvature scaling
-        numerator = ((1 + 2/s_squared * x_dot_y + 1/s_squared * y_norm_sq) * x +
-                    (1 - 1/s_squared * x_norm_sq) * y)
-        denominator = 1 + 2/s_squared * x_dot_y + 1/s_fourth * x_norm_sq * y_norm_sq
+        numerator = (1 + 2 / s_squared * x_dot_y + 1 / s_squared * y_norm_sq) * x + (1 - 1 / s_squared * x_norm_sq) * y
+        denominator = 1 + 2 / s_squared * x_dot_y + 1 / s_fourth * x_norm_sq * y_norm_sq
 
         # Handle numerical stability
         safe_denominator = jnp.where(jnp.abs(denominator) > 1e-10, denominator, 1e-10)
