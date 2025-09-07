@@ -144,9 +144,9 @@ class PoincareBall(Manifold):
         else:
             radii_shape = tuple(shape)
 
-        # Uniform distribution in [0,1) and then take square root for proper distribution
+        # Uniform distribution in [0,1) and then take (1/dimension)-th power for proper distribution
         uniform_radii = jax.random.uniform(subkey, radii_shape)
-        proper_radii = jnp.sqrt(uniform_radii)
+        proper_radii = uniform_radii**(1.0 / self.dimension)
 
         # Normalize points to unit vectors and scale by radii
         point_norms = jnp.linalg.norm(points, axis=-1, keepdims=True)
@@ -196,11 +196,9 @@ class PoincareBall(Manifold):
     def _mobius_add(self, x: ManifoldPoint, y: ManifoldPoint) -> ManifoldPoint:
         """Compute Möbius addition x ⊕ y in the Poincaré ball.
 
-        Uses the Einstein addition formula for the Poincaré ball:
-        x ⊕ y = (x + y + λ * ⟨x,y⟩ * (x + y)) / (1 + λ * ⟨x,y⟩)
-        where λ = 1/(1 + √(1 - ∥x∥²)(1 - ∥y∥²))
-
-        Simplified version: x ⊕ y = (x + y) / (1 + ⟨x,y⟩) for unit curvature.
+        Uses the Einstein addition formula for the Poincaré ball with proper curvature scaling:
+        For curvature c, uses scaling factor s² = -1/c, then:
+        x ⊕ y = ((1 + 2/s² u·v + 1/s² |v|²)u + (1 - 1/s² |u|²)v) / (1 + 2/s² u·v + 1/s⁴ |u|²|v|²)
 
         Args:
             x: First point in the Poincaré ball.
@@ -209,14 +207,19 @@ class PoincareBall(Manifold):
         Returns:
             Result of Möbius addition x ⊕ y.
         """
+        # Compute curvature scaling factor
+        s_squared = -1.0 / self.curvature  # s² = -1/c
+        s_fourth = s_squared * s_squared   # s⁴
+
         # Compute inner product and norms
         x_dot_y = jnp.sum(x * y)
         x_norm_sq = jnp.sum(x**2)
         y_norm_sq = jnp.sum(y**2)
 
-        # Standard Möbius addition formula
-        numerator = (1 + 2 * x_dot_y + y_norm_sq) * x + (1 - x_norm_sq) * y
-        denominator = 1 + 2 * x_dot_y + x_norm_sq * y_norm_sq
+        # Möbius addition formula with proper curvature scaling
+        numerator = ((1 + 2/s_squared * x_dot_y + 1/s_squared * y_norm_sq) * x +
+                    (1 - 1/s_squared * x_norm_sq) * y)
+        denominator = 1 + 2/s_squared * x_dot_y + 1/s_fourth * x_norm_sq * y_norm_sq
 
         # Handle numerical stability
         safe_denominator = jnp.where(jnp.abs(denominator) > 1e-10, denominator, 1e-10)
@@ -316,7 +319,8 @@ class PoincareBall(Manifold):
     def inner(self, x: ManifoldPoint, u: TangentVector, v: TangentVector) -> Array:
         """Compute Riemannian inner product in tangent space.
 
-        The Poincaré metric has conformal factor: 4 / (1 - |x|²)²
+        The Poincaré metric has conformal factor: 4 / (1 - |x|²/R²)²
+        where R is the radius of the ball.
 
         Args:
             x: Point on the manifold.
@@ -327,10 +331,12 @@ class PoincareBall(Manifold):
             Inner product scalar.
         """
         norm_sq = jnp.sum(x**2)
-        # Conformal factor for Poincaré ball metric
-        # Scale by inverse curvature radius squared
+        # Radius squared for the ball
         radius_sq = -1.0 / self.curvature
-        conformal_factor = 4 * radius_sq / (1 - norm_sq / radius_sq) ** 2
+
+        # Correct conformal factor for Poincaré ball metric with variable radius
+        # Formula: 4 / (1 - |x|²/R²)²
+        conformal_factor = 4.0 / (1 - norm_sq / radius_sq) ** 2
 
         # Euclidean inner product scaled by conformal factor
         return conformal_factor * jnp.sum(u * v)

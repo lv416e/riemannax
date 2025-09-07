@@ -1,6 +1,6 @@
 """Hyperbolic-specific data models for manifold operations."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 import jax.numpy as jnp
@@ -60,12 +60,12 @@ class HyperbolicPoint:
             )
 
     def _validate_lorentz_constraint(self) -> None:
-        """Validate Lorentz model constraint (x₀² - Σxᵢ² = -c)."""
+        """Validate Lorentz model constraint (x₀² - Σxᵢ² = -1/curvature)."""
         if len(self.coordinates) < 2:
             raise DataModelError("Lorentz model requires at least 2 coordinates")
 
         lorentz_product = self.coordinates[0] ** 2 - jnp.sum(self.coordinates[1:] ** 2)
-        expected_value = -self.curvature
+        expected_value = -1.0 / self.curvature
 
         if jnp.abs(lorentz_product - expected_value) > 1e-6:
             raise DataModelError(
@@ -303,8 +303,6 @@ class ManifoldParameters:
         Returns:
             New ManifoldParameters instance with modifications.
         """
-        from dataclasses import replace
-
         new_instance = replace(self, **kwargs)
         new_instance._validate_parameters()
         return new_instance
