@@ -358,10 +358,8 @@ class PoincareBall(Manifold):
         Returns:
             Point on the manifold reached by exponential map.
         """
-        # Handle zero tangent vector
+        # Compute norm for conditional logic (avoiding early returns for JAX compatibility)
         v_norm_euclidean = jnp.linalg.norm(v)
-        if v_norm_euclidean < 1e-15:
-            return x
 
         # Curvature scaling
         radius_sq = -1.0 / self.curvature
@@ -399,7 +397,8 @@ class PoincareBall(Manifold):
         # Step 3: Translate back using Möbius addition
         result = self._mobius_add(x, y_from_origin)
 
-        return result
+        # JAX-compatible conditional: return x if tangent vector is tiny, otherwise computed result
+        return jnp.where(v_norm_euclidean < 1e-15, x, result)
 
     def log(self, x: ManifoldPoint, y: ManifoldPoint) -> TangentVector:
         """Logarithmic map from manifold to tangent space.
