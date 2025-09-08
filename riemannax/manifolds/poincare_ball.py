@@ -496,7 +496,12 @@ class PoincareBall(Manifold):
     def dist(self, x: ManifoldPoint, y: ManifoldPoint) -> Array:
         """Compute geodesic distance between two points.
 
-        Uses the hyperbolic distance formula for the Poincaré ball.
+        Uses the hyperbolic distance formula for the Poincaré ball with proper curvature scaling.
+
+        For curvature c < 0, the distance formula is:
+        d(x, y) = (2/√(-c)) * arctanh(√(-c) * ||x ⊖ y||)
+
+        where x ⊖ y is Möbius subtraction.
 
         Args:
             x: First point on the manifold.
@@ -505,20 +510,23 @@ class PoincareBall(Manifold):
         Returns:
             Geodesic distance.
         """
-        # Use the direct hyperbolic distance formula
-        # d(x, y) = 2 * radius * arctanh(|| x ⊖ y ||)
-        # where x ⊖ y is Möbius subtraction
-
         # Möbius subtraction: -x ⊕ y
         neg_x = -x
         diff = self._mobius_add(neg_x, y)
         diff_norm = jnp.linalg.norm(diff)
 
-        # Curvature radius
-        radius = jnp.sqrt(-1.0 / self.curvature)
+        # Curvature scaling factors
+        sqrt_neg_curvature = jnp.sqrt(-self.curvature)
+        curvature_scale = 1.0 / sqrt_neg_curvature  # This is 2/√(-c) coefficient
 
-        # Hyperbolic distance
-        distance = 2 * radius * jnp.arctanh(jnp.minimum(diff_norm, 1 - 1e-7))
+        # Apply curvature scaling inside arctanh for mathematical correctness
+        scaled_diff_norm = sqrt_neg_curvature * diff_norm
+
+        # Clamp to prevent numerical issues with arctanh
+        clamped_arg = jnp.minimum(scaled_diff_norm, 1 - 1e-7)
+
+        # Hyperbolic distance: d(x,y) = (2/√(-c)) * arctanh(√(-c) * ||x ⊖ y||)
+        distance = 2 * curvature_scale * jnp.arctanh(clamped_arg)
 
         return distance
 
