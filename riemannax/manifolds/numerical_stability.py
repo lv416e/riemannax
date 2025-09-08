@@ -37,18 +37,22 @@ class NumericalStabilityManager:
     @staticmethod
     def validate_hyperbolic_vector(v: Float[Array, "..."], model: Literal["poincare", "lorentz"]) -> Array:
         """Validate vector length limits for hyperbolic models.
+        
+        Supports both single vectors and batch operations.
+        For batch inputs, all vectors must satisfy the constraints.
 
         Args:
-            v: Vector to validate
+            v: Vector(s) to validate - shape (..., dim)
             model: Hyperbolic model type ("poincare" or "lorentz")
 
         Returns:
-            Validated vector
+            Validated vector(s)
 
         Raises:
-            HyperbolicNumericalError: If vector length exceeds model limits
+            HyperbolicNumericalError: If any vector length exceeds model limits
         """
-        norm = jnp.linalg.norm(v)
+        # Use axis=-1 for batch-compatible norm computation
+        norms = jnp.linalg.norm(v, axis=-1)
 
         if model == "poincare":
             max_norm = 38.0
@@ -57,9 +61,13 @@ class NumericalStabilityManager:
         else:
             raise ValueError(f"Unknown hyperbolic model: {model}")
 
-        # Check if norm exceeds safety threshold
-        if norm > max_norm:
-            raise HyperbolicNumericalError(f"Vector norm {norm:.6f} exceeds {model} model limit {max_norm}")
+        # Check if any norm exceeds safety threshold (batch-compatible)
+        if jnp.any(norms > max_norm):
+            # Find the maximum violating norm for error message
+            max_violating_norm = jnp.max(norms)
+            raise HyperbolicNumericalError(
+                f"Vector norm {max_violating_norm:.6f} exceeds {model} model limit {max_norm}"
+            )
 
         return v
 
