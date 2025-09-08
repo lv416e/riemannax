@@ -482,7 +482,8 @@ class PoincareBall(Manifold):
         # Conformal factor λ_x = 2/(1-||x||²/R²)
         lambda_x = 2.0 / (1 - x_norm_sq / radius_sq)
 
-        # Note: Riemannian norm is λ_x * ||v||_E, used implicitly in the curvature scaling
+        # Riemannian norm of tangent vector: ||v||_g = λ_x ||v||_E
+        v_norm_riemannian = lambda_x * v_norm_euclidean
 
         # For exponential map at non-origin points, we use Möbius gyrorotation:
         # 1. Translate x to origin: w = ⊖x ⊕ y where ⊖x is Möbius inverse
@@ -500,16 +501,13 @@ class PoincareBall(Manifold):
         v_at_origin_norm = jnp.linalg.norm(v_at_origin)
         v_at_origin_normalized = v_at_origin / jnp.maximum(v_at_origin_norm, 1e-15)
 
-        # Proper curvature scaling for geodesic parameter
-        sqrt_neg_curvature = jnp.sqrt(-self.curvature)
-        geodesic_param = sqrt_neg_curvature * v_at_origin_norm  # Scale by sqrt(-c)
-        tanh_factor = jnp.tanh(geodesic_param / 2.0)
+        # Use Riemannian norm for geodesic parameter with proper scaling
+        # The /2.0 factor accounts for the relationship between Riemannian norm and geodesic parameter
+        geodesic_param = v_norm_riemannian / 2.0
+        tanh_factor = jnp.tanh(geodesic_param)
 
-        # Scale result by inverse square root of negative curvature
-        curvature_scale = 1.0 / sqrt_neg_curvature
-
-        # Geodesic result from origin with proper curvature scaling
-        y_from_origin = tanh_factor * v_at_origin_normalized * curvature_scale
+        # Geodesic result from origin
+        y_from_origin = tanh_factor * v_at_origin_normalized
 
         # Step 3: Translate back using Möbius addition
         result = self._mobius_add(x, y_from_origin)
@@ -551,7 +549,7 @@ class PoincareBall(Manifold):
         if y_norm < 1e-15:
             return jnp.zeros_like(x)
 
-        # Curvature radius
+        # Curvature radius for consistent scaling with exponential map
         radius = jnp.sqrt(-1.0 / self.curvature)
 
         # Logarithmic map at origin: v = R * arctanh(||y||/R) * y/||y||
