@@ -159,26 +159,47 @@ class SE3Transform:
 
     def _validate_constraints(self) -> None:
         """Validate SE(3) transformation constraints.
+        
+        Supports both single and batch transformations.
+        For batch operations, all transformations must satisfy constraints.
 
         Raises:
             DataModelError: If rotation matrix is not valid.
         """
-        # Check matrix dimensions
-        if self.rotation.shape != (3, 3):
-            raise DataModelError(f"Rotation matrix must be 3x3, got shape {self.rotation.shape}")
+        # Check matrix dimensions - support batch operations
+        if self.rotation.shape[-2:] != (3, 3):
+            raise DataModelError(f"Rotation matrix must be (..., 3, 3), got shape {self.rotation.shape}")
 
-        if self.translation.shape != (3,):
-            raise DataModelError(f"Translation vector must be length 3, got shape {self.translation.shape}")
+        if self.translation.shape[-1] != 3:
+            raise DataModelError(f"Translation vector must be (..., 3), got shape {self.translation.shape}")
 
-        # Check orthogonality: R^T @ R = I
-        identity_check = jnp.dot(self.rotation.T, self.rotation)
-        if not jnp.allclose(identity_check, jnp.eye(3), atol=1e-6):
+        # Check batch dimension compatibility
+        if self.rotation.shape[:-2] != self.translation.shape[:-1]:
+            raise DataModelError(f"Batch dimensions don't match: rotation {self.rotation.shape[:-2]} vs translation {self.translation.shape[:-1]}")
+
+        # Check orthogonality: R^T @ R = I (batch-compatible)
+        R_transpose = jnp.swapaxes(self.rotation, -2, -1)  # Batch-safe transpose
+        identity_check = R_transpose @ self.rotation
+        expected_identity = jnp.eye(3)
+        
+        # Expand identity for batch operations if needed
+        if self.rotation.ndim > 2:
+            batch_shape = self.rotation.shape[:-2]
+            expected_identity = jnp.broadcast_to(expected_identity, batch_shape + (3, 3))
+        
+        if not jnp.allclose(identity_check, expected_identity, atol=1e-6):
             raise DataModelError("Rotation matrix is not orthogonal (R^T @ R ≠ I)")
 
         # Check determinant: det(R) = +1 (proper rotation, not reflection)
         det = jnp.linalg.det(self.rotation)
         if not jnp.allclose(det, 1.0, atol=1e-6):
-            raise DataModelError(f"Rotation matrix determinant is {det:.6f}, must be +1.0")
+            # For batch operations, check if ANY determinant is wrong
+            if self.rotation.ndim > 2:
+                bad_dets = jnp.abs(det - 1.0) > 1e-6
+                if jnp.any(bad_dets):
+                    raise DataModelError(f"Some rotation matrices have invalid determinant (must be +1.0)")
+            else:
+                raise DataModelError(f"Rotation matrix determinant is {det:.6f}, must be +1.0")
 
     def _check_validity(self) -> bool:
         """Check if transformation satisfies constraints without raising exceptions."""
