@@ -37,7 +37,7 @@ class NumericalStabilityManager:
     @staticmethod
     def validate_hyperbolic_vector(v: Float[Array, "..."], model: Literal["poincare", "lorentz"]) -> Array:
         """Validate vector length limits for hyperbolic models.
-        
+
         Supports both single vectors and batch operations.
         For batch inputs, all vectors must satisfy the constraints.
 
