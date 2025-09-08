@@ -99,9 +99,10 @@ class HyperbolicPoint:
         """Calculate Euclidean norm of coordinates.
 
         Returns:
-            Euclidean norm of the coordinate vector.
+            Euclidean norm of the coordinate vector(s).
+            For batch inputs, returns array with shape matching the batch dimensions.
         """
-        return jnp.linalg.norm(self.coordinates)
+        return jnp.linalg.norm(self.coordinates, axis=-1)
 
     def distance_to_origin(self) -> Array:
         """Calculate hyperbolic distance to origin.
@@ -203,12 +204,15 @@ class SE3Transform:
         """Compute inverse transformation.
 
         For SE(3), the inverse is: (R^T, -R^T @ t)
+        Supports batch operations for multiple transformations.
 
         Returns:
-            Inverse SE(3) transformation.
+            Inverse SE(3) transformation(s).
         """
-        inv_rotation = self.rotation.T
-        inv_translation = -jnp.dot(inv_rotation, self.translation)
+        # Handle both single and batch cases with swapaxes for transpose
+        inv_rotation = jnp.swapaxes(self.rotation, -2, -1)
+        # Use @ operator for batch-compatible matrix-vector multiplication
+        inv_translation = -(inv_rotation @ self.translation[..., jnp.newaxis])[..., 0]
 
         return SE3Transform(
             rotation=inv_rotation,
@@ -220,15 +224,18 @@ class SE3Transform:
         """Compose this transformation with another.
 
         Composition order: self ∘ other (apply other first, then self).
+        Supports batch operations for multiple transformations.
 
         Args:
             other: The transformation to compose with.
 
         Returns:
-            Composed SE(3) transformation.
+            Composed SE(3) transformation(s).
         """
-        composed_rotation = jnp.dot(self.rotation, other.rotation)
-        composed_translation = jnp.dot(self.rotation, other.translation) + self.translation
+        # Use @ operator for batch-compatible matrix multiplication
+        composed_rotation = self.rotation @ other.rotation
+        # Batch-compatible matrix-vector multiplication
+        composed_translation = (self.rotation @ other.translation[..., jnp.newaxis])[..., 0] + self.translation
 
         return SE3Transform(
             rotation=composed_rotation,
