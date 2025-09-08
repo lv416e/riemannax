@@ -68,19 +68,22 @@ class HyperbolicPoint:
 
     def _validate_lorentz_constraint(self) -> None:
         """Validate Lorentz model constraint (x₀² - Σxᵢ² = -1/curvature)."""
-        if len(self.coordinates) < 2:
+        # FIXED: Use shape[-1] instead of len() for batch compatibility
+        if self.coordinates.shape[-1] < 2:
             raise DataModelError("Lorentz model requires at least 2 coordinates")
 
-        lorentz_product = self.coordinates[0] ** 2 - jnp.sum(self.coordinates[1:] ** 2)
+        # FIXED: Use [..., 0] and [..., 1:] for proper batch indexing
+        lorentz_product = self.coordinates[..., 0] ** 2 - jnp.sum(self.coordinates[..., 1:] ** 2, axis=-1)
         expected_value = -1.0 / self.curvature
 
-        if jnp.abs(lorentz_product - expected_value) > 1e-6:
+        if jnp.any(jnp.abs(lorentz_product - expected_value) > 1e-6):
             raise DataModelError(
-                f"Point violates Lorentz constraint: x₀² - Σxᵢ² = {lorentz_product:.6f}, expected {expected_value:.6f}"
+                f"Point violates Lorentz constraint: x₀² - Σxᵢ² = {lorentz_product}, expected {expected_value:.6f}"
             )
 
         # Additional constraint: x₀ > 0 for the upper hyperboloid sheet
-        if self.coordinates[0] <= 0:
+        # FIXED: Use [..., 0] for batch-compatible indexing
+        if jnp.any(self.coordinates[..., 0] <= 0):
             raise DataModelError("Lorentz model requires x₀ > 0 (upper hyperboloid sheet)")
 
     def _check_validity(self) -> bool:
@@ -106,7 +109,7 @@ class HyperbolicPoint:
             Hyperbolic distance to origin in the given model with proper curvature scaling.
         """
         if self.model == "poincare":
-            norm_sq = jnp.sum(self.coordinates**2)
+            norm_sq = jnp.sum(self.coordinates**2, axis=-1)
             norm = jnp.sqrt(norm_sq)
             radius = 1.0 / jnp.sqrt(-self.curvature)  # R = 1/√(-c)
 
@@ -114,8 +117,9 @@ class HyperbolicPoint:
             return radius * jnp.arctanh(norm * jnp.sqrt(-self.curvature))
         elif self.model == "lorentz":
             # Lorentz distance to origin: (1/√(-c)) * arccosh(x₀ * √(-c))
+            # FIXED: Use [..., 0] for batch-compatible indexing
             curvature_scale = 1.0 / jnp.sqrt(-self.curvature)
-            return curvature_scale * jnp.arccosh(self.coordinates[0] * jnp.sqrt(-self.curvature))
+            return curvature_scale * jnp.arccosh(self.coordinates[..., 0] * jnp.sqrt(-self.curvature))
         else:
             raise DataModelError(f"Unknown hyperbolic model: {self.model}")
 
