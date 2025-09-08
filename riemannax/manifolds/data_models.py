@@ -214,13 +214,24 @@ class SE3Transform:
     def homogeneous_matrix(self) -> Array:
         """Convert to homogeneous transformation matrix.
 
+        Supports both single and batch transformations.
+
         Returns:
-            4x4 homogeneous transformation matrix.
+            4x4 homogeneous transformation matrix for single transforms,
+            or (..., 4, 4) for batch transforms.
         """
-        homogeneous = jnp.zeros((4, 4))
-        homogeneous = homogeneous.at[:3, :3].set(self.rotation)
-        homogeneous = homogeneous.at[:3, 3].set(self.translation)
-        homogeneous = homogeneous.at[3, 3].set(1.0)
+        # Determine batch shape from rotation matrix
+        batch_shape = self.rotation.shape[:-2]  # Everything except last 2 dimensions
+
+        # Create homogeneous matrix with proper batch dimensions
+        homogeneous_shape = (*batch_shape, 4, 4)
+        homogeneous = jnp.zeros(homogeneous_shape, dtype=self.rotation.dtype)
+
+        # Use batch-aware indexing as suggested by Gemini
+        homogeneous = homogeneous.at[..., :3, :3].set(self.rotation)
+        homogeneous = homogeneous.at[..., :3, 3].set(self.translation)
+        homogeneous = homogeneous.at[..., 3, 3].set(1.0)
+
         return homogeneous
 
     def inverse(self) -> "SE3Transform":

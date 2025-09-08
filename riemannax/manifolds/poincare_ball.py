@@ -70,21 +70,28 @@ class PoincareBall(Manifold):
         """Dimension of the ambient Euclidean space."""
         return self._ambient_dimension
 
-    def _validate_in_ball(self, x: Array, atol: float | None = None) -> bool:
-        """Validate that point x is inside the unit ball.
+    def _validate_in_ball(self, x: Array, atol: float | None = None) -> Array:
+        """Validate that point(s) x are inside the unit ball.
+
+        Supports both single points and batch operations.
+        For batch inputs, returns array of validation results.
 
         Args:
-            x: Point to validate.
-            atol: Absolute tolerance (uses instance tolerance if None).
+            x: Point(s) to validate - shape (..., dim)
+            atol: Absolute tolerance (uses instance tolerance if None)
 
         Returns:
-            True if point is strictly inside the unit ball.
+            Boolean result for single points, or boolean array for batch inputs.
         """
         if atol is None:
             atol = self.tolerance
 
-        norm_squared = jnp.sum(x**2)
-        return bool(norm_squared < (1.0 - atol))
+        # Use axis=-1 for batch-compatible norm computation
+        norm_squared = jnp.sum(x**2, axis=-1)
+
+        # Avoid bool() call to prevent JIT TracerConversionError
+        # Return JAX boolean array which is JIT-compatible
+        return norm_squared < (1.0 - atol)
 
     def validate_point(self, x: ManifoldPoint, atol: float = 1e-6) -> Array:
         """Validate that x is a valid point on the Poincaré ball.
@@ -244,42 +251,6 @@ class PoincareBall(Manifold):
         scale = jnp.minimum(1.0, max_radius / jnp.maximum(result_norm, 1e-15))
         return jnp.where(result_norm[..., jnp.newaxis] > max_radius, scale[..., jnp.newaxis] * result, result)
 
-    def _gyration_ab_c(self, a: ManifoldPoint, b: ManifoldPoint, c: ManifoldPoint) -> ManifoldPoint:
-        """Compute the gyration gyr[a,b]c in the Poincaré ball.
-
-        The gyration operation is fundamental to Möbius gyrovector spaces and ensures
-        the proper non-commutative behavior of Möbius addition: a ⊕ (b ⊕ c) = (a ⊕ b) ⊕ gyr[a,b]c
-
-        Based on Abraham Ungar's gyrovector space theory, the gyration for the Poincaré ball
-        can be computed using the Möbius transformation properties.
-
-        Args:
-            a: First gyrovector for the gyration operation.
-            b: Second gyrovector for the gyration operation.
-            c: Gyrovector to be gyrated.
-
-        Returns:
-            The gyrated vector gyr[a,b]c.
-        """
-        # For the Poincaré ball model, the gyration can be computed as:
-        # gyr[a,b]c = ⊖((a ⊕ b) ⊖ (a ⊕ (b ⊕ c)))
-        # This ensures the gyroassociative law: a ⊕ (b ⊕ c) = (a ⊕ b) ⊕ gyr[a,b]c
-
-        # Compute b ⊕ c
-        b_plus_c = self._mobius_add(b, c)
-
-        # Compute a ⊕ (b ⊕ c)
-        a_plus_bc = self._mobius_add(a, b_plus_c)
-
-        # Compute a ⊕ b
-        a_plus_b = self._mobius_add(a, b)
-
-        # Compute gyr[a,b]c = ⊖(a ⊕ b) ⊕ (a ⊕ (b ⊕ c))
-        neg_a_plus_b = -a_plus_b
-        gyration_result = self._mobius_add(neg_a_plus_b, a_plus_bc)
-
-        return gyration_result
-
     def _parallel_transport_conformal(self, x: ManifoldPoint, y: ManifoldPoint, v: TangentVector) -> TangentVector:
         """Exact parallel transport using conformal factor scaling with norm correction.
 
@@ -356,40 +327,6 @@ class PoincareBall(Manifold):
         return jnp.where(
             points_identical[..., jnp.newaxis], v, jnp.where(zero_vector[..., jnp.newaxis], v, final_transported)
         )
-
-    def _gyration(self, u: ManifoldPoint, v: ManifoldPoint, w: TangentVector) -> TangentVector:
-        """Compute the gyration operation gyr[u,v]w in the Poincaré ball model.
-
-        The gyration is a fundamental operation in gyrovector spaces that captures
-        the non-associativity of Möbius addition and enables correct parallel transport.
-
-        Formula: gyr[u,v]w = ⊖(u⊕v) ⊕ (u⊕(v⊕w))
-        where ⊕ is Möbius addition and ⊖ is negation.
-
-        Args:
-            u: First gyrovector (point in Poincaré ball).
-            v: Second gyrovector (point in Poincaré ball).
-            w: Vector to be gyrated.
-
-        Returns:
-            The gyrated vector gyr[u,v]w.
-        """
-        # Compute v⊕w
-        v_plus_w = self._mobius_add(v, w)
-
-        # Compute u⊕(v⊕w)
-        u_plus_v_plus_w = self._mobius_add(u, v_plus_w)
-
-        # Compute u⊕v
-        u_plus_v = self._mobius_add(u, v)
-
-        # Compute ⊖(u⊕v) (negation)
-        neg_u_plus_v = -u_plus_v
-
-        # Compute ⊖(u⊕v) ⊕ (u⊕(v⊕w))
-        result = self._mobius_add(neg_u_plus_v, u_plus_v_plus_w)
-
-        return result
 
     def validate_tangent(self, x: ManifoldPoint, v: TangentVector, atol: float = 1e-6) -> bool | Array:
         """Validate that v is a valid tangent vector at point x.
