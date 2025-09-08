@@ -305,10 +305,12 @@ class Lorentz(Manifold):
 
     @partial(jax.jit, static_argnums=(0,))
     def log(self, x: Array, y: Array) -> Array:
-        """Logarithmic map from manifold to tangent space with memory-optimized computation.
+        """Logarithmic map from manifold to tangent space with mathematically exact formula.
 
-        Production-ready implementation using cached curvature properties, explicit type annotations,
-        and memory-efficient vectorized operations for maximum JIT performance.
+        Implements the correct logarithmic map for the hyperboloid model with arbitrary curvature:
+        1. Project y onto tangent space: direction = y - (⟨x,y⟩_M / ⟨x,x⟩_M) * x
+        2. Scale by distance and normalize by Minkowski norm: log = d * direction / ||direction||_M
+        This ensures ||log_x(y)||_g = dist(x,y) exactly for all curvature values.
 
         Args:
             x: Base point on hyperboloid.
@@ -320,32 +322,27 @@ class Lorentz(Manifold):
         # Early exit for identical points using efficient norm comparison
         points_identical = jnp.linalg.norm(x - y, axis=-1) < 1e-10
 
-        # Single Minkowski inner product computation for efficiency
+        # Compute hyperbolic distance using existing optimized method
         minkowski_xy = self._minkowski_inner(x, y)
-
-        # Use pre-computed curvature constant for optimal performance
-        # Clip operation ensures numerical stability in arccosh domain
         scaled_inner = -self.curvature * minkowski_xy
         stable_inner = jnp.clip(scaled_inner, 1.0 + 1e-15, jnp.inf)
-
-        # Pre-computed curvature scaling eliminates redundant square root
         hyperbolic_distance = self._curvature_scale * jnp.arccosh(stable_inner)
 
-        # Memory-efficient tangent space projection: y - ⟨x,y⟩_M * x
-        # Single vectorized operation minimizes intermediate allocations
-        direction = y - minkowski_xy[..., jnp.newaxis] * x
+        # CORRECTED: Proper tangent space projection with curvature scaling
+        # For hyperboloid constraint ⟨x,x⟩_M = -1/c, the projection is:
+        # y - (⟨x,y⟩_M / ⟨x,x⟩_M) * x
+        constraint_value = self._constraint_value  # Pre-computed -1/curvature
+        direction = y - (minkowski_xy / constraint_value)[..., jnp.newaxis] * x
 
-        # Robust direction normalization using negative Minkowski inner product
-        # (direction vectors are spacelike, so -B(dir,dir) > 0)
-        direction_norm_squared = -self._minkowski_inner(direction, direction)
-        direction_norm = jnp.sqrt(jnp.maximum(direction_norm_squared, 1e-30))
+        # CORRECTED: Use Minkowski norm for direction normalization (not Euclidean!)
+        # This is the key mathematical insight for exact consistency
+        direction_minkowski_norm_sq = -self._minkowski_inner(direction, direction)
+        direction_minkowski_norm = jnp.sqrt(jnp.maximum(direction_minkowski_norm_sq, 1e-30))
 
-        # Safe normalization with memory-efficient broadcasting
-        safe_norm_inv = 1.0 / jnp.maximum(direction_norm, 1e-15)
-        normalized_direction = direction * safe_norm_inv[..., jnp.newaxis]
-
-        # Single scaling operation for final result
-        log_result = hyperbolic_distance[..., jnp.newaxis] * normalized_direction
+        # Scale by distance and normalize by Minkowski norm
+        # a = distance / ||direction||_Minkowski ensures ||log||_g = distance exactly
+        scaling_factor = hyperbolic_distance / jnp.maximum(direction_minkowski_norm, 1e-15)
+        log_result = scaling_factor[..., jnp.newaxis] * direction
 
         # JAX-native conditional avoiding control flow in compiled code
         zero_vector = jnp.zeros_like(x)
@@ -355,8 +352,10 @@ class Lorentz(Manifold):
     def inner(self, x: Array, u: Array, v: Array) -> Array:
         """Riemannian inner product on tangent space with optimal memory access patterns.
 
-        Production-optimized computation of the Riemannian metric using explicit type annotations
-        and single-pass vectorized operations for maximum JIT compilation efficiency.
+        The Riemannian metric is the restriction of the Minkowski bilinear form to tangent spaces.
+        For tangent vectors u,v in hyperbolic space: ⟨u,v⟩_g = -B(u,v)
+        where B is the Minkowski bilinear form. This ensures positive definiteness and
+        curvature-independent scaling for mathematical consistency.
 
         Args:
             x: Base point on hyperboloid with shape (..., n+1).
@@ -366,12 +365,10 @@ class Lorentz(Manifold):
         Returns:
             Inner product scalar with shape (...,).
         """
-        # Riemannian metric from restriction of Minkowski form to tangent space
-        # For hyperbolic space with curvature K < 0, the formula is:
-        # ⟨u,v⟩_g = B(u,v)/K where B is the Minkowski bilinear form
-        # Since K < 0 and B(u,v) < 0 for tangent vectors, this gives positive definite metric
+        # Correct Riemannian metric: negative of Minkowski inner product
+        # This ensures ||log_x(y)||_g = dist(x,y) for all curvature values
         # Single function call minimizes overhead and memory allocations
-        return self._minkowski_inner(u, v) / self.curvature
+        return -self._minkowski_inner(u, v)
 
     @partial(jax.jit, static_argnums=(0,))
     def dist(self, x: Array, y: Array) -> Array:
