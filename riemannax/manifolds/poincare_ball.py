@@ -276,7 +276,7 @@ class PoincareBall(Manifold):
         """Exact parallel transport ensuring both invertibility and norm preservation.
 
         This implements mathematically exact parallel transport that:
-        1. Ensures perfect roundtrip invertibility (x->y->x returns original vector)  
+        1. Ensures perfect roundtrip invertibility (x->y->x returns original vector)
         2. Preserves Riemannian norms (inner products preserved under transport)
         3. Uses the correct geometric relationship from hyperbolic geometry
 
@@ -301,42 +301,41 @@ class PoincareBall(Manifold):
         original_riemannian_norm = jnp.sqrt(self.inner(x, v, v))
 
         # For exact parallel transport in the Poincaré ball, we use the principle that
-        # parallel transport preserves inner products and is the differential of 
+        # parallel transport preserves inner products and is the differential of
         # isometric transformations.
-        
+
         # The key insight: parallel transport from x to y can be decomposed as:
-        # 1. Apply isometry that maps x to origin  
+        # 1. Apply isometry that maps x to origin
         # 2. Apply isometry that maps origin to y
-        
+
         # For curvature c, the radius is R = sqrt(-1/c)
         radius_sq = -1.0 / self.curvature
-        
+
         # Compute conformal factors
         x_norm_sq = jnp.sum(x**2)
         y_norm_sq = jnp.sum(y**2)
-        
+
         lambda_x = 2.0 / (1 - x_norm_sq / radius_sq)
         lambda_y = 2.0 / (1 - y_norm_sq / radius_sq)
-        
+
         # Step 1: Transform vector as if moving x to origin
         # This scales the vector by the inverse conformal factor at x
         v_normalized = v / lambda_x
-        
-        # Step 2: Transform vector as if moving from origin to y  
+
+        # Step 2: Transform vector as if moving from origin to y
         # This scales the vector by the conformal factor at y
         transported = lambda_y * v_normalized
-        
+
         # Step 3: Apply correction to ensure exact norm preservation
         # The above gives the correct direction, but we need to adjust magnitude
         transported_riemannian_norm = jnp.sqrt(self.inner(y, transported, transported))
-        
+
         # Scale to preserve original Riemannian norm
         if transported_riemannian_norm > 1e-15:
             scale_factor = original_riemannian_norm / transported_riemannian_norm
             transported = scale_factor * transported
-        
-        return transported
 
+        return transported
 
     def _gyration(self, u: ManifoldPoint, v: ManifoldPoint, w: TangentVector) -> TangentVector:
         """Compute the gyration operation gyr[u,v]w in the Poincaré ball model.
