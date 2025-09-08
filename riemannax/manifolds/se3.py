@@ -369,6 +369,7 @@ class SE3(Manifold):
         """Compute SO(3) matrix logarithm.
 
         Extracts rotation vector omega such that R = exp(hat(omega)).
+        Uses improved R+I method for numerical stability near π singularities.
 
         Args:
             R: Rotation matrix of shape (..., 3, 3).
@@ -386,8 +387,8 @@ class SE3(Manifold):
         # Case 1: theta ≈ 0 (near identity)
         small_angle = jnp.abs(theta) < 1e-8
 
-        # Case 2: theta ≈ π (near singularity)
-        near_pi = jnp.abs(theta - jnp.pi) < 1e-8
+        # Case 2: theta ≈ π (near singularity) - improved detection
+        near_pi = jnp.abs(theta - jnp.pi) < 1e-6
 
         # Case 3: regular case
         sin_theta = jnp.sin(theta)
@@ -403,24 +404,28 @@ class SE3(Manifold):
         # For regular case: omega = theta/(2*sin(theta)) * antisymmetric_part
         omega_regular = theta[..., None] / (2.0 * jnp.maximum(jnp.abs(sin_theta[..., None]), 1e-12)) * antisym_part
 
-        # For near π case, need special handling
-        # Find the eigenvector corresponding to eigenvalue 1
-        diag_R = jnp.diagonal(R, axis1=-2, axis2=-1)
-        max_diag_idx = jnp.argmax(diag_R, axis=-1)
+        # For near π case, use R+I method (improved Gemini's suggestion)
+        # Mathematical basis: Any nonzero column of R+I is an eigenvector with eigenvalue 1
+        R_plus_I = R + jnp.eye(3)
 
-        # Extract the appropriate column as the axis
-        axis_candidates = jnp.transpose(R, axes=(*range(R.ndim - 2), -1, -2))  # Transpose to get columns
+        # Find the column with largest diagonal element (following original logic but with R+I)
+        diag_R_plus_I = jnp.diagonal(R_plus_I, axis1=-2, axis2=-1)
+        max_diag_idx = jnp.argmax(diag_R_plus_I, axis=-1)
 
-        # Select the column with largest diagonal element
+        # Extract columns using the original transpose method
+        axis_candidates = jnp.transpose(R_plus_I, axes=(*range(R.ndim - 2), -1, -2))  # Transpose to get columns
+
+        # Select the column with largest diagonal element using original indexing pattern
         if R.ndim == 2:  # Single matrix case
             axis = axis_candidates[max_diag_idx]
         else:  # Batch case
             batch_indices = jnp.arange(max_diag_idx.size).reshape(max_diag_idx.shape)
             axis = axis_candidates[batch_indices, max_diag_idx]
 
-        # Normalize and scale by pi
-        axis = axis / jnp.maximum(jnp.linalg.norm(axis, axis=-1, keepdims=True), 1e-12)
-        omega_pi = jnp.pi * axis
+        # Normalize and scale by angle
+        axis_norm = jnp.maximum(jnp.linalg.norm(axis, axis=-1, keepdims=True), 1e-12)
+        normalized_axis = axis / axis_norm
+        omega_pi = theta[..., None] * normalized_axis
 
         # Select appropriate result based on conditions
         omega = jnp.where(small_angle[..., None], omega_small, jnp.where(near_pi[..., None], omega_pi, omega_regular))
