@@ -98,7 +98,8 @@ class PoincareBall(Manifold):
             Returning Array type ensures JIT compatibility in all contexts.
         """
         radius_sq = -1.0 / self.curvature
-        norm_squared = jnp.sum(x**2)
+        # FIXED: Use axis=-1 for batch compatibility
+        norm_squared = jnp.sum(x**2, axis=-1)
 
         # Use tolerance that accommodates boundary precision requirements
         # Conservative margin prevents numerical instability near boundary
@@ -213,11 +214,17 @@ class PoincareBall(Manifold):
         y_unit = y / radius
 
         # Compute inner product and norms in unit ball
-        x_dot_y = jnp.sum(x_unit * y_unit)
-        x_norm_sq = jnp.sum(x_unit**2)
-        y_norm_sq = jnp.sum(y_unit**2)
+        # FIXED: Use axis=-1 for batch compatibility
+        x_dot_y = jnp.sum(x_unit * y_unit, axis=-1)
+        x_norm_sq = jnp.sum(x_unit**2, axis=-1)
+        y_norm_sq = jnp.sum(y_unit**2, axis=-1)
 
         # Standard Einstein addition formula for unit Poincaré ball
+        # Expand dimensions for broadcasting with batch operations
+        x_dot_y = x_dot_y[..., jnp.newaxis]
+        x_norm_sq = x_norm_sq[..., jnp.newaxis]
+        y_norm_sq = y_norm_sq[..., jnp.newaxis]
+
         numerator = (1 + 2 * x_dot_y + y_norm_sq) * x_unit + (1 - x_norm_sq) * y_unit
         denominator = 1 + 2 * x_dot_y + x_norm_sq * y_norm_sq
 
@@ -229,12 +236,13 @@ class PoincareBall(Manifold):
         result = result_unit * radius
 
         # Ensure result stays within ball bounds with safety margin
-        result_norm = jnp.linalg.norm(result)
+        # FIXED: Use axis=-1 for batch compatibility
+        result_norm = jnp.linalg.norm(result, axis=-1)
         max_radius = radius * (1 - 1e-6)  # Small safety margin
 
         # Project back if outside bounds
         scale = jnp.minimum(1.0, max_radius / jnp.maximum(result_norm, 1e-15))
-        return jnp.where(result_norm > max_radius, scale * result, result)
+        return jnp.where(result_norm[..., jnp.newaxis] > max_radius, scale[..., jnp.newaxis] * result, result)
 
     def _gyration_ab_c(self, a: ManifoldPoint, b: ManifoldPoint, c: ManifoldPoint) -> ManifoldPoint:
         """Compute the gyration gyr[a,b]c in the Poincaré ball.
@@ -295,7 +303,8 @@ class PoincareBall(Manifold):
         """
         # Check for identical points and zero vectors for conditional logic
         points_identical = jnp.allclose(x, y, atol=1e-15)
-        v_norm = jnp.linalg.norm(v)
+        # FIXED: Use axis=-1 for batch compatibility
+        v_norm = jnp.linalg.norm(v, axis=-1)
         zero_vector = v_norm < 1e-15
 
         # Store original Riemannian norm for preservation
@@ -314,19 +323,21 @@ class PoincareBall(Manifold):
         radius_sq = -1.0 / self.curvature
 
         # Compute conformal factors λ_x = 2/(1-||x||²/R²) and λ_y = 2/(1-||y||²/R²)
-        x_norm_sq = jnp.sum(x**2)
-        y_norm_sq = jnp.sum(y**2)
+        # FIXED: Use axis=-1 for batch compatibility
+        x_norm_sq = jnp.sum(x**2, axis=-1)
+        y_norm_sq = jnp.sum(y**2, axis=-1)
 
         lambda_x = 2.0 / (1 - x_norm_sq / radius_sq)
         lambda_y = 2.0 / (1 - y_norm_sq / radius_sq)
 
         # Step 1: Transform vector as if moving x to origin
         # Scale by inverse conformal factor at x
-        v_normalized = v / lambda_x
+        # Expand dimensions for broadcasting with batch operations
+        v_normalized = v / lambda_x[..., jnp.newaxis]
 
         # Step 2: Transform vector as if moving from origin to y
         # Scale by conformal factor at y
-        transported = lambda_y * v_normalized
+        transported = lambda_y[..., jnp.newaxis] * v_normalized
 
         # Step 3: Apply correction to ensure exact norm preservation
         # Compute transported Riemannian norm and scale to preserve original
@@ -334,15 +345,17 @@ class PoincareBall(Manifold):
 
         # Compute scale factor (avoid division by zero)
         scale_factor = original_riemannian_norm / jnp.maximum(transported_riemannian_norm, 1e-15)
-        norm_corrected = scale_factor * transported
+        norm_corrected = scale_factor[..., jnp.newaxis] * transported
 
         # Use norm-corrected result when transported norm is significant
         use_correction = transported_riemannian_norm > 1e-15
-        final_transported = jnp.where(use_correction, norm_corrected, transported)
+        final_transported = jnp.where(use_correction[..., jnp.newaxis], norm_corrected, transported)
 
         # JAX-compatible conditional returns
         # If points identical, return original vector; if zero vector, return zero
-        return jnp.where(points_identical, v, jnp.where(zero_vector, v, final_transported))
+        return jnp.where(
+            points_identical[..., jnp.newaxis], v, jnp.where(zero_vector[..., jnp.newaxis], v, final_transported)
+        )
 
     def _gyration(self, u: ManifoldPoint, v: ManifoldPoint, w: TangentVector) -> TangentVector:
         """Compute the gyration operation gyr[u,v]w in the Poincaré ball model.
@@ -410,8 +423,9 @@ class PoincareBall(Manifold):
         """
         # In Poincaré ball, tangent space is the ambient Euclidean space
         # However, we scale to prevent leaving the ball for large vectors
-        norm_x = jnp.linalg.norm(x)
-        norm_v = jnp.linalg.norm(v)
+        # FIXED: Use axis=-1 for batch compatibility
+        norm_x = jnp.linalg.norm(x, axis=-1)
+        norm_v = jnp.linalg.norm(v, axis=-1)
 
         # If v is large enough to potentially push x outside the ball,
         # scale it down to maintain validity
@@ -421,7 +435,7 @@ class PoincareBall(Manifold):
 
         # Only scale if necessary
         scale = jnp.minimum(1.0, remaining_radius / (norm_v + 1e-15))
-        return jnp.where(norm_v > remaining_radius, scale * v, v)
+        return jnp.where(norm_v[..., jnp.newaxis] > remaining_radius[..., jnp.newaxis], scale[..., jnp.newaxis] * v, v)
 
     def inner(self, x: ManifoldPoint, u: TangentVector, v: TangentVector) -> Array:
         """Compute Riemannian inner product in tangent space.
@@ -435,9 +449,10 @@ class PoincareBall(Manifold):
             v: Second tangent vector.
 
         Returns:
-            Inner product scalar.
+            Inner product scalar for single inputs, or batch array for batch inputs.
         """
-        norm_sq = jnp.sum(x**2)
+        # FIXED: Use axis=-1 for batch compatibility
+        norm_sq = jnp.sum(x**2, axis=-1)
         # Radius squared for the ball
         radius_sq = -1.0 / self.curvature
 
@@ -446,7 +461,8 @@ class PoincareBall(Manifold):
         conformal_factor = 4.0 / (1 - norm_sq / radius_sq) ** 2
 
         # Euclidean inner product scaled by conformal factor
-        return conformal_factor * jnp.sum(u * v)
+        # FIXED: Use axis=-1 for batch compatibility
+        return conformal_factor * jnp.sum(u * v, axis=-1)
 
     def exp(self, x: ManifoldPoint, v: TangentVector) -> ManifoldPoint:
         """Exponential map from tangent space to manifold.
@@ -464,7 +480,8 @@ class PoincareBall(Manifold):
             Point on the manifold reached by exponential map.
         """
         # Compute Euclidean norm for direction and conditional logic
-        v_euclidean_norm = jnp.linalg.norm(v)
+        # FIXED: Use axis=-1 for batch compatibility
+        v_euclidean_norm = jnp.linalg.norm(v, axis=-1)
 
         # Handle zero vector case - exponential map of zero vector is identity
         zero_vector_case = v_euclidean_norm < 1e-15
@@ -483,17 +500,18 @@ class PoincareBall(Manifold):
         tanh_param = jnp.tanh(geodesic_param)
 
         # Normalized direction vector (safe division)
-        v_direction = v / jnp.maximum(v_euclidean_norm, 1e-15)
+        # Expand dimensions for broadcasting with batch operations
+        v_direction = v / jnp.maximum(v_euclidean_norm[..., jnp.newaxis], 1e-15)
 
         # Geodesic vector in tangent space at origin
         # Formula: tanh(√|c| ||v||_x / 2) · v / ||v||_E
-        geodesic_vector = tanh_param * v_direction
+        geodesic_vector = tanh_param[..., jnp.newaxis] * v_direction
 
         # Apply Möbius addition: x ⊕_c geodesic_vector
         result = self._mobius_add(x, geodesic_vector)
 
         # JAX-compatible conditional return
-        return jnp.where(zero_vector_case, x, result)
+        return jnp.where(zero_vector_case[..., jnp.newaxis], x, result)
 
     def log(self, x: ManifoldPoint, y: ManifoldPoint) -> TangentVector:
         """Logarithmic map from manifold to tangent space.
@@ -516,7 +534,8 @@ class PoincareBall(Manifold):
         mobius_diff = self._mobius_add(neg_x, y)
 
         # Compute Euclidean norm of the Möbius difference
-        diff_norm = jnp.linalg.norm(mobius_diff)
+        # FIXED: Use axis=-1 for batch compatibility
+        diff_norm = jnp.linalg.norm(mobius_diff, axis=-1)
 
         # Handle near-zero difference case
         near_zero_diff = diff_norm < 1e-15
@@ -526,7 +545,8 @@ class PoincareBall(Manifold):
 
         # Conformal factor correction at base point x
         # This is crucial for ||log_x(y)||_g = dist(x,y) to hold exactly
-        x_norm_sq = jnp.sum(x**2)
+        # FIXED: Use axis=-1 for batch compatibility
+        x_norm_sq = jnp.sum(x**2, axis=-1)
         conformal_correction = 1.0 - x_norm_sq / (radius**2)
 
         # Normalize difference by radius for arctanh argument
@@ -540,11 +560,12 @@ class PoincareBall(Manifold):
         scale_factor = radius * conformal_correction * jnp.arctanh(safe_arg) / jnp.maximum(diff_norm, 1e-15)
 
         # Compute the logarithmic map result
-        log_result = scale_factor * mobius_diff
+        # Expand dimensions for broadcasting with batch operations
+        log_result = scale_factor[..., jnp.newaxis] * mobius_diff
 
         # JAX-compatible conditional returns
         zero_vector = jnp.zeros_like(x)
-        return jnp.where(points_identical | near_zero_diff, zero_vector, log_result)
+        return jnp.where(points_identical[..., jnp.newaxis] | near_zero_diff[..., jnp.newaxis], zero_vector, log_result)
 
     def retr(self, x: ManifoldPoint, v: TangentVector) -> ManifoldPoint:
         """Retraction operation.
@@ -588,12 +609,13 @@ class PoincareBall(Manifold):
             y: Second point on the manifold.
 
         Returns:
-            Geodesic distance.
+            Geodesic distance for single inputs, or batch array for batch inputs.
         """
         # Möbius subtraction: -x ⊕ y
         neg_x = -x
         diff = self._mobius_add(neg_x, y)
-        diff_norm = jnp.linalg.norm(diff)
+        # FIXED: Use axis=-1 for batch compatibility
+        diff_norm = jnp.linalg.norm(diff, axis=-1)
 
         # Curvature scaling factors
         sqrt_neg_curvature = jnp.sqrt(-self.curvature)

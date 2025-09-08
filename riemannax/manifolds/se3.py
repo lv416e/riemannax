@@ -680,11 +680,12 @@ class SE3(Manifold):
             v2: Second tangent vector
 
         Returns:
-            Inner product scalar
+            Inner product scalar for single inputs, or batch array for batch inputs
         """
         # Canonical inner product on se(3): <v1, v2> = tr(v1^T * v2)
-        # For 6D vectors (omega, rho), this is just dot product
-        return jnp.dot(v1, v2)
+        # For 6D vectors (omega, rho), this is element-wise product summed along last axis
+        # FIXED: Use element-wise multiplication + axis=-1 sum for batch compatibility
+        return jnp.sum(v1 * v2, axis=-1)
 
     def retr(self, x: Array, v: Array) -> Array:
         """Retraction: exponential map from tangent space to manifold.
@@ -708,7 +709,7 @@ class SE3(Manifold):
             y: Second point on SE(3) manifold
 
         Returns:
-            Geodesic distance
+            Geodesic distance for single inputs, or batch array for batch inputs
         """
         # Distance via logarithm map: ||log(x^(-1) * y)||
         x_inv = self.inverse(x)
@@ -716,7 +717,8 @@ class SE3(Manifold):
         log_xy = self.log_tangent(xy_inv)
 
         # L2 norm in se(3) Lie algebra
-        return jnp.linalg.norm(log_xy)
+        # FIXED: Use axis=-1 for batch compatibility
+        return jnp.linalg.norm(log_xy, axis=-1)
 
     def transp(self, x: Array, y: Array, v: Array) -> Array:
         """Parallel transport tangent vector from x to y.

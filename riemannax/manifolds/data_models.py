@@ -56,14 +56,15 @@ class HyperbolicPoint:
 
         For curvature c < 0, the constraint is ||x|| < R where R = 1/√(-c).
         """
-        norm_sq = jnp.sum(self.coordinates**2)
+        # FIXED: Use axis=-1 for batch compatibility
+        norm_sq = jnp.sum(self.coordinates**2, axis=-1)
         radius = 1.0 / jnp.sqrt(-self.curvature)  # R = 1/√(-c)
         radius_sq = radius**2
 
-        if norm_sq >= radius_sq:
+        # FIXED: Use jnp.any for batch validation
+        if jnp.any(norm_sq >= radius_sq):
             raise DataModelError(
-                f"Point norm {jnp.sqrt(norm_sq):.6f} violates Poincaré ball constraint "
-                f"(must be < {radius:.6f} for curvature {self.curvature})"
+                f"Point norm violates Poincaré ball constraint (must be < {radius:.6f} for curvature {self.curvature})"
             )
 
     def _validate_lorentz_constraint(self) -> None:
