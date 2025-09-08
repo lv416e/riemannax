@@ -183,16 +183,20 @@ class Lorentz(Manifold):
         v = jax.random.normal(key, target_shape)
 
         # Project to tangent space: v_tangent = v - B(x,v)/B(x,x) * x
-        # Since B(x,x) = 1 for points on the hyperboloid, this becomes:
-        # v_tangent = v - B(x,v) * x
-        minkowski_prod = self._minkowski_inner(x, v)
+        # CORRECTED: B(x,x) = -1/curvature for all curvatures, not just 1!
+        minkowski_xv = self._minkowski_inner(x, v)
+        minkowski_xx = self._minkowski_inner(x, x)  # This equals -1/curvature
+
+        # Projection coefficient for proper curvature scaling
+        projection_coeff = minkowski_xv / minkowski_xx
 
         # Add dimensions for proper broadcasting
-        # minkowski_prod has shape (...,), x has shape (..., n+1)
-        # We need minkowski_prod to have shape (..., 1) to broadcast with x
-        minkowski_prod = minkowski_prod[..., None]
+        # projection_coeff has shape (...,), x has shape (..., n+1)
+        # We need projection_coeff to have shape (..., 1) to broadcast with x
+        projection_coeff = projection_coeff[..., None]
 
-        tangent = v - minkowski_prod * x
+        # Correct tangent space projection
+        tangent = v - projection_coeff * x
 
         return tangent
 
@@ -362,10 +366,12 @@ class Lorentz(Manifold):
         Returns:
             Inner product scalar with shape (...,).
         """
-        # Direct computation using negative Minkowski inner product
+        # Riemannian metric from restriction of Minkowski form to tangent space
+        # For hyperbolic space with curvature K < 0, the formula is:
+        # ⟨u,v⟩_g = B(u,v)/K where B is the Minkowski bilinear form
+        # Since K < 0 and B(u,v) < 0 for tangent vectors, this gives positive definite metric
         # Single function call minimizes overhead and memory allocations
-        # For tangent vectors: ⟨u,v⟩_g = -B(u,v) where B is Minkowski inner product
-        return -self._minkowski_inner(u, v)
+        return self._minkowski_inner(u, v) / self.curvature
 
     @partial(jax.jit, static_argnums=(0,))
     def dist(self, x: Array, y: Array) -> Array:
