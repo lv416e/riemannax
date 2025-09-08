@@ -90,6 +90,8 @@ class NumericalStabilityManager:
 def _taylor_matrix_exp(A: Array, order: int = 10) -> Array:
     """Taylor series approximation of matrix exponential.
 
+    Uses JAX-native fori_loop for optimal JIT compilation and performance.
+
     Args:
         A: Input matrix
         order: Number of terms in Taylor series
@@ -99,12 +101,18 @@ def _taylor_matrix_exp(A: Array, order: int = 10) -> Array:
     """
     # Taylor series: exp(A) = I + A + A²/2! + A³/3! + ...
     result = jnp.eye(A.shape[0], dtype=A.dtype)
-    power = jnp.eye(A.shape[0], dtype=A.dtype)
-    factorial = 1.0
 
-    for i in range(1, order + 1):
-        factorial *= i
+    def body_fun(i, state):
+        power, factorial, result = state
+        factorial = factorial * i
         power = jnp.dot(power, A)
-        result += power / factorial
+        result = result + power / factorial
+        return (power, factorial, result)
+
+    # Initialize state: (power matrix, factorial, result)
+    init_state = (jnp.eye(A.shape[0], dtype=A.dtype), 1.0, result)
+
+    # Use JAX-native fori_loop for optimal JIT performance
+    _, _, result = jax.lax.fori_loop(1, order + 1, body_fun, init_state)
 
     return result
