@@ -56,36 +56,62 @@ class HyperbolicPoint:
 
         For curvature c < 0, the constraint is ||x|| < R where R = 1/√(-c).
         """
-        # FIXED: Use axis=-1 for batch compatibility
+        # JAX-native computation for error diagnostics
         norm_sq = jnp.sum(self.coordinates**2, axis=-1)
         radius = 1.0 / jnp.sqrt(-self.curvature)  # R = 1/√(-c)
         radius_sq = radius**2
 
-        # FIXED: Use jnp.any for batch validation
-        if jnp.any(norm_sq >= radius_sq):
+        # JAX-native constraint checking
+        constraint_violated = jnp.any(norm_sq >= radius_sq)
+
+        if constraint_violated:
+            # Compute diagnostic values using JAX operations
+            max_violating_norm_sq = jnp.where(constraint_violated, jnp.max(norm_sq), 0.0)
+            actual_norm = jnp.sqrt(max_violating_norm_sq)
+
             raise DataModelError(
-                f"Point norm violates Poincaré ball constraint (must be < {radius:.6f} for curvature {self.curvature})"
+                f"Point norm {actual_norm:.6f} violates Poincaré ball constraint "
+                f"(must be < {radius:.6f} for curvature {self.curvature}). "
+                f"Constraint: ||x||² = {max_violating_norm_sq:.6f} >= {radius_sq:.6f}"
             )
 
     def _validate_lorentz_constraint(self) -> None:
         """Validate Lorentz model constraint (x₀² - Σxᵢ² = -1/curvature)."""
-        # FIXED: Use shape[-1] instead of len() for batch compatibility
+        # Check minimum coordinate requirement
         if self.coordinates.shape[-1] < 2:
             raise DataModelError("Lorentz model requires at least 2 coordinates")
 
-        # FIXED: Use [..., 0] and [..., 1:] for proper batch indexing
+        # JAX-native constraint computation
         lorentz_product = self.coordinates[..., 0] ** 2 - jnp.sum(self.coordinates[..., 1:] ** 2, axis=-1)
-        expected_value = -1.0 / self.curvature
+        expected_lorentz = -1.0 / self.curvature
+        product_error = jnp.abs(lorentz_product - expected_lorentz)
 
-        if jnp.any(jnp.abs(lorentz_product - expected_value) > 1e-6):
+        # JAX-native constraint checking
+        constraint_violated = jnp.any(product_error > 1e-6)
+
+        if constraint_violated:
+            # Compute diagnostic values using JAX operations for error message
+            # Handle both scalar and batch cases properly
+            if lorentz_product.ndim == 0:
+                # Scalar case - use the value directly
+                actual_product = lorentz_product
+            else:
+                # Batch case - find the worst violating case
+                argmax_idx = jnp.argmax(product_error)
+                actual_product = lorentz_product[argmax_idx]
+
             raise DataModelError(
-                f"Point violates Lorentz constraint: x₀² - Σxᵢ² = {lorentz_product}, expected {expected_value:.6f}"
+                f"Point violates Lorentz constraint: x₀² - Σxᵢ² = {actual_product:.6f}, "
+                f"expected {expected_lorentz:.6f} (error: {jnp.max(product_error):.8f})"
             )
 
         # Additional constraint: x₀ > 0 for the upper hyperboloid sheet
-        # FIXED: Use [..., 0] for batch-compatible indexing
-        if jnp.any(self.coordinates[..., 0] <= 0):
-            raise DataModelError("Lorentz model requires x₀ > 0 (upper hyperboloid sheet)")
+        sheet_violated = jnp.any(self.coordinates[..., 0] <= 0)
+        if sheet_violated:
+            min_x0 = jnp.min(self.coordinates[..., 0])
+            raise DataModelError(
+                f"Lorentz model requires x₀ > 0 (upper hyperboloid sheet). Got minimum x₀ = {min_x0:.6f}"
+            )
 
     def _check_validity(self) -> bool:
         """Check if point satisfies constraints without raising exceptions."""
@@ -93,6 +119,44 @@ class HyperbolicPoint:
             self._validate_constraints()
             return True
         except DataModelError:
+            return False
+
+    def validate_point(self, point: Array | None = None) -> bool:
+        """JAX-native validation that returns boolean (JIT-compatible).
+
+        This method can be used in JIT-compiled functions where exceptions
+        cannot be raised. Uses JAX-native conditional logic patterns.
+
+        Args:
+            point: Optional point to validate. If None, validates self.coordinates.
+
+        Returns:
+            True if point satisfies all constraints, False otherwise.
+        """
+        coords = point if point is not None else self.coordinates
+
+        if self.model == "poincare":
+            # Poincaré ball constraint: ||x||² < R² where R = 1/√(-c)
+            norm_sq = jnp.sum(coords**2, axis=-1)
+            radius_sq = 1.0 / (-self.curvature)  # R² = 1/(-c)
+            poincare_valid = jnp.all(norm_sq < radius_sq)
+            return poincare_valid
+
+        elif self.model == "lorentz":
+            # Check coordinate dimension requirement
+            if coords.shape[-1] < 2:
+                return False
+
+            # Lorentz constraint: x₀² - Σxᵢ² = -1/curvature
+            lorentz_product = coords[..., 0] ** 2 - jnp.sum(coords[..., 1:] ** 2, axis=-1)
+            expected_lorentz = -1.0 / self.curvature
+            lorentz_constraint_ok = jnp.abs(lorentz_product - expected_lorentz) <= 1e-6
+
+            # Upper hyperboloid sheet constraint: x₀ > 0
+            sheet_constraint_ok = coords[..., 0] > 0
+
+            return jnp.all(lorentz_constraint_ok & sheet_constraint_ok)
+        else:
             return False
 
     def norm(self) -> Array:
