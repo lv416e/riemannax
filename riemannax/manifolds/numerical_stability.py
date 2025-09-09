@@ -51,22 +51,27 @@ class NumericalStabilityManager:
         Raises:
             HyperbolicNumericalError: If any vector length exceeds model limits
         """
-        # Use axis=-1 for batch-compatible norm computation
+        # JAX-native norm computation (batch-compatible)
         norms = jnp.linalg.norm(v, axis=-1)
 
         if model == "poincare":
-            max_norm = 38.0
+            model_max_norm = 38.0
         elif model == "lorentz":
-            max_norm = 19.0
+            model_max_norm = 19.0
         else:
             raise ValueError(f"Unknown hyperbolic model: {model}")
 
-        # Check if any norm exceeds safety threshold (batch-compatible)
-        if jnp.any(norms > max_norm):
-            # Find the maximum violating norm for error message
-            max_violating_norm = jnp.max(norms)
+        # JAX-native constraint checking
+        constraint_violated = jnp.any(norms > model_max_norm)
+
+        if constraint_violated:
+            # Compute diagnostic values using JAX operations
+            max_violating_norm = jnp.where(constraint_violated, jnp.max(norms), model_max_norm)
+
             raise HyperbolicNumericalError(
-                f"Vector norm {max_violating_norm:.6f} exceeds {model} model limit {max_norm}"
+                f"Vector norm {max_violating_norm:.6f} exceeds {model} model "
+                f"stability limit {model_max_norm}. Use vectors with ||v|| ≤ {model_max_norm} "
+                f"for numerical stability in {model} manifold operations."
             )
 
         return v
