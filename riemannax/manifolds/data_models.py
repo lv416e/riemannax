@@ -275,6 +275,51 @@ class SE3Transform:
         except DataModelError:
             return False
 
+    def validate_transform(self, rotation: Array | None = None, translation: Array | None = None) -> bool:
+        """JAX-native validation that returns boolean (JIT-compatible).
+
+        This method can be used in JIT-compiled functions where exceptions
+        cannot be raised. Uses JAX-native conditional logic patterns.
+
+        Args:
+            rotation: Optional rotation matrix to validate. If None, validates self.rotation.
+            translation: Optional translation vector to validate. If None, validates self.translation.
+
+        Returns:
+            True if transformation satisfies all SE(3) constraints, False otherwise.
+        """
+        R = rotation if rotation is not None else self.rotation
+        t = translation if translation is not None else self.translation
+
+        # Check matrix dimensions - support batch operations
+        if R.shape[-2:] != (3, 3):
+            return False
+
+        if t.shape[-1] != 3:
+            return False
+
+        # Check batch dimension compatibility
+        if R.shape[:-2] != t.shape[:-1]:
+            return False
+
+        # Check orthogonality: R^T @ R = I (batch-compatible)
+        R_transpose = jnp.swapaxes(R, -2, -1)  # Batch-safe transpose
+        identity_check = R_transpose @ R
+        expected_identity = jnp.eye(3)
+
+        # Expand identity for batch operations if needed
+        if R.ndim > 2:
+            batch_shape = R.shape[:-2]
+            expected_identity = jnp.broadcast_to(expected_identity, (*batch_shape, 3, 3))
+
+        orthogonal_ok = jnp.allclose(identity_check, expected_identity, atol=1e-6)
+
+        # Check determinant: det(R) = +1 (proper rotation, not reflection)
+        det = jnp.linalg.det(R)
+        det_ok = jnp.allclose(det, 1.0, atol=1e-6)
+
+        return orthogonal_ok & det_ok
+
     def homogeneous_matrix(self) -> Array:
         """Convert to homogeneous transformation matrix.
 
