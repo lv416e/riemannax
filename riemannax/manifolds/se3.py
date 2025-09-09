@@ -651,24 +651,25 @@ class SE3(Manifold):
             # Extract current quaternion from x
             q = x[..., :4]
 
-            # Project quaternion gradient to so(3) tangent space
-            # For quaternion q = (qw, qx, qy, qz), the tangent projection is:
-            # omega = 2 * (qw * q_vec_grad - qx * qw_grad, qy * qw_grad - qw * qy_grad, qz * qw_grad - qw * qz_grad)
-            # Simplified: omega = 2 * (q_w * q_vec_grad - q_vec * q_w_grad)
+            # Project quaternion gradient to so(3) tangent space using the standard formula:
+            # ω = 2 * Im(q̄ * q̇), where q̄ is quaternion conjugate and q̇ is quaternion derivative
+            # This requires full quaternion multiplication, including cross-product terms
             qw, qx, qy, qz = q[..., 0], q[..., 1], q[..., 2], q[..., 3]
             qw_grad, qx_grad, qy_grad, qz_grad = q_grad[..., 0], q_grad[..., 1], q_grad[..., 2], q_grad[..., 3]
 
-            # Project to so(3) tangent space (3D rotation tangent)
-            omega_x = 2 * (qw * qx_grad - qx * qw_grad)
-            omega_y = 2 * (qw * qy_grad - qy * qw_grad)
-            omega_z = 2 * (qw * qz_grad - qz * qw_grad)
+            # Quaternion conjugate multiplication components with cross-product terms
+            # These terms arise from the quaternion algebra structure: ij = k, jk = i, ki = j
+            omega_x = 2 * (qw * qx_grad - qx * qw_grad - qy * qz_grad + qz * qy_grad)
+            omega_y = 2 * (qw * qy_grad + qx * qz_grad - qy * qw_grad - qz * qx_grad)
+            omega_z = 2 * (qw * qz_grad - qx * qy_grad + qy * qx_grad - qz * qw_grad)
 
+            # Stack components using JAX-native operations for optimal performance
             omega = jnp.stack([omega_x, omega_y, omega_z], axis=-1)
 
-            # Translation part remains the same
+            # Translation part remains unchanged in SE(3) tangent space
             rho = t_grad
 
-            # Combine into 6D tangent vector
+            # Combine rotation and translation into 6D tangent vector
             return jnp.concatenate([omega, rho], axis=-1)
 
         # For other dimensions, raise error
