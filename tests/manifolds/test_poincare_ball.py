@@ -74,7 +74,7 @@ class TestPoincareBallValidation:
         ]
 
         for point in valid_points:
-            assert manifold._validate_in_ball(point)
+            assert manifold.validate_point(point)
 
     def test_validate_in_ball_invalid_points(self):
         """Test validation of points outside the ball."""
@@ -88,7 +88,7 @@ class TestPoincareBallValidation:
         ]
 
         for point in invalid_points:
-            assert not manifold._validate_in_ball(point)
+            assert not manifold.validate_point(point)
 
     def test_validate_in_ball_with_tolerance(self):
         """Test validation with custom tolerance."""
@@ -96,11 +96,11 @@ class TestPoincareBallValidation:
 
         # Point very close to boundary
         near_boundary = jnp.array([0.9999, 0.0])
-        assert manifold._validate_in_ball(near_boundary)
+        assert manifold.validate_point(near_boundary, atol=1e-4)
 
         # Point slightly outside but within tolerance
         slightly_outside = jnp.array([1.00005, 0.0])
-        assert not manifold._validate_in_ball(slightly_outside)
+        assert not manifold.validate_point(slightly_outside, atol=1e-4)
 
     def test_validate_point_method(self):
         """Test public validate_point method."""

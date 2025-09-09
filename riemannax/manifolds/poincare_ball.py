@@ -70,29 +70,6 @@ class PoincareBall(Manifold):
         """Dimension of the ambient Euclidean space."""
         return self._ambient_dimension
 
-    def _validate_in_ball(self, x: Array, atol: float | None = None) -> Array:
-        """Validate that point(s) x are inside the unit ball.
-
-        Supports both single points and batch operations.
-        For batch inputs, returns array of validation results.
-
-        Args:
-            x: Point(s) to validate - shape (..., dim)
-            atol: Absolute tolerance (uses instance tolerance if None)
-
-        Returns:
-            Boolean result for single points, or boolean array for batch inputs.
-        """
-        if atol is None:
-            atol = self.tolerance
-
-        # Use axis=-1 for batch-compatible norm computation
-        norm_squared = jnp.sum(x**2, axis=-1)
-
-        # Avoid bool() call to prevent JIT TracerConversionError
-        # Return JAX boolean array which is JIT-compatible
-        return norm_squared < (1.0 - atol)
-
     def validate_point(self, x: ManifoldPoint, atol: float = 1e-6) -> Array:
         """Validate that x is a valid point on the Poincaré ball.
 
