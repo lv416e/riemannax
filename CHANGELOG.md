@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Factory Functions & Convenience API**
   - `create_poincare_ball()`, `create_lorentz()`, `create_se3()`: Standard constructors
-  - `create_poincare_ball_for_embeddings()`: Optimized for embedding applications
+  - `create_poincare_ball_for_embeddings()`: Pre-configured for embedding applications
   - `create_se3_for_robotics()`: Pre-configured for robotics pose estimation
   - Consistent parameter patterns and validation across all factory functions
 
