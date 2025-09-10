@@ -237,13 +237,13 @@ class SE3Transform:
         return cls(rotation=jnp.eye(3), translation=jnp.zeros(3), validate=True)
 
     def _validate_constraints(self) -> None:
-        """Validate SE(3) transformation constraints.
+        """Validate SE(3) transformation constraints with enhanced error diagnostics.
 
-        Supports both single and batch transformations.
-        For batch operations, all transformations must satisfy constraints.
+        Supports both single and batch transformations with detailed error reporting
+        for easier debugging of constraint violations.
 
         Raises:
-            DataModelError: If rotation matrix is not valid.
+            DataModelError: If rotation matrix is not valid, with detailed diagnostics.
         """
         # Check matrix dimensions - support batch operations
         if self.rotation.shape[-2:] != (3, 3):
@@ -258,7 +258,7 @@ class SE3Transform:
                 f"Batch dimensions don't match: rotation {self.rotation.shape[:-2]} vs translation {self.translation.shape[:-1]}"
             )
 
-        # Check orthogonality: R^T @ R = I (batch-compatible)
+        # Enhanced orthogonality check with detailed diagnostics
         R_transpose = jnp.swapaxes(self.rotation, -2, -1)  # Batch-safe transpose
         identity_check = R_transpose @ self.rotation
         expected_identity = jnp.eye(3)
@@ -268,19 +268,53 @@ class SE3Transform:
             batch_shape = self.rotation.shape[:-2]
             expected_identity = jnp.broadcast_to(expected_identity, (*batch_shape, 3, 3))
 
-        if not jnp.allclose(identity_check, expected_identity, atol=1e-6):
-            raise DataModelError("Rotation matrix is not orthogonal (R^T @ R ≠ I)")
+        # Compute orthogonality error with detailed diagnostics
+        ortho_error = identity_check - expected_identity
+        max_ortho_error = jnp.max(jnp.abs(ortho_error))
 
-        # Check determinant: det(R) = +1 (proper rotation, not reflection)
-        det = jnp.linalg.det(self.rotation)
-        if not jnp.allclose(det, 1.0, atol=1e-6):
-            # For batch operations, check if ANY determinant is wrong
+        if max_ortho_error > 1e-6:
+            # Enhanced error reporting with specific error values
             if self.rotation.ndim > 2:
-                bad_dets = jnp.abs(det - 1.0) > 1e-6
-                if jnp.any(bad_dets):
-                    raise DataModelError("Some rotation matrices have invalid determinant (must be +1.0)")
+                # For batch operations, identify which matrices fail
+                batch_ortho_errors = jnp.max(jnp.abs(ortho_error), axis=(-2, -1))
+                failing_indices = jnp.where(batch_ortho_errors > 1e-6)[0]
+                num_failing = len(failing_indices)
+                raise DataModelError(
+                    f"Rotation matrices not orthogonal (R^T @ R ≠ I). "
+                    f"Maximum orthogonality error: {max_ortho_error:.8f} (tolerance: 1e-6). "
+                    f"Batch failures: {num_failing}/{self.rotation.shape[0]} matrices. "
+                    f"Failing indices: {failing_indices[:5].tolist()}{'...' if num_failing > 5 else ''}"
+                )
             else:
-                raise DataModelError(f"Rotation matrix determinant is {det:.6f}, must be +1.0")
+                raise DataModelError(
+                    f"Rotation matrix not orthogonal (R^T @ R ≠ I). "
+                    f"Maximum orthogonality error: {max_ortho_error:.8f} (tolerance: 1e-6)"
+                )
+
+        # Enhanced determinant check with detailed diagnostics
+        det = jnp.linalg.det(self.rotation)
+        det_error = jnp.abs(det - 1.0)
+        max_det_error = jnp.max(det_error)
+
+        if max_det_error > 1e-6:
+            if self.rotation.ndim > 2:
+                # For batch operations, provide detailed diagnostics
+                failing_det_mask = det_error > 1e-6
+                failing_det_indices = jnp.where(failing_det_mask)[0]
+                failing_det_values = det[failing_det_mask]
+                num_failing = len(failing_det_indices)
+
+                raise DataModelError(
+                    f"Rotation matrices have invalid determinants (must be +1.0). "
+                    f"Maximum determinant error: {max_det_error:.8f} (tolerance: 1e-6). "
+                    f"Batch failures: {num_failing}/{self.rotation.shape[0]} matrices. "
+                    f"Failing indices: {failing_det_indices[:5].tolist()}{'...' if num_failing > 5 else ''}. "
+                    f"Failing determinant values: {failing_det_values[:5].tolist()}{'...' if num_failing > 5 else ''}"
+                )
+            else:
+                raise DataModelError(
+                    f"Rotation matrix determinant is {det:.8f}, must be +1.0 (error: {det_error:.8f}, tolerance: 1e-6)"
+                )
 
     def _check_validity(self) -> bool:
         """Check if transformation satisfies constraints without raising exceptions."""
@@ -291,10 +325,11 @@ class SE3Transform:
             return False
 
     def validate_transform(self, rotation: Array | None = None, translation: Array | None = None) -> bool:
-        """JAX-native validation that returns boolean (JIT-compatible).
+        """JAX-native validation that returns boolean (JIT-compatible) with enhanced precision.
 
         This method can be used in JIT-compiled functions where exceptions
-        cannot be raised. Uses JAX-native conditional logic patterns.
+        cannot be raised. Uses JAX-native conditional logic patterns with
+        improved numerical precision and batch compatibility.
 
         Args:
             rotation: Optional rotation matrix to validate. If None, validates self.rotation.
@@ -306,7 +341,7 @@ class SE3Transform:
         R = rotation if rotation is not None else self.rotation
         t = translation if translation is not None else self.translation
 
-        # Check matrix dimensions - support batch operations
+        # Enhanced dimension checks
         if R.shape[-2:] != (3, 3):
             return False
 
@@ -317,7 +352,7 @@ class SE3Transform:
         if R.shape[:-2] != t.shape[:-1]:
             return False
 
-        # Check orthogonality: R^T @ R = I (batch-compatible)
+        # Enhanced orthogonality check: R^T @ R = I (batch-compatible)
         R_transpose = jnp.swapaxes(R, -2, -1)  # Batch-safe transpose
         identity_check = R_transpose @ R
         expected_identity = jnp.eye(3)
@@ -327,12 +362,19 @@ class SE3Transform:
             batch_shape = R.shape[:-2]
             expected_identity = jnp.broadcast_to(expected_identity, (*batch_shape, 3, 3))
 
-        orthogonal_ok = jnp.allclose(identity_check, expected_identity, atol=1e-6)
+        # Use tighter tolerance for more precise validation
+        # Check both maximum error and overall closeness
+        ortho_error = identity_check - expected_identity
+        max_ortho_error = jnp.max(jnp.abs(ortho_error))
+        orthogonal_ok = max_ortho_error <= 1e-6
 
-        # Check determinant: det(R) = +1 (proper rotation, not reflection)
+        # Enhanced determinant check: det(R) = +1 (proper rotation, not reflection)
         det = jnp.linalg.det(R)
-        det_ok = jnp.allclose(det, 1.0, atol=1e-6)
+        det_error = jnp.abs(det - 1.0)
+        max_det_error = jnp.max(det_error)
+        det_ok = max_det_error <= 1e-6
 
+        # For batch operations, all matrices must satisfy both constraints
         return orthogonal_ok & det_ok
 
     def homogeneous_matrix(self) -> Array:
