@@ -55,28 +55,34 @@ class HyperbolicPoint:
         """Validate Poincaré ball constraint for general curvature.
 
         For curvature c < 0, the constraint is ||x|| < R where R = 1/√(-c).
+        Uses JAX-native patterns for efficient error diagnostics.
         """
         # JAX-native computation for error diagnostics
         norm_sq = jnp.sum(self.coordinates**2, axis=-1)
         radius = 1.0 / jnp.sqrt(-self.curvature)  # R = 1/√(-c)
         radius_sq = radius**2
 
-        # JAX-native constraint checking
+        # JAX-native constraint checking with jnp.where for efficiency
         constraint_violated = jnp.any(norm_sq >= radius_sq)
 
         if constraint_violated:
-            # Compute diagnostic values using JAX operations
+            # Enhanced error diagnostics using JAX-native operations
             max_violating_norm_sq = jnp.where(constraint_violated, jnp.max(norm_sq), 0.0)
             actual_norm = jnp.sqrt(max_violating_norm_sq)
+            violation_margin = actual_norm - radius
 
             raise DataModelError(
                 f"Point norm {actual_norm:.6f} violates Poincaré ball constraint "
                 f"(must be < {radius:.6f} for curvature {self.curvature}). "
-                f"Constraint: ||x||² = {max_violating_norm_sq:.6f} >= {radius_sq:.6f}"
+                f"Constraint: ||x||² = {max_violating_norm_sq:.6f} >= {radius_sq:.6f}. "
+                f"Violation margin: {violation_margin:.6f}"
             )
 
     def _validate_lorentz_constraint(self) -> None:
-        """Validate Lorentz model constraint (x₀² - Σxᵢ² = -1/curvature)."""
+        """Validate Lorentz model constraint (x₀² - Σxᵢ² = -1/curvature).
+
+        Uses JAX-native patterns for robust error diagnostics.
+        """
         # Check minimum coordinate requirement
         if self.coordinates.shape[-1] < 2:
             raise DataModelError("Lorentz model requires at least 2 coordinates")
@@ -86,31 +92,40 @@ class HyperbolicPoint:
         expected_lorentz = -1.0 / self.curvature
         product_error = jnp.abs(lorentz_product - expected_lorentz)
 
-        # JAX-native constraint checking
+        # JAX-native constraint checking with enhanced diagnostics
         constraint_violated = jnp.any(product_error > 1e-6)
 
         if constraint_violated:
-            # Compute diagnostic values using JAX operations for error message
-            # Handle both scalar and batch cases properly
+            # Enhanced error information computation using JAX-native patterns
+            max_error_idx = jnp.argmax(product_error)
+
+            # Handle both scalar and batch cases properly with JAX-native indexing
             if lorentz_product.ndim == 0:
                 # Scalar case - use the value directly
                 actual_product = lorentz_product
+                max_error = product_error
             else:
-                # Batch case - find the worst violating case
-                argmax_idx = jnp.argmax(product_error)
-                actual_product = lorentz_product[argmax_idx]
+                # Batch case - find the worst violating case using JAX indexing
+                actual_product = lorentz_product.flat[max_error_idx]
+                max_error = product_error.flat[max_error_idx]
 
             raise DataModelError(
                 f"Point violates Lorentz constraint: x₀² - Σxᵢ² = {actual_product:.6f}, "
-                f"expected {expected_lorentz:.6f} (error: {jnp.max(product_error):.8f})"
+                f"expected {expected_lorentz:.6f} (error: {max_error:.8f}). "
+                f"Constraint formula: x₀² - x₁² - x₂² - ... = {expected_lorentz:.6f}"
             )
 
         # Additional constraint: x₀ > 0 for the upper hyperboloid sheet
         sheet_violated = jnp.any(self.coordinates[..., 0] <= 0)
         if sheet_violated:
+            # Enhanced sheet constraint diagnostics
             min_x0 = jnp.min(self.coordinates[..., 0])
+            violating_count = jnp.sum(self.coordinates[..., 0] <= 0)
+
             raise DataModelError(
-                f"Lorentz model requires x₀ > 0 (upper hyperboloid sheet). Got minimum x₀ = {min_x0:.6f}"
+                f"Lorentz model requires x₀ > 0 (upper hyperboloid sheet). "
+                f"Got minimum x₀ = {min_x0:.6f}. "
+                f"Violating points: {violating_count} out of {self.coordinates.shape[0] if self.coordinates.ndim > 1 else 1}"
             )
 
     def _check_validity(self) -> bool:
