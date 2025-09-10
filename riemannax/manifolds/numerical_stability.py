@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
@@ -78,3 +79,57 @@ class NumericalStabilityManager:
             )
 
         return v
+
+    @staticmethod
+    def safe_matrix_exponential(A: Array, method: str = "pade") -> Array:
+        """Compute matrix exponential with numerical stability.
+
+        Args:
+            A: Matrix for exponential computation
+            method: Method to use ("pade", "taylor", or other)
+
+        Returns:
+            Matrix exponential result
+
+        Raises:
+            SE3SingularityError: If method is invalid or computation fails
+        """
+        if method == "pade":
+            # Use JAX's built-in matrix exponential (uses Padé approximation)
+            return jax.scipy.linalg.expm(A)
+        elif method == "taylor":
+            # Simple Taylor approximation for small matrices
+            return _taylor_matrix_exp(A)
+        else:
+            raise SE3SingularityError(f"Invalid matrix exponential method: {method}")
+
+
+def _taylor_matrix_exp(A: Array, order: int = 10) -> Array:
+    """Taylor series approximation of matrix exponential.
+
+    Uses JAX-native fori_loop for optimal JIT compilation and performance.
+
+    Args:
+        A: Input matrix
+        order: Number of terms in Taylor series
+
+    Returns:
+        Matrix exponential approximation
+    """
+    # Taylor series: exp(A) = I + A + A²/2! + A³/3! + ...
+    result = jnp.eye(A.shape[0], dtype=A.dtype)
+
+    def body_fun(i, state):
+        power, factorial, result = state
+        factorial = factorial * i
+        power = jnp.dot(power, A)
+        result = result + power / factorial
+        return (power, factorial, result)
+
+    # Initialize state: (power matrix, factorial, result)
+    init_state = (jnp.eye(A.shape[0], dtype=A.dtype), 1.0, result)
+
+    # Use JAX-native fori_loop for optimal JIT performance
+    _, _, result = jax.lax.fori_loop(1, order + 1, body_fun, init_state)
+
+    return result
