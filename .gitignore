@@ -1,9 +1,10 @@
+.claude/commands/**
 .kiro/specs/**
+.kiro/steering/**
 .mcp.json
 
 # Serena MCP
 .serena/**
-!.serena/project.yml
 
 # Output
 **/output/*
