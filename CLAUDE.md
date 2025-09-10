@@ -102,7 +102,7 @@ Managed by `/kiro:steering` command. Updates here reflect command changes.
 All commit messages and PR titles MUST follow the Conventional Commits specification:
 
 ```
-<type>[optional scope]: <description>
+<type>[(scope)]: <description>
 
 [optional body]
 
