@@ -106,8 +106,9 @@ class HyperbolicPoint:
                 max_error = product_error
             else:
                 # Batch case - find the worst violating case using JAX indexing
-                actual_product = lorentz_product.flat[max_error_idx]
-                max_error = product_error.flat[max_error_idx]
+                # Use reshape(-1) instead of .flat for JAX compatibility
+                actual_product = lorentz_product.reshape(-1)[max_error_idx]
+                max_error = product_error.reshape(-1)[max_error_idx]
 
             raise DataModelError(
                 f"Point violates Lorentz constraint: x₀² - Σxᵢ² = {actual_product:.6f}, "
@@ -136,8 +137,8 @@ class HyperbolicPoint:
         except DataModelError:
             return False
 
-    def validate_point(self, point: Array | None = None) -> bool:
-        """JAX-native validation that returns boolean (JIT-compatible).
+    def validate_point(self, point: Array | None = None) -> Array:
+        """JAX-native validation that returns boolean JAX Array (JIT-compatible).
 
         This method can be used in JIT-compiled functions where exceptions
         cannot be raised. Uses JAX-native conditional logic patterns.
@@ -146,7 +147,7 @@ class HyperbolicPoint:
             point: Optional point to validate. If None, validates self.coordinates.
 
         Returns:
-            True if point satisfies all constraints, False otherwise.
+            JAX Array containing boolean values - True if point satisfies all constraints, False otherwise.
         """
         coords = point if point is not None else self.coordinates
 
@@ -160,7 +161,7 @@ class HyperbolicPoint:
         elif self.model == "lorentz":
             # Check coordinate dimension requirement
             if coords.shape[-1] < 2:
-                return False
+                return jnp.array(False)
 
             # Lorentz constraint: x₀² - Σxᵢ² = -1/curvature
             lorentz_product = coords[..., 0] ** 2 - jnp.sum(coords[..., 1:] ** 2, axis=-1)
@@ -172,7 +173,7 @@ class HyperbolicPoint:
 
             return jnp.all(lorentz_constraint_ok & sheet_constraint_ok)
         else:
-            return False
+            return jnp.array(False)
 
     def norm(self) -> Array:
         """Calculate Euclidean norm of coordinates.
@@ -324,8 +325,8 @@ class SE3Transform:
         except DataModelError:
             return False
 
-    def validate_transform(self, rotation: Array | None = None, translation: Array | None = None) -> bool:
-        """JAX-native validation that returns boolean (JIT-compatible) with enhanced precision.
+    def validate_transform(self, rotation: Array | None = None, translation: Array | None = None) -> Array:
+        """JAX-native validation that returns boolean JAX Array (JIT-compatible) with enhanced precision.
 
         This method can be used in JIT-compiled functions where exceptions
         cannot be raised. Uses JAX-native conditional logic patterns with
@@ -336,21 +337,21 @@ class SE3Transform:
             translation: Optional translation vector to validate. If None, validates self.translation.
 
         Returns:
-            True if transformation satisfies all SE(3) constraints, False otherwise.
+            JAX Array containing boolean values - True if transformation satisfies all SE(3) constraints, False otherwise.
         """
         R = rotation if rotation is not None else self.rotation
         t = translation if translation is not None else self.translation
 
         # Enhanced dimension checks
         if R.shape[-2:] != (3, 3):
-            return False
+            return jnp.array(False)
 
         if t.shape[-1] != 3:
-            return False
+            return jnp.array(False)
 
         # Check batch dimension compatibility
         if R.shape[:-2] != t.shape[:-1]:
-            return False
+            return jnp.array(False)
 
         # Enhanced orthogonality check: R^T @ R = I (batch-compatible)
         R_transpose = jnp.swapaxes(R, -2, -1)  # Batch-safe transpose
