@@ -3,7 +3,6 @@
 from typing import Literal
 
 import jax.numpy as jnp
-import jax.scipy.linalg
 from jaxtyping import Array, Float
 
 from riemannax.manifolds.base import ManifoldError
@@ -38,7 +37,7 @@ class NumericalStabilityManager:
     def validate_hyperbolic_vector(v: Float[Array, "..."], model: Literal["poincare", "lorentz"]) -> Array:
         """Validate vector length limits for hyperbolic models.
 
-        Supports both single vectors and batch operations.
+        Supports both single vectors and batch operations with enhanced error diagnostics.
         For batch inputs, all vectors must satisfy the constraints.
 
         Args:
@@ -61,71 +60,21 @@ class NumericalStabilityManager:
         else:
             raise ValueError(f"Unknown hyperbolic model: {model}")
 
-        # JAX-native constraint checking
+        # JAX-native constraint checking with enhanced diagnostics
         constraint_violated = jnp.any(norms > model_max_norm)
 
         if constraint_violated:
-            # Compute diagnostic values using JAX operations
+            # Enhanced error diagnostics using JAX-native operations
             max_violating_norm = jnp.where(constraint_violated, jnp.max(norms), model_max_norm)
+            violation_margin = max_violating_norm - model_max_norm
+            violating_count = jnp.sum(norms > model_max_norm)
 
             raise HyperbolicNumericalError(
                 f"Vector norm {max_violating_norm:.6f} exceeds {model} model "
-                f"stability limit {model_max_norm}. Use vectors with ||v|| ≤ {model_max_norm} "
+                f"stability limit {model_max_norm} by {violation_margin:.6f}. "
+                f"Violating vectors: {violating_count} out of {norms.size}. "
+                f"Use vectors with ||v|| ≤ {model_max_norm} "
                 f"for numerical stability in {model} manifold operations."
             )
 
         return v
-
-    @staticmethod
-    def safe_matrix_exponential(A: Array, method: str = "pade") -> Array:
-        """Compute matrix exponential with numerical stability.
-
-        Args:
-            A: Matrix for exponential computation
-            method: Method to use ("pade", "taylor", or other)
-
-        Returns:
-            Matrix exponential result
-
-        Raises:
-            SE3SingularityError: If method is invalid or computation fails
-        """
-        if method == "pade":
-            # Use JAX's built-in matrix exponential (uses Padé approximation)
-            return jax.scipy.linalg.expm(A)
-        elif method == "taylor":
-            # Simple Taylor approximation for small matrices
-            return _taylor_matrix_exp(A)
-        else:
-            raise SE3SingularityError(f"Invalid matrix exponential method: {method}")
-
-
-def _taylor_matrix_exp(A: Array, order: int = 10) -> Array:
-    """Taylor series approximation of matrix exponential.
-
-    Uses JAX-native fori_loop for optimal JIT compilation and performance.
-
-    Args:
-        A: Input matrix
-        order: Number of terms in Taylor series
-
-    Returns:
-        Matrix exponential approximation
-    """
-    # Taylor series: exp(A) = I + A + A²/2! + A³/3! + ...
-    result = jnp.eye(A.shape[0], dtype=A.dtype)
-
-    def body_fun(i, state):
-        power, factorial, result = state
-        factorial = factorial * i
-        power = jnp.dot(power, A)
-        result = result + power / factorial
-        return (power, factorial, result)
-
-    # Initialize state: (power matrix, factorial, result)
-    init_state = (jnp.eye(A.shape[0], dtype=A.dtype), 1.0, result)
-
-    # Use JAX-native fori_loop for optimal JIT performance
-    _, _, result = jax.lax.fori_loop(1, order + 1, body_fun, init_state)
-
-    return result
