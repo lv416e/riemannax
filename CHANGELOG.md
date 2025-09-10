@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hyperbolic Manifolds - Computer Vision & Robotics Applications**
+  - `PoincareBall`: Poincaré ball model for hyperbolic geometry
+    - Complete Riemannian structure with Möbius operations and conformal mapping
+    - Advanced parallel transport using conformal factor scaling
+    - Sectional curvature computation and injectivity radius analysis
+    - Optimized exponential/logarithmic maps with numerical stability guarantees
+  - `Lorentz`: Hyperboloid model for alternative hyperbolic representation
+    - Minkowski inner product geometry with proper constraint validation
+    - Batch-compatible operations for large-scale hyperbolic embeddings
+    - Upper hyperboloid sheet enforcement for consistent geometric properties
+
+- **SE(3) Lie Group - Robotics & 3D Vision**
+  - `SE3`: Special Euclidean group combining rotations and translations
+    - Quaternion-based rotation representation with efficient composition
+    - Advanced matrix exponential/logarithm, using Rodrigues' formula with Taylor series for numerical stability
+    - Robust handling of small-angle singularities and near-identity transformations
+    - JAX-native batch operations for simultaneous multi-pose optimization
+    - Complete Lie group structure with proper tangent space projections
+
+- **Enhanced Data Models & Validation Infrastructure**
+  - `HyperbolicPoint`: Structured point representation with constraint validation
+    - Automatic Poincaré ball and Lorentz model constraint checking
+    - JAX-native validation methods compatible with JIT compilation
+    - Enhanced error diagnostics with precise mathematical constraint information
+  - `SE3Transform`: Robust SE(3) transformation validation
+    - Orthogonality and determinant constraint verification for rotation matrices
+    - Batch-compatible validation with enhanced numerical precision
+    - Comprehensive error reporting for debugging transformation pipelines
+
+- **Numerical Stability Manager**
+  - Advanced numerical stability framework for hyperbolic and Lie group operations
+  - General-purpose Taylor series approximation for matrix exponentials, avoiding factorial overflow
+  - Model-specific stability limits and vector norm validation
+  - JAX-native error handling with detailed diagnostic information
+
+- **Factory Functions & Convenience API**
+  - `create_poincare_ball()`, `create_lorentz()`, `create_se3()`: Standard constructors
+  - `create_poincare_ball_for_embeddings()`: Pre-configured for embedding applications
+  - `create_se3_for_robotics()`: Pre-configured for robotics pose estimation
+  - Consistent parameter patterns and validation across all factory functions
+
+- **Comprehensive Testing Infrastructure**
+  - Added 211 new test functions, significantly expanding test coverage for mathematical properties and edge cases
+  - Mathematical correctness validation for exponential/logarithmic maps and geometric operations
+  - Performance benchmarking and JIT compilation efficiency verification
+  - Batch operation consistency and numerical stability testing
+
 - **New Manifold Framework - Advanced Geometric Structures**
   - `ProductManifold`: Composite manifold implementation for M₁ × M₂ × ... × Mₖ structures
     - Component-wise operations with automatic dimension handling
