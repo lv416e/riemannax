@@ -325,31 +325,20 @@ class PoincareBall(Manifold):
     def proj(self, x: ManifoldPoint, v: TangentVector) -> TangentVector:
         """Project vector to tangent space.
 
-        In the Poincaré ball, tangent vectors are in Euclidean space,
-        but we need to ensure they don't push the point outside the ball.
+        In the Poincaré ball, the tangent space at any point is isomorphic to the
+        ambient Euclidean space. Therefore, the projection is the identity map.
+
+        This is the mathematically correct implementation that satisfies the
+        base class contract for projection operations.
 
         Args:
-            x: Point on the manifold.
+            x: Point on the manifold (unused but kept for interface consistency).
             v: Vector to project.
 
         Returns:
-            Projected tangent vector.
+            The input vector v (identity projection).
         """
-        # In Poincaré ball, tangent space is the ambient Euclidean space
-        # However, we scale to prevent leaving the ball for large vectors
-        # FIXED: Use axis=-1 for batch compatibility
-        norm_x = jnp.linalg.norm(x, axis=-1)
-        norm_v = jnp.linalg.norm(v, axis=-1)
-
-        # If v is large enough to potentially push x outside the ball,
-        # scale it down to maintain validity
-        # This is a simple heuristic to ensure numerical stability
-        radius = jnp.sqrt(-1.0 / self.curvature)
-        remaining_radius = radius - norm_x - 1e-7
-
-        # Only scale if necessary
-        scale = jnp.minimum(1.0, remaining_radius / (norm_v + 1e-15))
-        return jnp.where(norm_v[..., jnp.newaxis] > remaining_radius[..., jnp.newaxis], scale[..., jnp.newaxis] * v, v)
+        return v
 
     def inner(self, x: ManifoldPoint, u: TangentVector, v: TangentVector) -> Array:
         """Compute Riemannian inner product in tangent space.

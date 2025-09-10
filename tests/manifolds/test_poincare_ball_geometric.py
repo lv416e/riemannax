@@ -22,17 +22,17 @@ class TestPoincareBallGeometricOperations:
         assert jnp.allclose(projected, v, atol=1e-6)
 
     def test_proj_boundary_constraint(self):
-        """Test that projection respects ball boundary."""
+        """Test that projection is identity (mathematically correct)."""
         manifold = PoincareBall(dimension=2)
         # Point near boundary
         x = jnp.array([0.8, 0.0])
-        # Large tangent vector that would push outside ball
+        # Large tangent vector
         v = jnp.array([1.0, 0.0])
 
         projected = manifold.proj(x, v)
 
-        # Projection should scale down the vector
-        assert jnp.linalg.norm(projected) < jnp.linalg.norm(v)
+        # In Poincaré ball, projection should be identity
+        assert jnp.allclose(projected, v, atol=1e-6)
 
     def test_inner_conformal_factor(self):
         """Test inner product with Poincaré metric conformal factor."""
