@@ -134,7 +134,7 @@ Use `!` after type/scope to indicate breaking changes:
 
 #### Message Quality Rules
 1. **Imperative mood**: "Add feature" not "Added feature"
-2. **Capitalize first letter**: Proper sentence capitalization
+2. **Lowercase first letter**: Start the description with a lowercase letter.
 3. **No period**: Don't end description with `.`
 4. **50 char limit**: Keep description concise and scannable
 5. **Present tense**: Describe what the commit does, not what it did
