@@ -469,7 +469,8 @@ class Lorentz(Manifold):
         # Memory-efficient case handling with pre-allocated arrays
         # Degenerate case: construct valid hyperboloid point with minimal allocations
         sqrt_constraint = jnp.sqrt(jnp.abs(constraint_val))
-        degenerate_result = jnp.zeros_like(x).at[0].set(sqrt_constraint)
+        # FIXED: Use batch-compatible indexing for JAX-native operations
+        degenerate_result = jnp.zeros_like(x).at[..., 0].set(sqrt_constraint)
 
         # On-manifold case: ensure forward sheet condition (x₀ > 0)
         manifold_result = jnp.where(x[..., 0:1] > 0, x, -x)
