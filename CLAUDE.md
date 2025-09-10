@@ -89,9 +89,149 @@ Managed by `/kiro:steering` command. Updates here reflect command changes.
   Pattern: File patterns for Conditional mode
 -->
 
-- `python_development_constitution.md`: Conditional - *.py,pyproject.toml,requirements*.txt,setup.py,conftest.py,tests/**/*.py - Python Development Constitutional Law enforcing mandatory quality checks
+- `constitution.md`: Conditional - *.py,pyproject.toml,requirements*.txt,setup.py,conftest.py,tests/**/*.py - Python Development Constitutional Law enforcing mandatory quality checks
 
 ### Inclusion Modes
 - **Always**: Loaded in every interaction (default)
 - **Conditional**: Loaded for specific file patterns (e.g., `"*.test.js"`)
 - **Manual**: Reference with `@filename.md` syntax
+
+## Commit Message & PR Title Standards
+
+### Conventional Commits Format
+All commit messages and PR titles MUST follow the Conventional Commits specification:
+
+```
+<type>[(scope)]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+#### Required Components
+- **type**: Categorizes the nature of change (REQUIRED)
+- **description**: Brief summary in imperative mood, 50 chars max (REQUIRED)
+- **scope**: Additional context, e.g., `(api)`, `(ui)`, `(docs)` (OPTIONAL)
+
+#### Standard Types
+- **feat**: New feature for users
+- **fix**: Bug fix for users
+- **docs**: Documentation changes
+- **style**: Code formatting (no logic changes)
+- **refactor**: Code restructuring (no behavior changes)
+- **perf**: Performance improvements
+- **test**: Test additions or modifications
+- **chore**: Build/tooling changes, maintenance tasks
+- **ci**: CI/CD configuration changes
+- **build**: Build system or dependencies changes
+- **revert**: Reverting previous commits
+
+#### Breaking Changes
+Use `!` after type/scope to indicate breaking changes:
+- `feat!: remove deprecated API endpoint`
+- `fix(auth)!: change token validation logic`
+
+#### Message Quality Rules
+1. **Imperative mood**: "Add feature" not "Added feature"
+2. **Lowercase first letter**: Start the description with a lowercase letter.
+3. **No period**: Don't end description with `.`
+4. **50 char limit**: Keep description concise and scannable
+5. **Present tense**: Describe what the commit does, not what it did
+
+#### Body Guidelines (Optional)
+- Separate from description with blank line
+- Wrap at 72 characters
+- Explain **what** and **why**, not **how**
+- Include breaking change details
+- Reference issues: `Fixes #123`, `Closes #456`, `Refs #789`
+
+#### Footer Examples (Optional)
+```
+BREAKING CHANGE: API endpoint /users now requires authentication
+Reviewed-by: John Doe
+Refs: #123, #456
+Co-authored-by: Jane Smith <jane@example.com>
+```
+
+### Examples
+
+#### Good Examples
+```bash
+# Simple feature
+feat: add dark mode toggle to settings
+
+# Feature with scope
+feat(api): add user authentication middleware
+
+# Bug fix with issue reference
+fix: resolve memory leak in image processing
+
+Fixes race condition when processing large batches of images
+that caused memory usage to grow indefinitely.
+
+Closes #234
+
+# Breaking change
+feat!: upgrade to Node.js 18
+
+BREAKING CHANGE: Node.js 16 support removed. Minimum version is now 18.0.0
+
+# Chore with scope
+chore(deps): update JAX to 0.4.25
+```
+
+#### Bad Examples
+```bash
+# Too vague
+fix: bugs
+
+# Wrong tense
+feat: added new feature
+
+# Too long
+feat: implement the new authentication system with JWT tokens and refresh token rotation
+
+# Wrong capitalization
+Fix: Authentication issue
+
+# Unnecessary period
+docs: update README.md.
+```
+
+### PR Title Standards
+
+#### PR Title = Squash Merge Title
+- PR titles become commit messages when using "Squash & Merge"
+- MUST follow conventional commit format
+- Configure GitHub to "Default to PR title for squash merge commits"
+
+#### PR-Specific Guidelines
+- **Single line only**: No body in PR title (use PR description instead)
+- **Breaking changes**: Use `!` notation since multi-line not available
+- **Issue linking**: Use PR description, not title
+- **Draft PRs**: Prefix with `[WIP]` or use GitHub Draft feature
+
+#### Automation Integration
+- **Semantic Release**: Enables automatic version bumping and changelog generation
+- **Auto-labeling**: GitHub Actions can auto-label PRs based on type
+- **Validation**: Use `action-semantic-pull-request` to enforce standards
+
+### Team Workflow Integration
+
+#### Development Process
+1. **Branch naming**: Use conventional format `feat/add-auth`, `fix/memory-leak`
+2. **Commit early, commit often**: Individual commits can be informal during development
+3. **PR review**: Ensure PR title follows conventional format before merge
+4. **Squash strategy**: Use squash merging to create clean history with conventional titles
+
+#### Quality Gates
+- PR title validation via GitHub Actions
+- Commit message linting in pre-commit hooks
+- Automated changelog generation from conventional commits
+- Semantic versioning based on commit types
+
+### Configuration Files
+- **commitlint**: Enforce conventional commits locally
+- **semantic-release**: Automate releases based on commit messages
+- **GitHub Actions**: Validate PR titles and automate labeling
