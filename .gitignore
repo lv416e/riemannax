@@ -1,4 +1,5 @@
-.claude/commands/**
+.claude/commands/kiro/**
+.claude/commands/project/**
 .kiro/specs/**
 .kiro/steering/**
 .mcp.json
