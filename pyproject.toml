@@ -142,3 +142,29 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--strict-markers --tb=short --disable-warnings"
+timeout = 600
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "manifolds: marks tests related to manifolds",
+    "optimizers: marks tests related to optimizers",
+    "solvers: marks tests related to solvers",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.pytest-timeout]
+timeout_method = "signal"
+
+[tool.hypothesis]
+deadline = 5000
+max_examples = 50
