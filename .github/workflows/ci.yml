@@ -1,10 +1,19 @@
 name: ci
 
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [main]
+    paths:
+      - "riemannax/**/*.py"
+      - "tests/**/*.py"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "riemannax/**/*.py"
+      - "tests/**/*.py"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 env:

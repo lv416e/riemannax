@@ -9,6 +9,7 @@ on:
       - ".github/workflows/docs.yml"
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
     paths:
       - "docs/**"
       - "riemannax/**/*.py"
