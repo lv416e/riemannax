@@ -229,15 +229,15 @@ class PoincareBall(Manifold):
         return jnp.where(result_norm[..., jnp.newaxis] > max_radius, scale[..., jnp.newaxis] * result, result)
 
     def _parallel_transport_conformal(self, x: ManifoldPoint, y: ManifoldPoint, v: TangentVector) -> TangentVector:
-        """Parallel transport using standard hyperbolic geometry formulation.
+        """Parallel transport using conformal factor approach for norm preservation.
 
         This implements parallel transport in the Poincaré ball model using
-        the standard connection-based approach that automatically preserves
-        the Riemannian metric.
+        the corrected conformal factor ratio that preserves the Riemannian norm.
 
-        For the Poincaré ball model with curvature K, the parallel transport
-        of vector v from point x to point y along the unique geodesic is
-        computed using conformal factor ratios.
+        Mathematical foundation:
+        For norm preservation: ||v||_x = ||transported||_y
+        Where ||u||_p = lambda_p * ||u||_euclidean (Riemannian norm)
+        This requires: lambda_x * ||v|| = lambda_y * ||scale*v|| → scale = lambda_x/lambda_y
 
         Args:
             x: Starting point on the manifold.
@@ -245,7 +245,7 @@ class PoincareBall(Manifold):
             v: Tangent vector at x to be transported.
 
         Returns:
-            The parallel transported vector in the tangent space at y.
+            The parallel transported vector in the tangent space at y with preserved norm.
 
         References:
             - Ungar, "Analytic Hyperbolic Geometry"
@@ -256,24 +256,19 @@ class PoincareBall(Manifold):
         v_norm = jnp.linalg.norm(v, axis=-1)
         zero_vector = v_norm < 1e-15
 
-        # For the Poincaré ball model, parallel transport is implemented
-        # using the conformal factor approach but with proper normalization
-
         # Curvature scaling factor
         R_sq = -1.0 / self.curvature  # For K = -1, R² = 1
 
-        # Conformal factors at x and y: λ = 2/(1 - |z|²/R²)
+        # Conformal factors at x and y: lambda = 2/(1 - |z|²/R²)
         x_norm_sq = jnp.sum(x**2, axis=-1, keepdims=True)
         y_norm_sq = jnp.sum(y**2, axis=-1, keepdims=True)
 
         lambda_x = 2.0 / (1.0 - x_norm_sq / R_sq)
         lambda_y = 2.0 / (1.0 - y_norm_sq / R_sq)
 
-        # The key insight: in the Poincaré ball model, parallel transport
-        # is simply scaling by the ratio of conformal factors
-        # This preserves the Riemannian inner product automatically
-
-        scale_factor = lambda_y / lambda_x
+        # CORRECTED: Use lambda_x/lambda_y to preserve Riemannian norm
+        # This ensures ||v||_x = ||transported||_y
+        scale_factor = lambda_x / lambda_y
         transported_vector = scale_factor * v
 
         # JAX-native conditional returns
