@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SE(3) Lie Group - Robotics & 3D Vision**
   - `SE3`: Special Euclidean group combining rotations and translations
     - Quaternion-based rotation representation with efficient composition
-    - Advanced matrix exponential/logarithm using Rodrigues formula with Taylor series
+    - Advanced matrix exponential/logarithm, using Rodrigues' formula with Taylor series for numerical stability.
     - Robust handling of small-angle singularities and near-identity transformations
     - JAX-native batch operations for simultaneous multi-pose optimization
     - Complete Lie group structure with proper tangent space projections
