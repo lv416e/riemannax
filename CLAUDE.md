@@ -15,8 +15,6 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 **Specs** (`.kiro/specs/`) - Formalize development process for individual features
 
 ### Active Specifications
-- **advanced-manifold-mathematics**: Comprehensive enhancement of RiemannAX with mathematical completeness improvements (Grassmann/SPD implementations), new manifolds (Product/Quotient), and Optimistix integration
-- **hyperbolic-se3-manifolds**: Strategic expansion of manifold coverage with hyperbolic manifolds (Poincaré Ball, Lorentz) and SE(3) Lie groups to capture computer vision and robotics markets
 - Check `.kiro/specs/` for active specifications
 - Use `/kiro:spec-status [feature-name]` to check progress
 
