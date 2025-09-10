@@ -487,13 +487,13 @@ class PoincareBall(Manifold):
         # Move in ambient space and project back to ball
         y = x + v
 
-        # Project back to ball if needed
-        y_norm = jnp.linalg.norm(y)
+        # Project back to ball if needed - JAX-native batch processing
+        y_norm = jnp.linalg.norm(y, axis=-1, keepdims=True)
         radius = jnp.sqrt(-1.0 / self.curvature)
 
         # Ensure we stay inside the ball
         scale = jnp.minimum(1.0, (radius - 1e-7) / jnp.maximum(y_norm, 1e-15))
-        y = jnp.where(y_norm >= radius, scale * y, y)
+        y = jnp.where(y_norm >= radius, y * scale, y)
 
         return y
 
