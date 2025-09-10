@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Numerical Stability Manager**
   - Advanced numerical stability framework for hyperbolic and Lie group operations
-  - Taylor series optimization avoiding factorial overflow in matrix exponentials
+  - General-purpose Taylor series approximation for matrix exponentials, avoiding factorial overflow
   - Model-specific stability limits and vector norm validation
   - JAX-native error handling with detailed diagnostic information
 
