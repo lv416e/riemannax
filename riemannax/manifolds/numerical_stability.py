@@ -108,6 +108,8 @@ def _taylor_matrix_exp(A: Array, order: int = 10) -> Array:
     """Taylor series approximation of matrix exponential.
 
     Uses JAX-native fori_loop for optimal JIT compilation and performance.
+    Implements numerically stable incremental term computation to avoid
+    factorial overflow issues.
 
     Args:
         A: Input matrix
@@ -117,19 +119,20 @@ def _taylor_matrix_exp(A: Array, order: int = 10) -> Array:
         Matrix exponential approximation
     """
     # Taylor series: exp(A) = I + A + A²/2! + A³/3! + ...
-    result = jnp.eye(A.shape[0], dtype=A.dtype)
+    identity = jnp.eye(A.shape[0], dtype=A.dtype)
 
     def body_fun(i, state):
-        power, factorial, result = state
-        factorial = factorial * i
-        power = jnp.dot(power, A)
-        result = result + power / factorial
-        return (power, factorial, result)
+        term, total = state
+        # Next term is (previous term) * A / i
+        # This computes A^i / i! incrementally, avoiding factorial overflow
+        term = jnp.dot(term, A) / i
+        total = total + term
+        return term, total
 
-    # Initialize state: (power matrix, factorial, result)
-    init_state = (jnp.eye(A.shape[0], dtype=A.dtype), 1.0, result)
+    # Initialize state: (current term, current sum)
+    init_state = (identity, identity)
 
     # Use JAX-native fori_loop for optimal JIT performance
-    _, _, result = jax.lax.fori_loop(1, order + 1, body_fun, init_state)
+    _, result = jax.lax.fori_loop(1, order + 1, body_fun, init_state)
 
     return result
