@@ -59,8 +59,22 @@ class Stiefel(Manifold):
 
         Tangent space: T_X St(p,n) = {V ∈ R^{n * p} : X^T V + V^T X = 0}.
         """
-        xv = x.T @ v
-        return v - x @ (xv + xv.T) / 2
+        # JAX-native batch-compatible implementation
+        if x.ndim == 2:
+            # Single matrix case
+            xv = x.T @ v
+            return v - x @ (xv + xv.T) / 2
+        else:
+            # Batch case: use proper transpose and batch matrix multiplication
+            # x.shape: (..., n, p), v.shape: (..., n, p)
+            x_t = jnp.transpose(x, axes=(*range(x.ndim - 2), -1, -2))  # (..., p, n)
+            xv = x_t @ v  # (..., p, p)
+
+            # Compute xv + xv.T for batch
+            xv_t = jnp.transpose(xv, axes=(*range(xv.ndim - 2), -1, -2))  # (..., p, p)
+            symmetric_part = (xv + xv_t) / 2  # (..., p, p)
+
+            return v - x @ symmetric_part
 
     @jit_optimized(static_args=(0, 3))
     def exp(self, x: Array, v: Array, method: Literal["svd", "qr"] = "svd") -> Array:
@@ -165,8 +179,27 @@ class Stiefel(Manifold):
         y = x + v
         q, r = jnp.linalg.qr(y, mode="reduced")
 
-        # Ensure positive diagonal
-        d = jnp.diag(jnp.sign(jnp.diag(r)))
+        # Ensure positive diagonal - JAX-native batch-compatible implementation
+        if r.ndim == 2:
+            # Single matrix case
+            d = jnp.diag(jnp.sign(jnp.diag(r)))
+        else:
+            # Batch case: extract diagonal elements and create diagonal matrices
+            # Extract diagonal elements: (..., min(n,p))
+            n, p = r.shape[-2:]
+            min_dim = min(n, p)
+
+            # Extract diagonal elements using advanced indexing
+            indices = jnp.arange(min_dim)
+            diag_elements = r[..., indices, indices]  # Shape: (..., min_dim)
+
+            # Apply sign and create diagonal matrices
+            diag_signs = jnp.sign(diag_elements)  # Shape: (..., min_dim)
+
+            # Create batch diagonal matrices using broadcasting
+            eye = jnp.eye(min_dim)  # Shape: (min_dim, min_dim)
+            d = diag_signs[..., :, None] * eye  # Broadcasting to (..., min_dim, min_dim)
+
         return q @ d
 
     @jit_optimized(static_args=(0,))
@@ -219,21 +252,45 @@ class Stiefel(Manifold):
         gaussian = jr.normal(key, full_shape)
 
         if shape:
-            # Handle batched case
-            def qr_fn(g: Array) -> Array:
-                q, r = jnp.linalg.qr(g, mode="reduced")
-                d = jnp.sign(jnp.diag(r))
-                d = jnp.where(d == 0, 1, d)  # Handle zero diagonal elements
+            # Handle batched case with JAX-native batch operations
+            def qr_batch_fn(g_batch: Array) -> Array:
+                """Process batch of matrices with QR decomposition."""
+                q, r = jnp.linalg.qr(g_batch, mode="reduced")
+
+                # Extract diagonal elements in batch-compatible way
+                min_dim = min(self.n, self.p)
+
+                # Extract diagonal elements
+                indices = jnp.arange(min_dim)
+                diag_r = r[..., indices, indices]  # Shape: (..., min_dim)
+
+                # Handle zero diagonal elements
+                d = jnp.sign(diag_r)
+                d = jnp.where(d == 0, 1, d)
 
                 # For square case (n=p), ensure det = +1
-                if g.shape[0] == g.shape[1]:
-                    det = jnp.linalg.det(q @ jnp.diag(d))
-                    d = jnp.where(det < 0, d.at[-1].set(-d[-1]), d)
+                if self.n == self.p:
+                    # Create batch diagonal matrices for determinant check
+                    eye = jnp.eye(min_dim)
+                    diag_matrices = d[..., :, None] * eye  # (..., min_dim, min_dim)
 
-                return q @ jnp.diag(d)
+                    # For square case, q @ diag_matrices is square
+                    result_matrices = q @ diag_matrices  # (..., n, n) when n=p
+                    det = jnp.linalg.det(result_matrices)
 
-            return jnp.asarray(jnp.vectorize(qr_fn, signature="(n,p)->(n,p)")(gaussian))
+                    # Flip last diagonal element if determinant is negative
+                    d = jnp.where(det[..., None] < 0, d.at[..., -1].set(-d[..., -1]), d)
+
+                # Create final diagonal matrices
+                eye = jnp.eye(min_dim)
+                diag_matrices = d[..., :, None] * eye  # (..., min_dim, min_dim)
+
+                return q @ diag_matrices
+
+            # Use JAX-native batching instead of jnp.vectorize
+            return qr_batch_fn(gaussian)
         else:
+            # Single matrix case
             q, r = jnp.linalg.qr(gaussian, mode="reduced")
             d = jnp.sign(jnp.diag(r))
             d = jnp.where(d == 0, 1, d)  # Handle zero diagonal elements

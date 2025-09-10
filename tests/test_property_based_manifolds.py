@@ -13,7 +13,6 @@ Property tests cover:
 - Invariance properties under manifold operations
 """
 
-
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -274,7 +273,9 @@ class TestSpherePropertyBased:
 
         # Triangle inequality: d(x,z) ≤ d(x,y) + d(y,z)
         triangle_violation = d13 - (d12 + d23)
-        assert triangle_violation <= 2e-5, f"Triangle inequality violated: d13={d13}, d12+d23={d12 + d23}"  # Relaxed for float32 precision
+        assert triangle_violation <= 2e-5, (
+            f"Triangle inequality violated: d13={d13}, d12+d23={d12 + d23}"
+        )  # Relaxed for float32 precision
 
 
 class TestStiefelPropertyBased:
@@ -500,5 +501,9 @@ def pytest_configure(config):
     settings.register_profile("ci", max_examples=100, deadline=60000)  # 60 seconds
     settings.register_profile("thorough", max_examples=500, deadline=None)
 
-    # Use 'dev' profile by default
-    settings.load_profile("dev")
+    # Use 'ci' profile in CI environment, 'dev' profile otherwise
+    import os
+    if os.environ.get('CI') or os.environ.get('GITHUB_ACTIONS'):
+        settings.load_profile("ci")
+    else:
+        settings.load_profile("dev")

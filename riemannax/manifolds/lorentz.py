@@ -1,0 +1,649 @@
+"""Lorentz/Hyperboloid model implementation for hyperbolic geometry.
+
+This module implements the hyperboloid model of hyperbolic geometry, also known as
+the Lorentz model. Points are represented on the forward sheet of a hyperboloid
+in Minkowski space with the constraint x₀² - x₁² - ... - xₙ² = 1, x₀ > 0.
+
+The hyperboloid model is often more numerically stable than the Poincaré ball
+for optimization tasks due to linear operations in the embedding space.
+"""
+
+from functools import partial
+
+import jax
+import jax.numpy as jnp
+from jaxtyping import Array
+
+from riemannax.manifolds.base import Manifold, ManifoldPoint, PRNGKeyArray, TangentVector
+
+
+class Lorentz(Manifold):
+    """Lorentz/Hyperboloid model of n-dimensional hyperbolic geometry.
+
+    The hyperboloid model represents hyperbolic space as the forward sheet of
+    a two-sheeted hyperboloid in (n+1)-dimensional Minkowski space.
+    Points satisfy the constraint: x₀² - x₁² - ... - xₙ² = 1 with x₀ > 0.
+
+    This model is numerically stable for optimization as it uses linear operations
+    in the embedding space, though it's limited to vectors with length < 19
+    due to numerical precision of hyperbolic functions.
+
+    Attributes:
+        dimension: Dimension of the hyperbolic space.
+        curvature: Sectional curvature (negative scalar).
+        atol: Absolute tolerance for numerical computations.
+    """
+
+    def __init__(self, dimension: int, curvature: float = -1.0, atol: float = 1e-8) -> None:
+        """Initialize the Lorentz hyperboloid model with optimal JAX configuration.
+
+        Production-ready initialization with compile-time constants for maximum JIT efficiency.
+        Validates parameters and pre-computes frequently used values.
+
+        Args:
+            dimension: Dimension of the hyperbolic space.
+            curvature: Sectional curvature (must be negative).
+            atol: Absolute tolerance for validation and computations.
+
+        Raises:
+            ValueError: If dimension < 1 or curvature >= 0.
+        """
+        if dimension < 1:
+            raise ValueError(f"Dimension must be positive, got {dimension}")
+        if curvature >= 0:
+            raise ValueError(f"Curvature must be negative for hyperbolic space, got {curvature}")
+
+        super().__init__()
+
+        # Store attributes normally for mypy compatibility
+        self._dimension = dimension
+        self.curvature = float(curvature)  # Ensure float64 precision
+        self.atol = float(atol)
+        self.name = "Lorentz"
+
+        # Pre-compute and cache critical constants at initialization
+        # These become compile-time constants improving JIT efficiency
+        self._curvature_scale = float(1.0 / jnp.sqrt(-curvature))
+        self._constraint_value = float(-1.0 / curvature)
+        self._ambient_dim = int(dimension + 1)
+
+    @property
+    def dimension(self) -> int:
+        """Intrinsic dimension of the hyperbolic space."""
+        return self._dimension
+
+    @property
+    def ambient_dimension(self) -> int:
+        """Return ambient dimension of Minkowski space (compile-time constant)."""
+        return self._ambient_dim
+
+    @property
+    def curvature_scale(self) -> float:
+        """Cached curvature scaling factor: 1/√(-c).
+
+        Returns pre-computed compile-time constant for maximum JIT efficiency.
+        """
+        return self._curvature_scale
+
+    @property
+    def constraint_value(self) -> float:
+        """Cached hyperboloid constraint value: -1/c.
+
+        Returns pre-computed compile-time constant for optimal JIT performance.
+        The expected Minkowski inner product B(x,x) for points on hyperboloid.
+        """
+        return self._constraint_value
+
+    @partial(jax.jit, static_argnums=(0,))
+    def _minkowski_inner(self, u: Array, v: Array) -> Array:
+        """Compute the Minkowski inner product between two vectors with optimal memory layout.
+
+        The Minkowski bilinear form for vectors in R^(n+1):
+        B(u,v) = u₀v₀ - u₁v₁ - u₂v₂ - ... - uₙvₙ
+
+        Production-optimized implementation with explicit type annotations and
+        memory-efficient vectorized operations for maximum JIT performance.
+
+        Args:
+            u: First vector in R^(n+1).
+            v: Second vector in R^(n+1).
+
+        Returns:
+            Minkowski inner product scalar.
+        """
+        # Memory-efficient decomposition avoiding unnecessary intermediate arrays
+        # Compute time and space components in single vectorized operations
+        time_product = u[..., 0] * v[..., 0]
+        space_product = jnp.sum(u[..., 1:] * v[..., 1:], axis=-1)
+
+        # Minkowski signature: (+, -, -, ..., -) for hyperboloid convention
+        # Single subtraction operation minimizes memory allocations
+        return time_product - space_product
+
+    def random_point(self, key: PRNGKeyArray, *shape: int) -> ManifoldPoint:
+        """Generate random point(s) on the hyperboloid.
+
+        Points are generated by sampling from a normal distribution and projecting
+        onto the hyperboloid using the constraint x₀² - x₁² - ... - xₙ² = -1/curvature.
+
+        Args:
+            key: JAX PRNG key for random generation.
+            *shape: Shape of the output array of points.
+
+        Returns:
+            Random point(s) on the hyperboloid with specified shape.
+        """
+        if not shape:
+            target_shape: tuple[int, ...] = (self._dimension + 1,)
+        else:
+            target_shape = (*tuple(shape), self._dimension + 1)
+
+        # Generate random spatial components (x₁, ..., xₙ)
+        spatial_components = jax.random.normal(key, (*target_shape[:-1], self._dimension))
+
+        # Compute the time component x₀ using hyperboloid constraint
+        # x₀² - x₁² - ... - xₙ² = -1/curvature
+        # So x₀² = x₁² + ... + xₙ² + (-1/curvature)
+        constraint_value = -1.0 / self.curvature
+        spatial_norm_sq = jnp.sum(spatial_components**2, axis=-1, keepdims=True)
+
+        # Ensure we have x₀² ≥ 0 by ensuring spatial_norm_sq + constraint_value ≥ 0
+        # For hyperbolic space, constraint_value > 0, so this is naturally satisfied
+        time_component_sq = spatial_norm_sq + constraint_value
+
+        # Handle edge case where time_component_sq might be negative due to numerical issues
+        time_component_sq = jnp.maximum(time_component_sq, 1e-8)
+        time_component = jnp.sqrt(time_component_sq)
+
+        # Combine time and space components
+        point = jnp.concatenate([time_component, spatial_components], axis=-1)
+
+        return point
+
+    def random_tangent(self, key: PRNGKeyArray, x: ManifoldPoint, *shape: int) -> TangentVector:
+        """Generate random tangent vector(s) at point x.
+
+        Tangent vectors in the hyperboloid model must be orthogonal to the point x
+        with respect to the Minkowski inner product: B(x, v) = 0.
+
+        Args:
+            key: JAX PRNG key for random generation.
+            x: Base point on the hyperboloid.
+            *shape: Shape of the output array of tangent vectors.
+
+        Returns:
+            Random tangent vector(s) at x with specified shape.
+        """
+        if not shape:
+            target_shape: tuple[int, ...] = (self._dimension + 1,)
+        else:
+            target_shape = (*tuple(shape), self._dimension + 1)
+
+        # Generate random vector
+        v = jax.random.normal(key, target_shape)
+
+        # Project to tangent space: v_tangent = v - B(x,v)/B(x,x) * x
+        # CORRECTED: B(x,x) = -1/curvature for all curvatures, not just 1!
+        minkowski_xv = self._minkowski_inner(x, v)
+        minkowski_xx = self._minkowski_inner(x, x)  # This equals -1/curvature
+
+        # Projection coefficient for proper curvature scaling
+        projection_coeff = minkowski_xv / minkowski_xx
+
+        # Add dimensions for proper broadcasting
+        # projection_coeff has shape (...,), x has shape (..., n+1)
+        # We need projection_coeff to have shape (..., 1) to broadcast with x
+        projection_coeff = projection_coeff[..., None]
+
+        # Correct tangent space projection
+        tangent = v - projection_coeff * x
+
+        return tangent
+
+    def validate_point(self, x: ManifoldPoint, atol: float | None = None) -> bool | Array:
+        """Validate that x is a valid point on the hyperboloid.
+
+        Points must satisfy:
+        1. The hyperboloid constraint: x₀² - x₁² - ... - xₙ² = -1/curvature
+        2. The forward sheet condition: x₀ > 0
+
+        Args:
+            x: Point to validate.
+            atol: Absolute tolerance (uses self.atol if None).
+
+        Returns:
+            True if x is a valid hyperboloid point, False otherwise.
+        """
+        if atol is None:
+            atol = self.atol
+
+        # Check hyperboloid constraint: should be -1/curvature
+        minkowski_norm = self._minkowski_inner(x, x)
+        expected_value = -1.0 / self.curvature
+        constraint_satisfied = jnp.abs(minkowski_norm - expected_value) < atol
+
+        # Check forward sheet condition
+        forward_sheet = x[..., 0] > 0
+
+        valid = constraint_satisfied & forward_sheet
+
+        # Return JAX array directly if in traced context
+        try:
+            return bool(valid)
+        except TypeError:
+            return valid
+
+    def validate_tangent(self, x: ManifoldPoint, v: TangentVector, atol: float | None = None) -> bool | Array:
+        """Validate that v is a valid tangent vector at point x.
+
+        Tangent vectors must be orthogonal to x with respect to the Minkowski
+        inner product: B(x, v) = 0.
+
+        Args:
+            x: Base point on the hyperboloid.
+            v: Vector to validate as tangent.
+            atol: Absolute tolerance (uses self.atol if None).
+
+        Returns:
+            True if v is a valid tangent vector at x, False otherwise.
+        """
+        if atol is None:
+            atol = self.atol
+
+        # Check shape compatibility
+        shape_compatible = x.shape == v.shape
+
+        # Check orthogonality condition
+        minkowski_prod = self._minkowski_inner(x, v)
+        orthogonal = jnp.abs(minkowski_prod) < atol
+
+        valid = shape_compatible & orthogonal
+
+        # Return JAX array directly if in traced context
+        try:
+            return bool(valid)
+        except TypeError:
+            return valid
+
+    @partial(jax.jit, static_argnums=(0,))
+    def exp(self, x: Array, v: Array) -> Array:
+        """Exponential map from tangent space to manifold with optimal memory patterns.
+
+        Production-optimized hyperbolic geodesic computation using explicit type annotations,
+        memory-efficient operations, and compile-time optimizations for maximum JIT performance.
+
+        Args:
+            x: Base point on hyperboloid.
+            v: Tangent vector at x.
+
+        Returns:
+            Point on hyperboloid reached by geodesic flow.
+        """
+        # Pre-compute tangent vector norm with single inner product call
+        # Avoids redundant metric tensor computations
+        v_norm_squared = self.inner(x, v, v)
+        v_norm = jnp.sqrt(jnp.maximum(v_norm_squared, 1e-30))  # Robust against numerical underflow
+
+        # Early detection of zero vectors for computational efficiency
+        is_zero_vector = v_norm < 1e-10
+
+        # Memory-efficient normalization using safe division
+        # Compute normalized direction and hyperbolic functions simultaneously
+        safe_norm_inv = 1.0 / jnp.maximum(v_norm, 1e-15)
+        v_normalized = v * safe_norm_inv[..., jnp.newaxis]
+
+        # Vectorized hyperbolic function evaluation with broadcasting optimization
+        cosh_v_norm = jnp.cosh(v_norm)[..., jnp.newaxis]
+        sinh_v_norm = jnp.sinh(v_norm)[..., jnp.newaxis]
+
+        # Single-pass exponential computation: exp_x(v) = cosh(‖v‖)x + sinh(‖v‖)(v/‖v‖)
+        # Fused multiply-add pattern for optimal memory bandwidth utilization
+        exp_result = x * cosh_v_norm + v_normalized * sinh_v_norm
+
+        # JAX-native conditional return avoiding branches in compiled code
+        return jnp.where(is_zero_vector[..., jnp.newaxis], x, exp_result)  # Broadcasting fix
+
+    @partial(jax.jit, static_argnums=(0,))
+    def log(self, x: Array, y: Array) -> Array:
+        """Logarithmic map from manifold to tangent space with mathematically exact formula.
+
+        Implements the correct logarithmic map for the hyperboloid model with arbitrary curvature:
+        1. Project y onto tangent space: direction = y - (⟨x,y⟩_M / ⟨x,x⟩_M) * x
+        2. Scale by distance and normalize by Minkowski norm: log = d * direction / ||direction||_M
+        This ensures ||log_x(y)||_g = dist(x,y) exactly for all curvature values.
+
+        Args:
+            x: Base point on hyperboloid.
+            y: Target point on hyperboloid.
+
+        Returns:
+            Tangent vector at x pointing towards y.
+        """
+        # Early exit for identical points using efficient norm comparison
+        points_identical = jnp.linalg.norm(x - y, axis=-1) < 1e-10
+
+        # Compute hyperbolic distance using existing optimized method
+        minkowski_xy = self._minkowski_inner(x, y)
+        scaled_inner = -self.curvature * minkowski_xy
+        stable_inner = jnp.clip(scaled_inner, 1.0 + 1e-15, jnp.inf)
+        hyperbolic_distance = self._curvature_scale * jnp.arccosh(stable_inner)
+
+        # CORRECTED: Proper tangent space projection with curvature scaling
+        # For hyperboloid constraint ⟨x,x⟩_M = -1/c, the projection is:
+        # y - (⟨x,y⟩_M / ⟨x,x⟩_M) * x
+        constraint_value = self._constraint_value  # Pre-computed -1/curvature
+        direction = y - (minkowski_xy / constraint_value)[..., jnp.newaxis] * x
+
+        # CORRECTED: Use Minkowski norm for direction normalization (not Euclidean!)
+        # This is the key mathematical insight for exact consistency
+        direction_minkowski_norm_sq = -self._minkowski_inner(direction, direction)
+        direction_minkowski_norm = jnp.sqrt(jnp.maximum(direction_minkowski_norm_sq, 1e-30))
+
+        # Scale by distance and normalize by Minkowski norm
+        # a = distance / ||direction||_Minkowski ensures ||log||_g = distance exactly
+        scaling_factor = hyperbolic_distance / jnp.maximum(direction_minkowski_norm, 1e-15)
+        log_result = scaling_factor[..., jnp.newaxis] * direction
+
+        # JAX-native conditional avoiding control flow in compiled code
+        zero_vector = jnp.zeros_like(x)
+        return jnp.where(points_identical[..., jnp.newaxis], zero_vector, log_result)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def inner(self, x: Array, u: Array, v: Array) -> Array:
+        """Riemannian inner product on tangent space with optimal memory access patterns.
+
+        The Riemannian metric is the restriction of the Minkowski bilinear form to tangent spaces.
+        For tangent vectors u,v in hyperbolic space: ⟨u,v⟩_g = -B(u,v)
+        where B is the Minkowski bilinear form. This ensures positive definiteness and
+        curvature-independent scaling for mathematical consistency.
+
+        Args:
+            x: Base point on hyperboloid with shape (..., n+1).
+            u: First tangent vector at x with shape (..., n+1).
+            v: Second tangent vector at x with shape (..., n+1).
+
+        Returns:
+            Inner product scalar with shape (...,).
+        """
+        # Correct Riemannian metric: negative of Minkowski inner product
+        # This ensures ||log_x(y)||_g = dist(x,y) for all curvature values
+        # Single function call minimizes overhead and memory allocations
+        return -self._minkowski_inner(u, v)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def dist(self, x: Array, y: Array) -> Array:
+        """Distance between two points on the hyperboloid with memory-optimized computation.
+
+        Production-grade hyperbolic distance using pre-computed curvature constants,
+        explicit type annotations, and single-pass vectorized operations for optimal JIT performance.
+
+        Args:
+            x: First point on hyperboloid with shape (..., n+1).
+            y: Second point on hyperboloid with shape (..., n+1).
+
+        Returns:
+            Hyperbolic distance between x and y with shape (...,).
+        """
+        # Single Minkowski inner product computation for efficiency
+        minkowski_xy = self._minkowski_inner(x, y)
+
+        # Vectorized point comparison avoiding expensive element-wise operations
+        points_identical = jnp.linalg.norm(x - y, axis=-1) < 1e-12
+
+        # Memory-efficient curvature scaling with numerical stability
+        # Use pre-computed constant to eliminate redundant arithmetic
+        scaled_inner = -self.curvature * minkowski_xy
+        stable_inner = jnp.clip(scaled_inner, 1.0 + 1e-15, jnp.inf)
+
+        # Pre-computed curvature scaling factor for optimal performance
+        distance_result = self._curvature_scale * jnp.arccosh(stable_inner)
+
+        # JAX-native conditional avoiding control flow in compiled code
+        return jnp.where(points_identical, 0.0, distance_result)
+
+    def retr(self, x: ManifoldPoint, v: TangentVector) -> ManifoldPoint:
+        """Retraction operation (approximate exponential map).
+
+        For the hyperboloid model, we use the exponential map as the retraction
+        since it has a simple closed form.
+
+        Args:
+            x: Base point on hyperboloid.
+            v: Tangent vector at x.
+
+        Returns:
+            Point on hyperboloid via retraction.
+        """
+        return self.exp(x, v)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def proj(self, x: Array, v: Array) -> Array:
+        """Project vector v onto tangent space at point x with optimal memory efficiency.
+
+        Production-optimized tangent space projection using explicit type annotations,
+        pre-computed constraint values, and memory-efficient vectorized operations.
+
+        Args:
+            x: Point on the manifold with shape (..., n+1).
+            v: Vector in ambient space to project with shape (..., n+1).
+
+        Returns:
+            Projection of v onto tangent space at x with shape (..., n+1).
+        """
+        # Memory-efficient computation using single Minkowski inner product calls
+        # Avoids redundant constraint value computations by using pre-computed constant
+        minkowski_xv = self._minkowski_inner(x, v)
+
+        # Use cached constraint value for optimal performance: B(x,x) = -1/curvature
+        # Single division operation with pre-computed constant
+        projection_coefficient = minkowski_xv / self._constraint_value
+
+        # Vectorized projection: v_tangent = v - (B(x,v) / B(x,x)) * x
+        # Single broadcast and subtraction minimizes memory allocations
+        return v - projection_coefficient[..., jnp.newaxis] * x
+
+    @partial(jax.jit, static_argnums=(0,))
+    def proj_to_manifold(self, x: Array) -> Array:
+        """Project point to hyperboloid manifold with memory-optimized computation.
+
+        Production-grade projection using pre-computed constants, explicit type annotations,
+        and vectorized conditional logic for maximum JIT compilation efficiency.
+
+        Args:
+            x: Point in ambient R^(n+1) space with shape (..., n+1).
+
+        Returns:
+            Closest point on hyperboloid satisfying forward sheet condition with shape (..., n+1).
+        """
+        # Single Minkowski inner product computation for efficiency
+        minkowski_norm_sq = self._minkowski_inner(x, x)
+
+        # Use pre-computed constraint value to eliminate redundant arithmetic
+        constraint_val = self._constraint_value  # Pre-computed -1/curvature
+
+        # Vectorized conditional checks using efficient comparison operations
+        is_degenerate = jnp.abs(minkowski_norm_sq) < 1e-15
+        is_on_manifold = jnp.abs(minkowski_norm_sq - constraint_val) < self.atol
+        is_timelike = minkowski_norm_sq > 0
+
+        # Memory-efficient case handling with pre-allocated arrays
+        # Degenerate case: construct valid hyperboloid point with minimal allocations
+        sqrt_constraint = jnp.sqrt(jnp.abs(constraint_val))
+        # FIXED: Use batch-compatible indexing for JAX-native operations
+        degenerate_result = jnp.zeros_like(x).at[..., 0].set(sqrt_constraint)
+
+        # On-manifold case: ensure forward sheet condition (x₀ > 0)
+        manifold_result = jnp.where(x[..., 0:1] > 0, x, -x)
+
+        # Timelike projection: scale to satisfy constraint with robust division
+        abs_norm_sq = jnp.maximum(jnp.abs(minkowski_norm_sq), 1e-15)
+        scale_factor = jnp.sqrt(jnp.abs(constraint_val) / abs_norm_sq)
+        timelike_scaled = x * scale_factor[..., jnp.newaxis]
+        timelike_result = jnp.where(timelike_scaled[..., 0:1] > 0, timelike_scaled, -timelike_scaled)
+
+        # Spacelike projection: reconstruct with optimal time component
+        spatial_norm_sq = jnp.sum(x[..., 1:] ** 2, axis=-1, keepdims=True)
+        new_time = jnp.sqrt(spatial_norm_sq + jnp.abs(constraint_val))
+        spacelike_result = jnp.concatenate([new_time, x[..., 1:]], axis=-1)
+
+        # Vectorized conditional chain optimized for JIT compilation efficiency
+        # Single-pass evaluation minimizes branching in compiled code
+        normal_result = jnp.where(is_timelike[..., jnp.newaxis], timelike_result, spacelike_result)
+        manifold_or_normal = jnp.where(is_on_manifold[..., jnp.newaxis], manifold_result, normal_result)
+        final_result = jnp.where(is_degenerate[..., jnp.newaxis], degenerate_result, manifold_or_normal)
+
+        return final_result
+
+    @partial(jax.jit, static_argnums=(0,))
+    def transp(self, x: Array, y: Array, v: Array) -> Array:
+        """Parallel transport tangent vector v from x to y along geodesic with optimal efficiency.
+
+        Production-optimized parallel transport using explicit type annotations,
+        memory-efficient vectorized operations, and single-pass computations for maximum JIT performance.
+
+        Args:
+            x: Source point on hyperboloid with shape (..., n+1).
+            y: Target point on hyperboloid with shape (..., n+1).
+            v: Tangent vector at x to be transported with shape (..., n+1).
+
+        Returns:
+            Parallel transported vector at y with shape (..., n+1).
+        """
+        # Early exit optimization for identical points using efficient norm comparison
+        points_identical = jnp.linalg.norm(x - y, axis=-1) < 1e-12
+
+        # Single-pass computation of geodesic direction and transport components
+        # Minimize function calls and intermediate memory allocations
+        log_xy = self.log(x, y)
+        log_norm_squared = self.inner(x, log_xy, log_xy)
+        v_parallel_component = self.inner(x, v, log_xy)
+
+        # Robust geodesic validity check with numerical tolerance
+        geodesic_nonzero = log_norm_squared > 1e-12
+
+        # Memory-efficient coefficient computation with safe division
+        parallel_coefficient = jnp.where(geodesic_nonzero, v_parallel_component / log_norm_squared, 0.0)
+
+        # Single logarithmic map computation for reverse direction
+        log_yx = self.log(y, x)
+
+        # Vectorized parallel transport decomposition in single pass
+        # Split into orthogonal and parallel components for transport
+        orthogonal_component = v - parallel_coefficient[..., jnp.newaxis] * log_xy
+        parallel_transform = parallel_coefficient[..., jnp.newaxis] * log_yx
+
+        # Combine components with single addition operation
+        transported_result = orthogonal_component + parallel_transform
+
+        # Apply validity conditions using JAX-native conditionals for optimal compilation
+        # Handle both geodesic validity and point identity in single evaluation chain
+        valid_transport = jnp.where(geodesic_nonzero[..., jnp.newaxis], transported_result, v)
+        final_result = jnp.where(points_identical[..., jnp.newaxis], v, valid_transport)
+
+        return final_result
+
+    # ========================================================================================
+    # JAX VMAP BATCH OPERATIONS - HIGH PRIORITY OPTIMIZATION
+    # ========================================================================================
+
+    @partial(jax.jit, static_argnums=(0,))
+    def exp_batch(self, x_batch: ManifoldPoint, v_batch: TangentVector) -> ManifoldPoint:
+        """Vectorized exponential map for batch operations.
+
+        Efficiently processes batched inputs using JAX vmap transformation.
+        Optimized for production workloads with large batch sizes.
+
+        Args:
+            x_batch: Batch of base points on hyperboloid (batch_size, dim+1).
+            v_batch: Batch of tangent vectors at x_batch (batch_size, dim+1).
+
+        Returns:
+            Batch of points on hyperboloid reached by geodesic flow.
+        """
+        return jax.vmap(self.exp, in_axes=(0, 0))(x_batch, v_batch)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def log_batch(self, x_batch: ManifoldPoint, y_batch: ManifoldPoint) -> TangentVector:
+        """Vectorized logarithmic map for batch operations.
+
+        Efficiently computes batch of tangent vectors using JAX vmap transformation.
+        Essential for optimization algorithms processing multiple points simultaneously.
+
+        Args:
+            x_batch: Batch of base points on hyperboloid (batch_size, dim+1).
+            y_batch: Batch of target points on hyperboloid (batch_size, dim+1).
+
+        Returns:
+            Batch of tangent vectors at x_batch pointing towards y_batch.
+        """
+        return jax.vmap(self.log, in_axes=(0, 0))(x_batch, y_batch)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def dist_batch(self, x_batch: ManifoldPoint, y_batch: ManifoldPoint) -> Array:
+        """Vectorized distance computation for batch operations.
+
+        Computes distances between corresponding pairs in batched inputs.
+        Leverages cached curvature properties for maximum efficiency.
+
+        Args:
+            x_batch: Batch of first points on hyperboloid (batch_size, dim+1).
+            y_batch: Batch of second points on hyperboloid (batch_size, dim+1).
+
+        Returns:
+            Batch of hyperbolic distances (batch_size,).
+        """
+        return jax.vmap(self.dist, in_axes=(0, 0))(x_batch, y_batch)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def inner_batch(self, x_batch: ManifoldPoint, v_batch: TangentVector, w_batch: TangentVector) -> Array:
+        """Vectorized inner product computation for batch operations.
+
+        Computes Lorentzian inner products for batched tangent vectors.
+        Critical for batch gradient computations in optimization.
+
+        Args:
+            x_batch: Batch of base points on hyperboloid (batch_size, dim+1).
+            v_batch: Batch of first tangent vectors (batch_size, dim+1).
+            w_batch: Batch of second tangent vectors (batch_size, dim+1).
+
+        Returns:
+            Batch of inner products (batch_size,).
+        """
+        return jax.vmap(self.inner, in_axes=(0, 0, 0))(x_batch, v_batch, w_batch)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def proj_batch(self, x_batch: ManifoldPoint, v_batch: TangentVector) -> TangentVector:
+        """Vectorized projection to tangent space for batch operations.
+
+        Projects batched ambient vectors to corresponding tangent spaces.
+        Essential for constrained optimization on hyperbolic manifolds.
+
+        Args:
+            x_batch: Batch of base points on hyperboloid (batch_size, dim+1).
+            v_batch: Batch of ambient vectors (batch_size, dim+1).
+
+        Returns:
+            Batch of projected tangent vectors.
+        """
+        return jax.vmap(self.proj, in_axes=(0, 0))(x_batch, v_batch)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def transp_batch(self, x_batch: ManifoldPoint, y_batch: ManifoldPoint, v_batch: TangentVector) -> TangentVector:
+        """Vectorized parallel transport for batch operations.
+
+        Efficiently transports batched tangent vectors between corresponding points.
+        Fundamental for parallel optimization across hyperbolic manifold batches.
+
+        Args:
+            x_batch: Batch of source points on hyperboloid (batch_size, dim+1).
+            y_batch: Batch of target points on hyperboloid (batch_size, dim+1).
+            v_batch: Batch of tangent vectors at x_batch (batch_size, dim+1).
+
+        Returns:
+            Batch of transported tangent vectors at y_batch.
+        """
+        return jax.vmap(self.transp, in_axes=(0, 0, 0))(x_batch, y_batch, v_batch)
+
+    def __repr__(self) -> str:
+        """Return string representation of the Lorentz manifold."""
+        return f"Lorentz(dim={self._dimension}, c={self.curvature})"

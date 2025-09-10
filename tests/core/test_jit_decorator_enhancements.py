@@ -44,7 +44,7 @@ class TestAutoStaticDetection:
         assert jnp.allclose(result, 0.1)
 
         # Verify that the function was compiled with correct static args
-        assert hasattr(test_function, '_static_args')
+        assert hasattr(test_function, "_static_args")
         assert test_function._static_args == (1, 2)
 
     def test_auto_static_detection_with_no_scalars(self):
@@ -67,13 +67,7 @@ class TestAutoStaticDetection:
 
         @auto_static_detection
         @jit_optimized()
-        def test_function(
-            x: jax.Array,
-            n: int,
-            alpha: float,
-            y: jax.Array,
-            flag: bool
-        ) -> jax.Array:
+        def test_function(x: jax.Array, n: int, alpha: float, y: jax.Array, flag: bool) -> jax.Array:
             # Since n and alpha are static, we can use them directly in conditional branches
             # by capturing them in closures rather than passing as arguments
             def true_branch():
@@ -186,9 +180,14 @@ class TestEnhancedJITOptimizer:
 
         optimizer = JITOptimizer(cache_size=2)
 
-        def func1(x): return x + 1
-        def func2(x): return x - 1
-        def func3(x): return x * 2
+        def func1(x):
+            return x + 1
+
+        def func2(x):
+            return x - 1
+
+        def func3(x):
+            return x * 2
 
         # Fill cache
         optimizer.compile(func1)
@@ -201,8 +200,8 @@ class TestEnhancedJITOptimizer:
 
         # func1 should be evicted (LRU)
         cache_keys = list(optimizer._cache.keys())
-        assert any('func2' in key[0] for key in cache_keys)
-        assert any('func3' in key[0] for key in cache_keys)
+        assert any("func2" in key[0] for key in cache_keys)
+        assert any("func3" in key[0] for key in cache_keys)
 
     def test_conditional_branching_integration(self):
         """Test integration of conditional branching with JIT optimization."""
@@ -241,10 +240,12 @@ class TestJITCacheVerification:
         clear_jit_cache()  # Start with clean cache
 
         @jit_optimized()
-        def test_func1(x): return x + 1
+        def test_func1(x):
+            return x + 1
 
         @jit_optimized(static_args=(1,))
-        def test_func2(x, n): return x[:n]
+        def test_func2(x, n):
+            return x[:n]
 
         # Initially empty
         info = get_cache_info()
@@ -268,7 +269,8 @@ class TestJITCacheVerification:
         """Test that cache clearing works correctly."""
 
         @jit_optimized()
-        def test_func(x): return x * 2
+        def test_func(x):
+            return x * 2
 
         # Populate cache
         test_func(jnp.ones(3))
@@ -294,6 +296,7 @@ class TestJITCacheVerification:
 
         # First call (compilation + execution)
         import time
+
         start = time.time()
         result1 = expensive_computation(x)
         first_call_time = time.time() - start

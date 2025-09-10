@@ -52,12 +52,7 @@ class TestManifoldErrorHierarchy:
 
     def test_convergence_error_with_iterations(self):
         """Test ConvergenceError with iteration information."""
-        error = ConvergenceError(
-            "Algorithm failed to converge",
-            max_iterations=100,
-            final_error=1e-3,
-            tolerance=1e-6
-        )
+        error = ConvergenceError("Algorithm failed to converge", max_iterations=100, final_error=1e-3, tolerance=1e-6)
         assert isinstance(error, ManifoldError)
         assert error.max_iterations == 100
         assert error.final_error == 1e-3
@@ -66,10 +61,7 @@ class TestManifoldErrorHierarchy:
     def test_numerical_stability_error_with_condition_number(self):
         """Test NumericalStabilityError with numerical diagnostics."""
         error = NumericalStabilityError(
-            "Matrix is ill-conditioned",
-            condition_number=1e12,
-            matrix_norm=1e8,
-            recommended_action="Use regularization"
+            "Matrix is ill-conditioned", condition_number=1e12, matrix_norm=1e8, recommended_action="Use regularization"
         )
         assert isinstance(error, ManifoldError)
         assert error.condition_number == 1e12
@@ -80,10 +72,7 @@ class TestManifoldErrorHierarchy:
         """Test InvalidPointError with constraint violation details."""
         point = jnp.array([[1.0, 0.5], [0.5, 2.0]])
         error = InvalidPointError(
-            "Point not on manifold",
-            point=point,
-            violated_constraint="positive_definite",
-            constraint_value=-0.1
+            "Point not on manifold", point=point, violated_constraint="positive_definite", constraint_value=-0.1
         )
         assert isinstance(error, ManifoldError)
         assert jnp.allclose(error.point, point)
@@ -98,7 +87,7 @@ class TestManifoldErrorHierarchy:
             "Tangent vector not in tangent space",
             tangent_vector=tangent,
             base_point=base_point,
-            orthogonality_error=0.5
+            orthogonality_error=0.5,
         )
         assert isinstance(error, ManifoldError)
         assert jnp.allclose(error.tangent_vector, tangent)
@@ -111,7 +100,7 @@ class TestManifoldErrorHierarchy:
             "Orthogonality constraint violated",
             constraint_name="orthogonality",
             violation_magnitude=1e-10,
-            tolerance=1e-12
+            tolerance=1e-12,
         )
         assert isinstance(error, ManifoldError)
         assert error.constraint_name == "orthogonality"
@@ -121,11 +110,7 @@ class TestManifoldErrorHierarchy:
     def test_geometric_error_with_operation_context(self):
         """Test GeometricError with operation context."""
         error = GeometricError(
-            "Exponential map failed",
-            operation="exp_map",
-            manifold_type="Grassmann",
-            step_size=0.1,
-            norm_tangent=10.0
+            "Exponential map failed", operation="exp_map", manifold_type="Grassmann", step_size=0.1, norm_tangent=10.0
         )
         assert isinstance(error, ManifoldError)
         assert error.operation == "exp_map"
@@ -256,7 +241,7 @@ class TestEnhancedTypeSystem:
         arr = jnp.array([1.0, 2.0, 3.0])
         result = ensure_array_dtype(arr, jnp.complex64)
         assert result.dtype == jnp.complex64
-        assert jnp.allclose(result, jnp.array([1.0+0j, 2.0+0j, 3.0+0j]))
+        assert jnp.allclose(result, jnp.array([1.0 + 0j, 2.0 + 0j, 3.0 + 0j]))
 
 
 class TestIntegrationWithExistingCode:

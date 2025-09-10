@@ -27,7 +27,7 @@ class GrassmannComplexityBenchmark:
         batch_sizes: List[int],
         operation_name: str,
         num_trials: int = 5,
-        warmup_trials: int = 2
+        warmup_trials: int = 2,
     ) -> Dict[str, Any]:
         """Measure computational scaling for a specific operation.
 
@@ -42,11 +42,11 @@ class GrassmannComplexityBenchmark:
             Dictionary containing timing and scaling results
         """
         results = {
-            'dimensions': dimensions,
-            'batch_sizes': batch_sizes,
-            'operation': operation_name,
-            'timings': {},
-            'scaling_analysis': {}
+            "dimensions": dimensions,
+            "batch_sizes": batch_sizes,
+            "operation": operation_name,
+            "timings": {},
+            "scaling_analysis": {},
         }
 
         key = jax.random.PRNGKey(42)
@@ -55,22 +55,22 @@ class GrassmannComplexityBenchmark:
             manifold = Grassmann(n, p)
             theoretical_complexity = n * p * p  # O(np²)
 
-            results['timings'][(n, p)] = {}
+            results["timings"][(n, p)] = {}
 
             for batch_size in batch_sizes:
                 # Generate test data
                 keys = jax.random.split(key, batch_size)
                 x_batch = jax.vmap(manifold.random_point)(keys)
 
-                if operation_name in ['proj', 'exp', 'retr', 'transp']:
+                if operation_name in ["proj", "exp", "retr", "transp"]:
                     v_keys = jax.random.split(jax.random.PRNGKey(123), batch_size)
                     v_batch = jax.vmap(manifold.random_tangent)(v_keys, x_batch)
                     test_args = (x_batch, v_batch)
-                elif operation_name in ['log', 'dist']:
+                elif operation_name in ["log", "dist"]:
                     y_keys = jax.random.split(jax.random.PRNGKey(124), batch_size)
                     y_batch = jax.vmap(manifold.random_point)(y_keys)
                     test_args = (x_batch, y_batch)
-                elif operation_name == 'inner':
+                elif operation_name == "inner":
                     v_keys = jax.random.split(jax.random.PRNGKey(125), batch_size)
                     v_batch = jax.vmap(manifold.random_tangent)(v_keys, x_batch)
                     u_keys = jax.random.split(jax.random.PRNGKey(126), batch_size)
@@ -80,7 +80,7 @@ class GrassmannComplexityBenchmark:
                     raise ValueError(f"Unknown operation: {operation_name}")
 
                 # Get the batch operation function
-                batch_func = getattr(manifold, f'batch_{operation_name}')
+                batch_func = getattr(manifold, f"batch_{operation_name}")
                 jit_func = jax.jit(batch_func)
 
                 # Warmup trials
@@ -97,28 +97,24 @@ class GrassmannComplexityBenchmark:
                     trial_times.append(end_time - start_time)
 
                 # Store timing statistics
-                results['timings'][(n, p)][batch_size] = {
-                    'mean_time': np.mean(trial_times),
-                    'std_time': np.std(trial_times),
-                    'min_time': np.min(trial_times),
-                    'max_time': np.max(trial_times),
-                    'theoretical_complexity': theoretical_complexity,
-                    'time_per_complexity': np.mean(trial_times) / theoretical_complexity,
-                    'time_per_batch_element': np.mean(trial_times) / batch_size
+                results["timings"][(n, p)][batch_size] = {
+                    "mean_time": np.mean(trial_times),
+                    "std_time": np.std(trial_times),
+                    "min_time": np.min(trial_times),
+                    "max_time": np.max(trial_times),
+                    "theoretical_complexity": theoretical_complexity,
+                    "time_per_complexity": np.mean(trial_times) / theoretical_complexity,
+                    "time_per_batch_element": np.mean(trial_times) / batch_size,
                 }
 
         # Analyze scaling behavior
-        results['scaling_analysis'] = self._analyze_scaling_behavior(results['timings'])
+        results["scaling_analysis"] = self._analyze_scaling_behavior(results["timings"])
 
         return results
 
     def _analyze_scaling_behavior(self, timings: Dict) -> Dict[str, Any]:
         """Analyze computational scaling behavior from timing results."""
-        analysis = {
-            'complexity_scaling': {},
-            'batch_scaling': {},
-            'efficiency_metrics': {}
-        }
+        analysis = {"complexity_scaling": {}, "batch_scaling": {}, "efficiency_metrics": {}}
 
         # Analyze complexity scaling (fixing batch size, varying dimensions)
         batch_sizes = set()
@@ -129,44 +125,44 @@ class GrassmannComplexityBenchmark:
             complexity_times = []
             complexities = []
 
-            for (n, p) in sorted(timings.keys()):
+            for n, p in sorted(timings.keys()):
                 if batch_size in timings[(n, p)]:
                     timing_data = timings[(n, p)][batch_size]
-                    complexities.append(timing_data['theoretical_complexity'])
-                    complexity_times.append(timing_data['mean_time'])
+                    complexities.append(timing_data["theoretical_complexity"])
+                    complexity_times.append(timing_data["mean_time"])
 
             if len(complexities) > 1:
                 # Fit linear relationship: time ~ complexity
                 coeffs = np.polyfit(complexities, complexity_times, 1)
                 correlation = np.corrcoef(complexities, complexity_times)[0, 1]
 
-                analysis['complexity_scaling'][batch_size] = {
-                    'slope': coeffs[0],
-                    'intercept': coeffs[1],
-                    'correlation': correlation,
-                    'r_squared': correlation ** 2
+                analysis["complexity_scaling"][batch_size] = {
+                    "slope": coeffs[0],
+                    "intercept": coeffs[1],
+                    "correlation": correlation,
+                    "r_squared": correlation**2,
                 }
 
         # Analyze batch scaling (fixing dimensions, varying batch size)
-        for (n, p) in sorted(timings.keys()):
+        for n, p in sorted(timings.keys()):
             batch_times = []
             batch_sizes_list = []
 
             for batch_size in sorted(timings[(n, p)].keys()):
                 timing_data = timings[(n, p)][batch_size]
                 batch_sizes_list.append(batch_size)
-                batch_times.append(timing_data['mean_time'])
+                batch_times.append(timing_data["mean_time"])
 
             if len(batch_sizes_list) > 1:
                 # Fit linear relationship: time ~ batch_size
                 coeffs = np.polyfit(batch_sizes_list, batch_times, 1)
                 correlation = np.corrcoef(batch_sizes_list, batch_times)[0, 1]
 
-                analysis['batch_scaling'][(n, p)] = {
-                    'slope': coeffs[0],
-                    'intercept': coeffs[1],
-                    'correlation': correlation,
-                    'r_squared': correlation ** 2
+                analysis["batch_scaling"][(n, p)] = {
+                    "slope": coeffs[0],
+                    "intercept": coeffs[1],
+                    "correlation": correlation,
+                    "r_squared": correlation**2,
                 }
 
         # Calculate efficiency metrics
@@ -176,22 +172,22 @@ class GrassmannComplexityBenchmark:
         for dim_key in timings:
             for batch_size in timings[dim_key]:
                 timing_data = timings[dim_key][batch_size]
-                all_time_per_complexity.append(timing_data['time_per_complexity'])
-                all_time_per_batch.append(timing_data['time_per_batch_element'])
+                all_time_per_complexity.append(timing_data["time_per_complexity"])
+                all_time_per_batch.append(timing_data["time_per_batch_element"])
 
-        analysis['efficiency_metrics'] = {
-            'mean_time_per_complexity': np.mean(all_time_per_complexity),
-            'std_time_per_complexity': np.std(all_time_per_complexity),
-            'mean_time_per_batch_element': np.mean(all_time_per_batch),
-            'std_time_per_batch_element': np.std(all_time_per_batch)
+        analysis["efficiency_metrics"] = {
+            "mean_time_per_complexity": np.mean(all_time_per_complexity),
+            "std_time_per_complexity": np.std(all_time_per_complexity),
+            "mean_time_per_batch_element": np.mean(all_time_per_batch),
+            "std_time_per_batch_element": np.std(all_time_per_batch),
         }
 
         return analysis
 
     def generate_complexity_report(self, results: Dict[str, Any]) -> str:
         """Generate a human-readable complexity analysis report."""
-        operation = results['operation']
-        scaling = results['scaling_analysis']
+        operation = results["operation"]
+        scaling = results["scaling_analysis"]
 
         report = [
             f"=== Grassmann Manifold Complexity Analysis: {operation.upper()} ===",
@@ -199,49 +195,52 @@ class GrassmannComplexityBenchmark:
             f"Tested batch sizes: {results['batch_sizes']}",
             "",
             "COMPLEXITY SCALING ANALYSIS (O(np²) verification):",
-            ""
+            "",
         ]
 
-        for batch_size, metrics in scaling['complexity_scaling'].items():
-            r_squared = metrics['r_squared']
-            correlation = metrics['correlation']
-            slope = metrics['slope']
+        for batch_size, metrics in scaling["complexity_scaling"].items():
+            r_squared = metrics["r_squared"]
+            correlation = metrics["correlation"]
+            slope = metrics["slope"]
 
-            report.extend([
-                f"  Batch size {batch_size}:",
-                f"    R² (linear fit): {r_squared:.4f}",
-                f"    Correlation: {correlation:.4f}",
-                f"    Scaling coefficient: {slope:.2e}",
-                f"    Interpretation: {'GOOD' if r_squared > 0.85 else 'POOR'} O(np²) scaling",
-                ""
-            ])
+            report.extend(
+                [
+                    f"  Batch size {batch_size}:",
+                    f"    R² (linear fit): {r_squared:.4f}",
+                    f"    Correlation: {correlation:.4f}",
+                    f"    Scaling coefficient: {slope:.2e}",
+                    f"    Interpretation: {'GOOD' if r_squared > 0.85 else 'POOR'} O(np²) scaling",
+                    "",
+                ]
+            )
 
-        report.extend([
-            "BATCH SCALING ANALYSIS (linear batch scaling verification):",
-            ""
-        ])
+        report.extend(["BATCH SCALING ANALYSIS (linear batch scaling verification):", ""])
 
-        for (n, p), metrics in scaling['batch_scaling'].items():
-            r_squared = metrics['r_squared']
-            correlation = metrics['correlation']
-            slope = metrics['slope']
+        for (n, p), metrics in scaling["batch_scaling"].items():
+            r_squared = metrics["r_squared"]
+            correlation = metrics["correlation"]
+            slope = metrics["slope"]
 
-            report.extend([
-                f"  Dimensions Gr({p},{n}):",
-                f"    R² (linear fit): {r_squared:.4f}",
-                f"    Correlation: {correlation:.4f}",
-                f"    Batch scaling coefficient: {slope:.2e}",
-                f"    Interpretation: {'GOOD' if r_squared > 0.90 else 'POOR'} linear batch scaling",
-                ""
-            ])
+            report.extend(
+                [
+                    f"  Dimensions Gr({p},{n}):",
+                    f"    R² (linear fit): {r_squared:.4f}",
+                    f"    Correlation: {correlation:.4f}",
+                    f"    Batch scaling coefficient: {slope:.2e}",
+                    f"    Interpretation: {'GOOD' if r_squared > 0.90 else 'POOR'} linear batch scaling",
+                    "",
+                ]
+            )
 
-        efficiency = scaling['efficiency_metrics']
-        report.extend([
-            "EFFICIENCY METRICS:",
-            f"  Mean time per complexity unit: {efficiency['mean_time_per_complexity']:.2e} ± {efficiency['std_time_per_complexity']:.2e}",
-            f"  Mean time per batch element: {efficiency['mean_time_per_batch_element']:.2e} ± {efficiency['std_time_per_batch_element']:.2e}",
-            ""
-        ])
+        efficiency = scaling["efficiency_metrics"]
+        report.extend(
+            [
+                "EFFICIENCY METRICS:",
+                f"  Mean time per complexity unit: {efficiency['mean_time_per_complexity']:.2e} ± {efficiency['std_time_per_complexity']:.2e}",
+                f"  Mean time per batch element: {efficiency['mean_time_per_batch_element']:.2e} ± {efficiency['std_time_per_batch_element']:.2e}",
+                "",
+            ]
+        )
 
         return "\n".join(report)
 
@@ -261,22 +260,24 @@ class TestGrassmannComplexityBenchmarks:
         results = self.benchmark.measure_operation_scaling(
             dimensions=self.test_dimensions,
             batch_sizes=self.test_batch_sizes,
-            operation_name='proj',
+            operation_name="proj",
             num_trials=3,
-            warmup_trials=1
+            warmup_trials=1,
         )
 
         # Verify reasonable scaling behavior
-        scaling = results['scaling_analysis']['complexity_scaling']
+        scaling = results["scaling_analysis"]["complexity_scaling"]
 
         for batch_size, metrics in scaling.items():
             # Should have strong correlation with O(np²) scaling
-            assert metrics['r_squared'] > 0.7, \
+            assert metrics["r_squared"] > 0.7, (
                 f"Poor O(np²) scaling for projection (batch {batch_size}): R² = {metrics['r_squared']:.3f}"
+            )
 
             # Slope should be positive (time increases with complexity)
-            assert metrics['slope'] > 0, \
+            assert metrics["slope"] > 0, (
                 f"Invalid scaling slope for projection (batch {batch_size}): {metrics['slope']:.2e}"
+            )
 
         # Print detailed report for analysis
         report = self.benchmark.generate_complexity_report(results)
@@ -288,22 +289,24 @@ class TestGrassmannComplexityBenchmarks:
         results = self.benchmark.measure_operation_scaling(
             dimensions=self.test_dimensions,
             batch_sizes=self.test_batch_sizes,
-            operation_name='exp',
+            operation_name="exp",
             num_trials=3,
-            warmup_trials=1
+            warmup_trials=1,
         )
 
         # Verify reasonable scaling behavior
-        scaling = results['scaling_analysis']['complexity_scaling']
+        scaling = results["scaling_analysis"]["complexity_scaling"]
 
         for batch_size, metrics in scaling.items():
             # Should have reasonable correlation with complexity scaling
-            assert metrics['r_squared'] > 0.6, \
+            assert metrics["r_squared"] > 0.6, (
                 f"Poor complexity scaling for exponential map (batch {batch_size}): R² = {metrics['r_squared']:.3f}"
+            )
 
             # Slope should be positive
-            assert metrics['slope'] > 0, \
+            assert metrics["slope"] > 0, (
                 f"Invalid scaling slope for exponential map (batch {batch_size}): {metrics['slope']:.2e}"
+            )
 
         # Print detailed report
         report = self.benchmark.generate_complexity_report(results)
@@ -315,22 +318,24 @@ class TestGrassmannComplexityBenchmarks:
         results = self.benchmark.measure_operation_scaling(
             dimensions=self.test_dimensions,
             batch_sizes=self.test_batch_sizes,
-            operation_name='log',
+            operation_name="log",
             num_trials=3,
-            warmup_trials=1
+            warmup_trials=1,
         )
 
         # Verify reasonable scaling behavior
-        scaling = results['scaling_analysis']['complexity_scaling']
+        scaling = results["scaling_analysis"]["complexity_scaling"]
 
         for batch_size, metrics in scaling.items():
             # Should have reasonable correlation with complexity scaling
-            assert metrics['r_squared'] > 0.5, \
+            assert metrics["r_squared"] > 0.5, (
                 f"Poor complexity scaling for logarithmic map (batch {batch_size}): R² = {metrics['r_squared']:.3f}"
+            )
 
             # Slope should be positive
-            assert metrics['slope'] > 0, \
+            assert metrics["slope"] > 0, (
                 f"Invalid scaling slope for logarithmic map (batch {batch_size}): {metrics['slope']:.2e}"
+            )
 
         # Print detailed report
         report = self.benchmark.generate_complexity_report(results)
@@ -358,13 +363,13 @@ class TestGrassmannComplexityBenchmarks:
         results = self.benchmark.measure_operation_scaling(
             dimensions=test_dims,
             batch_sizes=test_batches,
-            operation_name='proj',  # Use fastest operation for this test
+            operation_name="proj",  # Use fastest operation for this test
             num_trials=3,
-            warmup_trials=1
+            warmup_trials=1,
         )
 
         # Verify batch scaling behavior
-        batch_scaling = results['scaling_analysis']['batch_scaling']
+        batch_scaling = results["scaling_analysis"]["batch_scaling"]
 
         for (n, p), metrics in batch_scaling.items():
             # Focus on basic correctness rather than strict linear scaling requirements
@@ -376,13 +381,15 @@ class TestGrassmannComplexityBenchmarks:
             # Allow moderate negative correlations (indicates efficient batch processing)
             # Only reject extreme correlations that suggest system problems
             # JAX JIT systems can show strong negative correlations due to batching efficiency
-            assert metrics['correlation'] >= -0.85, \
+            assert metrics["correlation"] >= -0.85, (
                 f"Extreme negative correlation in batch scaling for Gr({p},{n}): r = {metrics['correlation']:.3f}"
+            )
 
             # Allow moderate negative slopes (larger batches can be more efficient per item)
             # Only reject extreme negative slopes that suggest measurement errors
-            assert metrics['slope'] >= -1e-4, \
+            assert metrics["slope"] >= -1e-4, (
                 f"Extreme negative batch scaling slope for Gr({p},{n}): {metrics['slope']:.2e}"
+            )
 
             # Note: We don't check intercept vs slope relationship as this depends on
             # system-specific overhead (JIT compilation, memory allocation, etc.)
@@ -450,8 +457,7 @@ class TestGrassmannComplexityBenchmarks:
         iqr = q75 - q25
         outlier_threshold = 1.5 * iqr
         filtered_times = times_array[
-            (times_array >= q25 - outlier_threshold) &
-            (times_array <= q75 + outlier_threshold)
+            (times_array >= q25 - outlier_threshold) & (times_array <= q75 + outlier_threshold)
         ]
 
         # Use median and MAD for more robust statistics
@@ -463,14 +469,20 @@ class TestGrassmannComplexityBenchmarks:
 
         # Should have reasonable variability for JIT systems (< 60% coefficient of variation)
         # Adjusted from 0.5 to 0.6 for more realistic expectations with small operations
-        assert cv_robust < 0.6, f"High timing variability: robust CV = {cv_robust:.3f} (MAD = {mad:.2e}, median = {median_time:.2e})"
+        assert cv_robust < 0.6, (
+            f"High timing variability: robust CV = {cv_robust:.3f} (MAD = {mad:.2e}, median = {median_time:.2e})"
+        )
 
         # Check that we have reasonable number of samples after filtering
-        assert len(filtered_times) >= 15, f"Too many outliers filtered: {len(filtered_times)} out of {len(times)} samples remaining"
+        assert len(filtered_times) >= 15, (
+            f"Too many outliers filtered: {len(filtered_times)} out of {len(times)} samples remaining"
+        )
 
         # All filtered times should be reasonable (within 10x median for CI environments)
         max_reasonable_time = median_time * 10  # Very generous outlier detection for CI
         outlier_count = np.sum(filtered_times > max_reasonable_time)
         # Allow small number of outliers in CI environments due to load variations
         max_allowed_outliers = max(2, len(filtered_times) // 10)  # Allow up to 10% or minimum 2 outliers
-        assert outlier_count <= max_allowed_outliers, f"Found {outlier_count} outliers (max allowed: {max_allowed_outliers})"
+        assert outlier_count <= max_allowed_outliers, (
+            f"Found {outlier_count} outliers (max allowed: {max_allowed_outliers})"
+        )

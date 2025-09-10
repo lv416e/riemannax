@@ -103,12 +103,20 @@ from .core.performance import PerformanceMonitor
 
 # Manifold implementations and factory functions
 from .manifolds import (
+    SE3,
     Grassmann,
+    Lorentz,
+    PoincareBall,
     SpecialOrthogonal,
     Sphere,
     Stiefel,
     SymmetricPositiveDefinite,
     create_grassmann,
+    create_lorentz,
+    create_poincare_ball,
+    create_poincare_ball_for_embeddings,
+    create_se3,
+    create_se3_for_robotics,
     create_so,
     create_spd,
     # Factory functions for dynamic dimensions
@@ -318,13 +326,19 @@ class manifolds:  # noqa: N801
     SO = SpecialOrthogonal  # Alias
     SymmetricPositiveDefinite = SymmetricPositiveDefinite
     SPD = SymmetricPositiveDefinite  # Alias
+    PoincareBall = PoincareBall
+    Lorentz = Lorentz
+    SE3 = SE3
 
 
 # Enhanced __all__ list including JIT functionality and factory functions
 __all__ = [
+    "SE3",
     "BatchJITOptimizer",
     "Grassmann",
+    "Lorentz",
     "OptimizeResult",
+    "PoincareBall",
     "RiemannianProblem",
     "SpecialOrthogonal",
     "Sphere",
@@ -337,6 +351,11 @@ __all__ = [
     "clear_jit_cache",
     "clear_performance_stats",
     "create_grassmann",
+    "create_lorentz",
+    "create_poincare_ball",
+    "create_poincare_ball_for_embeddings",
+    "create_se3",
+    "create_se3_for_robotics",
     "create_so",
     "create_spd",
     "create_sphere",

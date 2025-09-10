@@ -1,8 +1,18 @@
 """Riemannian manifold implementations for optimization."""
 
 from .base import DimensionError, Manifold, ManifoldError
+from .factory import (
+    create_lorentz,
+    create_poincare_ball,
+    create_poincare_ball_for_embeddings,
+    create_se3,
+    create_se3_for_robotics,
+)
 from .grassmann import Grassmann
+from .lorentz import Lorentz
+from .poincare_ball import PoincareBall
 from .product import ProductManifold
+from .se3 import SE3
 from .so import SpecialOrthogonal
 from .spd import SymmetricPositiveDefinite
 from .sphere import Sphere
@@ -155,18 +165,28 @@ def create_spd(n: int) -> SymmetricPositiveDefinite:
 
 
 __all__ = [
+    "SE3",
     # Core classes and exceptions
     "DimensionError",
+    # Manifold classes
     "Grassmann",
+    "Lorentz",
     "Manifold",
     "ManifoldError",
+    "PoincareBall",
     "ProductManifold",
     "SpecialOrthogonal",
     "Sphere",
     "Stiefel",
     "SymmetricPositiveDefinite",
-    # Factory functions
+    # Factory functions - existing
     "create_grassmann",
+    # Factory functions - new hyperbolic and SE(3)
+    "create_lorentz",
+    "create_poincare_ball",
+    "create_poincare_ball_for_embeddings",
+    "create_se3",
+    "create_se3_for_robotics",
     "create_so",
     "create_spd",
     "create_sphere",

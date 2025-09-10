@@ -52,14 +52,14 @@ class TestProductManifoldBasicStructure:
     def test_product_manifold_class_exists(self):
         """Test that ProductManifold class exists and can be instantiated."""
         # This will fail initially - we haven't created the class yet
-        assert hasattr(ProductManifold, '__init__')
+        assert hasattr(ProductManifold, "__init__")
         assert callable(ProductManifold)
 
     def test_product_manifold_init_accepts_tuple_of_manifolds(self):
         """Test that ProductManifold.__init__ accepts Tuple[BaseManifold, ...]."""
         # Should accept tuple of manifolds
         product = ProductManifold(manifolds=(self.sphere3, self.sphere2))
-        assert hasattr(product, 'manifolds')
+        assert hasattr(product, "manifolds")
         assert len(product.manifolds) == 2
         assert product.manifolds[0] is self.sphere3
         assert product.manifolds[1] is self.sphere2
@@ -76,13 +76,13 @@ class TestProductManifoldBasicStructure:
 
     def test_split_point_method_exists(self):
         """Test that _split_point method exists."""
-        assert hasattr(self.two_spheres, '_split_point')
-        assert callable(getattr(self.two_spheres, '_split_point'))
+        assert hasattr(self.two_spheres, "_split_point")
+        assert callable(getattr(self.two_spheres, "_split_point"))
 
     def test_combine_points_method_exists(self):
         """Test that _combine_points method exists."""
-        assert hasattr(self.two_spheres, '_combine_points')
-        assert callable(getattr(self.two_spheres, '_combine_points'))
+        assert hasattr(self.two_spheres, "_combine_points")
+        assert callable(getattr(self.two_spheres, "_combine_points"))
 
     def test_split_point_basic_functionality(self):
         """Test basic _split_point functionality."""
@@ -147,10 +147,7 @@ class TestProductManifoldBasicStructure:
         key1, key2 = jr.split(self.key, 2)
 
         # Create random component points
-        components = (
-            self.sphere3.random_point(key1),
-            self.sphere2.random_point(key2)
-        )
+        components = (self.sphere3.random_point(key1), self.sphere2.random_point(key2))
 
         # combine -> split should return original
         product_point = self.two_spheres._combine_points(components)
@@ -163,6 +160,7 @@ class TestProductManifoldBasicStructure:
     def test_manifold_inheritance(self):
         """Test that ProductManifold inherits from base Manifold class."""
         from riemannax.manifolds.base import Manifold
+
         assert isinstance(self.two_spheres, Manifold)
         assert isinstance(self.sphere_spd, Manifold)
 
@@ -250,28 +248,28 @@ class TestProductManifoldGeometricOperations:
 
     def test_exp_method_exists(self):
         """Test that exp method exists on ProductManifold."""
-        assert hasattr(self.product, 'exp')
-        assert callable(getattr(self.product, 'exp'))
+        assert hasattr(self.product, "exp")
+        assert callable(getattr(self.product, "exp"))
 
     def test_log_method_exists(self):
         """Test that log method exists on ProductManifold."""
-        assert hasattr(self.product, 'log')
-        assert callable(getattr(self.product, 'log'))
+        assert hasattr(self.product, "log")
+        assert callable(getattr(self.product, "log"))
 
     def test_inner_method_exists(self):
         """Test that inner method exists on ProductManifold."""
-        assert hasattr(self.product, 'inner')
-        assert callable(getattr(self.product, 'inner'))
+        assert hasattr(self.product, "inner")
+        assert callable(getattr(self.product, "inner"))
 
     def test_proj_method_exists(self):
         """Test that proj method exists on ProductManifold."""
-        assert hasattr(self.product, 'proj')
-        assert callable(getattr(self.product, 'proj'))
+        assert hasattr(self.product, "proj")
+        assert callable(getattr(self.product, "proj"))
 
     def test_dist_method_exists(self):
         """Test that dist method exists on ProductManifold."""
-        assert hasattr(self.product, 'dist')
-        assert callable(getattr(self.product, 'dist'))
+        assert hasattr(self.product, "dist")
+        assert callable(getattr(self.product, "dist"))
 
     def test_exp_component_wise_functionality(self):
         """Test that exp applies component-wise exponential maps."""
@@ -508,7 +506,7 @@ class TestProductManifoldRandomSampling:
     def test_random_point_method_exists(self):
         """Test that random_point method exists on ProductManifold."""
         # This will fail initially - method doesn't exist yet
-        assert hasattr(self.two_spheres, 'random_point')
+        assert hasattr(self.two_spheres, "random_point")
         assert callable(self.two_spheres.random_point)
 
     def test_random_point_single_sample(self):
@@ -564,15 +562,19 @@ class TestProductManifoldRandomSampling:
         sphere_centered = sphere_flat - jnp.mean(sphere_flat, axis=0)
         spd_centered = spd_flat - jnp.mean(spd_flat, axis=0)
 
-        cross_corr = jnp.abs(jnp.corrcoef(
-            jnp.concatenate([sphere_centered, spd_centered], axis=1)
-        )[:sphere_centered.shape[1], sphere_centered.shape[1]:])
+        cross_corr = jnp.abs(
+            jnp.corrcoef(jnp.concatenate([sphere_centered, spd_centered], axis=1))[
+                : sphere_centered.shape[1], sphere_centered.shape[1] :
+            ]
+        )
 
         # Cross-correlation should be small for independent sampling
         # Note: This is a statistical test and can be somewhat flaky
         # We test that most correlations are reasonably small, but allow some higher ones
         reasonable_correlations = jnp.mean(cross_corr < 0.7)
-        assert reasonable_correlations > 0.8, f"Most component correlations should be small, got {reasonable_correlations:.2f} < 0.8"
+        assert reasonable_correlations > 0.8, (
+            f"Most component correlations should be small, got {reasonable_correlations:.2f} < 0.8"
+        )
 
     def test_random_point_batch_generation(self):
         """Test random_point method with batch_size parameter."""
@@ -597,7 +599,7 @@ class TestProductManifoldRandomSampling:
         test_cases = [
             (self.two_spheres, "Two spheres of different dimensions"),
             (self.sphere_spd, "Sphere and SPD manifold"),
-            (self.mixed_dims, "Three manifolds: Sphere(3) x SPD(2) x Sphere(2)")
+            (self.mixed_dims, "Three manifolds: Sphere(3) x SPD(2) x Sphere(2)"),
         ]
 
         for product_manifold, description in test_cases:
@@ -655,7 +657,7 @@ class TestProductManifoldRandomSampling:
     def test_random_tangent_method_exists(self):
         """Test that random_tangent method exists for ProductManifold."""
         # This will fail initially - method doesn't exist yet
-        assert hasattr(self.two_spheres, 'random_tangent')
+        assert hasattr(self.two_spheres, "random_tangent")
         assert callable(self.two_spheres.random_tangent)
 
     def test_random_tangent_single_sample(self):

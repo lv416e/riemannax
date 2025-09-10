@@ -24,8 +24,8 @@ class TestSPDSchildsLadder:
 
     def test_schilds_ladder_method_exists(self):
         """Test that _schilds_ladder method exists on SPD manifold."""
-        assert hasattr(self.manifold, '_schilds_ladder')
-        assert callable(getattr(self.manifold, '_schilds_ladder'))
+        assert hasattr(self.manifold, "_schilds_ladder")
+        assert callable(getattr(self.manifold, "_schilds_ladder"))
 
     def test_schilds_ladder_basic_functionality(self):
         """Test basic Schild's ladder parallel transport functionality."""
@@ -199,8 +199,8 @@ class TestSPDLargeScaleOptimization:
 
     def test_algorithm_selection_method_exists(self):
         """Test that _select_transport_algorithm method exists."""
-        assert hasattr(self.manifold, '_select_transport_algorithm')
-        assert callable(getattr(self.manifold, '_select_transport_algorithm'))
+        assert hasattr(self.manifold, "_select_transport_algorithm")
+        assert callable(getattr(self.manifold, "_select_transport_algorithm"))
 
     def test_algorithm_selection_small_matrices(self):
         """Test that small matrices use pole ladder algorithm."""
@@ -247,8 +247,8 @@ class TestSPDLargeScaleOptimization:
 
     def test_adaptive_parallel_transport_method_exists(self):
         """Test that adaptive_parallel_transport method exists."""
-        assert hasattr(self.manifold, 'adaptive_parallel_transport')
-        assert callable(getattr(self.manifold, 'adaptive_parallel_transport'))
+        assert hasattr(self.manifold, "adaptive_parallel_transport")
+        assert callable(getattr(self.manifold, "adaptive_parallel_transport"))
 
     def test_adaptive_parallel_transport_functionality(self):
         """Test adaptive parallel transport automatically selects best algorithm."""

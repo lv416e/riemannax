@@ -179,9 +179,9 @@ class Sphere(Manifold):
         Returns:
             The point on the sphere reached by the retraction.
         """
-        # Simple retraction by normalization
+        # Simple retraction by normalization - JAX-native batch processing
         y = x + v
-        return jnp.asarray(y / jnp.linalg.norm(y))
+        return jnp.asarray(y / jnp.linalg.norm(y, axis=-1, keepdims=True))
 
     @jit_optimized(static_args=(0,))
     def transp(self, x: Array, y: Array, v: Array) -> Array:
