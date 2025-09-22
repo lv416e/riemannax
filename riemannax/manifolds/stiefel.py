@@ -227,7 +227,7 @@ class Stiefel(Manifold):
 
         def different_points_case() -> Array:
             # Compute principal angles
-            u, s, _ = jnp.linalg.svd(x.T @ y, full_matrices=False)
+            _, s, _ = jnp.linalg.svd(x.T @ y, full_matrices=False)
             cos_theta = jnp.clip(s, -1.0, 1.0)
 
             # Avoid numerical issues with arccos near 1
@@ -457,7 +457,7 @@ class Stiefel(Manifold):
         """
         # Compute principal angles via SVD
         XTY = jnp.matmul(x.T, y)
-        U, s, Vt = jnp.linalg.svd(XTY, full_matrices=False)
+        _, s, _ = jnp.linalg.svd(XTY, full_matrices=False)
 
         # Clamp singular values to valid range for arccos
         s_clipped = jnp.clip(s, -1.0 + NumericalConstants.EPSILON, 1.0 - NumericalConstants.EPSILON)

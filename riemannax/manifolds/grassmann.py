@@ -121,7 +121,7 @@ class Grassmann(QuotientManifold):
         """
         # Generate random p x p matrix and orthogonalize
         gaussian = jr.normal(key, (self.p, self.p))
-        q, r = jnp.linalg.qr(gaussian)
+        q, _ = jnp.linalg.qr(gaussian)
 
         # Ensure det(Q) = +1 by correcting signs if needed
         # This generates elements from SO(p), but O(p) includes reflections too
@@ -154,7 +154,7 @@ class Grassmann(QuotientManifold):
         # Compute X^T @ Y and check if it has full rank with singular values close to 1
 
         # Compute SVD of X^T @ Y
-        u, s, vh = jnp.linalg.svd(x.T @ y, full_matrices=False)
+        _, s, _ = jnp.linalg.svd(x.T @ y, full_matrices=False)
 
         # All singular values should be close to 1 for equivalent subspaces
         # (since both X and Y have orthonormal columns)
@@ -268,7 +268,7 @@ class Grassmann(QuotientManifold):
     def dist(self, x: Array, y: Array) -> Array:
         """Geodesic distance using principal angles."""
         # Compute principal angles via SVD
-        u, s, _ = jnp.linalg.svd(x.T @ y, full_matrices=False)
+        _, s, _ = jnp.linalg.svd(x.T @ y, full_matrices=False)
         cos_theta = jnp.clip(s, -1.0 + NumericalConstants.EPSILON, 1.0 - NumericalConstants.EPSILON)
 
         # Compute principal angles
@@ -546,7 +546,7 @@ class Grassmann(QuotientManifold):
         """
         # Compute principal angles via SVD - more robust than Frobenius norm check
         XTY = jnp.matmul(x.T, y)
-        U, s, Vt = jnp.linalg.svd(XTY, full_matrices=False)
+        _, s, _ = jnp.linalg.svd(XTY, full_matrices=False)
 
         # Clamp singular values to valid range for arccos
         s_clipped = jnp.clip(s, -1.0 + NumericalConstants.EPSILON, 1.0 - NumericalConstants.EPSILON)
