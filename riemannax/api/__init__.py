@@ -4,6 +4,7 @@ This module provides scikit-learn compatible interfaces, automatic manifold dete
 and practical problem templates for Riemannian optimization.
 """
 
+from .detection import ManifoldDetectionResult, ManifoldDetector, ManifoldType
 from .errors import (
     ConstraintViolationError,
     ManifoldDetectionError,
@@ -17,6 +18,9 @@ __all__ = [
     "ConstraintViolationError",
     "ConvergenceStatus",
     "ManifoldDetectionError",
+    "ManifoldDetectionResult",
+    "ManifoldDetector",
+    "ManifoldType",
     "OptimizationResult",
     "ParameterValidationError",
     "RiemannAXAPIError",
