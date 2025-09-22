@@ -382,8 +382,9 @@ class TestGrassmannComplexityBenchmarks:
             # Only reject impossible values that suggest system problems
             # JAX JIT systems can show very strong negative correlations due to batching efficiency
             # Set threshold to -1.0 to only catch impossible correlation values
-            assert metrics["correlation"] >= -1.0, (
-                f"Invalid correlation in batch scaling for Gr({p},{n}): r = {metrics['correlation']:.3f}"
+            corr = metrics["correlation"]
+            assert np.isfinite(corr) and corr >= -1.0, (
+                f"Invalid correlation in batch scaling for Gr({p},{n}): r = {corr:.3f}"
             )
 
             # Allow moderate negative slopes (larger batches can be more efficient per item)
@@ -391,14 +392,6 @@ class TestGrassmannComplexityBenchmarks:
             assert metrics["slope"] >= -1e-4, (
                 f"Extreme negative batch scaling slope for Gr({p},{n}): {metrics['slope']:.2e}"
             )
-
-            # Note: We don't check intercept vs slope relationship as this depends on
-            # system-specific overhead (JIT compilation, memory allocation, etc.)
-            # that naturally doesn't scale linearly with batch size
-
-            # Note: We don't check intercept vs slope relationship as this depends on
-            # system-specific overhead (JIT compilation, memory allocation, etc.)
-            # that naturally doesn't scale linearly with batch size
 
             # Note: We don't check intercept vs slope relationship as this depends on
             # system-specific overhead (JIT compilation, memory allocation, etc.)
