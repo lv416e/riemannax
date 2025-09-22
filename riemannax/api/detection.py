@@ -187,7 +187,7 @@ class ManifoldDetector:
     @staticmethod
     def _assess_stiefel_likelihood(x: Array, atol: float) -> float:
         """Assess likelihood that matrix has orthogonal columns."""
-        m, n = x.shape
+        _m, n = x.shape
 
         # Compute X^T X
         XTX = x.T @ x
