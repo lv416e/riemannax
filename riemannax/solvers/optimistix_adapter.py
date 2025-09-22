@@ -249,8 +249,8 @@ class ManifoldMinimizer(optx.AbstractMinimiser):
         # Final projection to ensure manifold constraints
         y_final_projected = self._ensure_on_manifold(y_processed)
 
-        # Return with proper types, cast result if needed
-        return y_final_projected, aux_processed, result
+        # Return with proper types, ensure result_processed is correct type
+        return y_final_projected, aux_processed, optx.RESULTS.promote(result_processed)
 
     def _ensure_on_manifold(self, point: Array) -> Array:
         """Ensure a point lies on the manifold.
