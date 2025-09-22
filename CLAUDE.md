@@ -15,7 +15,9 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 **Specs** (`.kiro/specs/`) - Formalize development process for individual features
 
 ### Active Specifications
-- Check `.kiro/specs/` for active specifications
+- `high-level-api-development` - Production-ready high-level API with scikit-learn style interface, practical problem templates, and ML library integration
+- `advanced-manifold-mathematics` - Advanced mathematical foundations for manifold operations
+- `hyperbolic-se3-manifolds` - Hyperbolic and SE(3) manifold implementations
 - Use `/kiro:spec-status [feature-name]` to check progress
 
 ## Development Guidelines
