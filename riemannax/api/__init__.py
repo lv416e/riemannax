@@ -11,6 +11,7 @@ from .errors import (
     ParameterValidationError,
     RiemannAXAPIError,
 )
+from .estimators import RiemannianAdam, RiemannianEstimator, RiemannianSGD
 from .results import ConvergenceStatus, OptimizationResult
 from .validation import ValidationResult, validate_sphere_constraint
 
@@ -24,6 +25,9 @@ __all__ = [
     "OptimizationResult",
     "ParameterValidationError",
     "RiemannAXAPIError",
+    "RiemannianAdam",
+    "RiemannianEstimator",
+    "RiemannianSGD",
     "ValidationResult",
     "validate_sphere_constraint",
 ]
