@@ -257,6 +257,7 @@ class RiemannianEstimator(abc.ABC):
         # Optimization loop with simple convergence checking
         converged = False
         iteration = 0
+        grad_norm = float("inf")  # Initialize with infinity
         for _iteration in range(self.max_iterations):
             iteration = _iteration  # Track for final count
             current_x = state.x

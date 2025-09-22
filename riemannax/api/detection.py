@@ -177,7 +177,7 @@ class ManifoldDetector:
             real_eigenvals = jnp.real(eigenvals)
             min_eigenval = float(jnp.min(real_eigenvals))
             pd_score = 1.0 if min_eigenval > atol else max(0.0, min_eigenval / atol)
-        except Exception:
+        except (ValueError, Exception):
             pd_score = 0.0
 
         # Combine scores (both need to be reasonable)
@@ -219,7 +219,7 @@ class ManifoldDetector:
         elif manifold_type == ManifoldType.SPD:
             validation_result = validate_spd_constraint(x, atol)
         elif manifold_type == ManifoldType.SO:
-            # For SO(n), it's the same as Stiefel but with square matrices
+            # For SO(n), it's the same as Stiefel but with square matrices and det(X) = 1
             if x.ndim != 2 or x.shape[0] != x.shape[1]:
                 validation_result = ValidationResult(
                     is_valid=False,
@@ -228,6 +228,17 @@ class ManifoldDetector:
                 )
             else:
                 validation_result = validate_orthogonal_constraint(x, atol)
+                if validation_result.is_valid:
+                    det = jnp.linalg.det(x)
+                    if not jnp.allclose(det, 1.0, atol=atol):
+                        validation_result = ValidationResult(
+                            is_valid=False,
+                            violations=[
+                                *validation_result.violations,
+                                f"Matrix determinant must be +1 for SO(n), got {float(det):.6f}",
+                            ],
+                            suggestions=[*validation_result.suggestions, "Ensure the matrix has a determinant of +1."],
+                        )
         else:
             raise ManifoldDetectionError(f"Unsupported manifold type for validation: {manifold_type}")
 

@@ -225,6 +225,29 @@ class TestManifoldDetector:
         assert len(suggestions) > 0
         assert any(s.manifold_type == ManifoldType.SPHERE for s in suggestions)
 
+    def test_validate_constraints_so_manifold(self):
+        """Test SO(n) manifold constraint validation (orthogonal + det=1)."""
+        # Valid SO(2) matrix
+        theta = jnp.pi / 4
+        X = jnp.array([[jnp.cos(theta), -jnp.sin(theta)],
+                       [jnp.sin(theta), jnp.cos(theta)]])
+        result = ManifoldDetector.validate_constraints(X, ManifoldType.SO)
+        assert result.constraints_satisfied == True
+        assert len(result.validation_errors) == 0
+
+        # Orthogonal but determinant = -1 (reflection)
+        X = jnp.array([[1.0, 0.0],
+                       [0.0, -1.0]])
+        result = ManifoldDetector.validate_constraints(X, ManifoldType.SO)
+        assert result.constraints_satisfied == False
+        assert any("determinant must be +1" in error for error in result.validation_errors)
+
+        # Non-orthogonal matrix
+        X = jnp.array([[2.0, 0.0],
+                       [0.0, 1.0]])
+        result = ManifoldDetector.validate_constraints(X, ManifoldType.SO)
+        assert result.constraints_satisfied == False
+
     def test_edge_cases(self):
         """Test edge cases and boundary conditions."""
         # Zero vector

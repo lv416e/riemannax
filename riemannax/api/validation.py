@@ -62,24 +62,16 @@ def validate_orthogonal_constraint(X: Array, atol: float = 1e-6) -> ValidationRe
     # Check if matrix is square (for Stiefel, can be rectangular)
     m, n = X.shape
 
-    # For square matrices, check if X^T X = I
-    if m == n:
-        XTX = X.T @ X
-        I = jnp.eye(n)
-        is_orthogonal = jnp.allclose(XTX, I, atol=atol)
+    XTX = X.T @ X
+    I = jnp.eye(n)
+    is_orthogonal = jnp.allclose(XTX, I, atol=atol)
 
-        if not is_orthogonal:
-            violations.append("Matrix must be orthogonal (X^T X = I)")
-            suggestions.append("Use QR decomposition: X, _ = jax.scipy.linalg.qr(X)")
-    else:
-        # For rectangular matrices (Stiefel manifold)
-        XTX = X.T @ X
-        I = jnp.eye(n)
-        is_orthogonal = jnp.allclose(XTX, I, atol=atol)
-
-        if not is_orthogonal:
-            violations.append("Matrix columns must be orthonormal (X^T X = I)")
-            suggestions.append("Use QR decomposition: X, _ = jax.scipy.linalg.qr(X)")
+    if not is_orthogonal:
+        message = (
+            "Matrix must be orthogonal (X^T X = I)" if m == n else "Matrix columns must be orthonormal (X^T X = I)"
+        )
+        violations.append(message)
+        suggestions.append("Use QR decomposition: X, _ = jax.scipy.linalg.qr(X)")
 
     return ValidationResult(is_valid=len(violations) == 0, violations=violations, suggestions=suggestions)
 
@@ -112,13 +104,15 @@ def validate_spd_constraint(X: Array, atol: float = 1e-6) -> ValidationResult:
     # Check positive definiteness via eigenvalues
     try:
         eigenvals = jnp.linalg.eigvals(X)
-        min_eigenval = jnp.min(eigenvals)
+        # Take real part for numerical stability (SPD matrices should have real eigenvalues)
+        real_eigenvals = jnp.real(eigenvals)
+        min_eigenval = jnp.min(real_eigenvals)
         is_positive_definite = min_eigenval > atol
 
         if not is_positive_definite:
             violations.append(f"Matrix must be positive definite, minimum eigenvalue={float(min_eigenval):.6f}")
             suggestions.append("Add regularization: X + ε*I where ε > 0")
-    except Exception:
+    except (ValueError, Exception):
         violations.append("Could not compute eigenvalues for positive definiteness check")
         suggestions.append("Ensure matrix is numerically stable")
 
