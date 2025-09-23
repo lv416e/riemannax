@@ -82,7 +82,7 @@ class RiemannianEstimator(abc.ABC):
         """Initialize Riemannian estimator.
 
         Args:
-            manifold: Manifold type ("sphere", "stiefel", "spd", "auto").
+            manifold: Manifold type ("sphere", "stiefel", "spd", "so", "auto").
             learning_rate: Learning rate for optimization.
             max_iterations: Maximum number of optimization iterations.
             tolerance: Convergence tolerance.
@@ -143,7 +143,7 @@ class RiemannianEstimator(abc.ABC):
             )
 
         # Validate tolerance
-        if not isinstance(self.tolerance, int | float):
+        if not isinstance(self.tolerance, (int, float)):  # noqa: UP038
             raise ParameterValidationError(
                 "tolerance must be a number",
                 parameter_name="tolerance",
@@ -331,10 +331,10 @@ class RiemannianEstimator(abc.ABC):
 
         # Optimization loop with simple convergence checking
         converged = False
-        iteration = 0
+        iteration_count = 0
         grad_norm = float("inf")  # Initialize with infinity
         for _iteration in range(self.max_iterations):
-            iteration = _iteration  # Track for final count
+            iteration_count = _iteration + 1  # Track number of iterations performed
             current_x = state.x
             gradient = grad_fn(current_x)
 
@@ -361,7 +361,7 @@ class RiemannianEstimator(abc.ABC):
             optimized_params=state.x,
             objective_value=final_objective,
             convergence_status=convergence_status,
-            iteration_count=iteration + 1,
+            iteration_count=iteration_count,
             metadata={
                 "manifold_type": self._detected_manifold_type.value if self._detected_manifold_type else self.manifold,
                 "final_gradient_norm": grad_norm,
@@ -422,7 +422,7 @@ class RiemannianSGD(RiemannianEstimator):
         """Initialize Riemannian SGD estimator.
 
         Args:
-            manifold: Manifold type ("sphere", "stiefel", "spd", "auto").
+            manifold: Manifold type ("sphere", "stiefel", "spd", "so", "auto").
             learning_rate: Learning rate for optimization.
             max_iterations: Maximum number of optimization iterations.
             tolerance: Convergence tolerance.
@@ -465,7 +465,7 @@ class RiemannianAdam(RiemannianEstimator):
         """Initialize Riemannian Adam estimator.
 
         Args:
-            manifold: Manifold type ("sphere", "stiefel", "spd", "auto").
+            manifold: Manifold type ("sphere", "stiefel", "spd", "so", "auto").
             learning_rate: Learning rate for optimization.
             max_iterations: Maximum number of optimization iterations.
             tolerance: Convergence tolerance.
