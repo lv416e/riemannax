@@ -278,10 +278,46 @@ class TestRiemannianSGD:
         # Fit first
         estimator.fit(objective_func, x0)
 
-        # Score should return negative objective value (higher is better)
-        score = estimator.score(x0, objective_func=objective_func)
+        # Test score with explicitly provided objective_func (backward compatibility)
+        score_explicit = estimator.score(x0, objective_func=objective_func)
+        assert isinstance(score_explicit, float)
+        assert score_explicit <= 0  # Negative because we minimize
+
+        # Test score without objective_func (new sklearn-compatible behavior)
+        score_implicit = estimator.score()
+        assert isinstance(score_implicit, float)
+        assert score_implicit <= 0  # Negative because we minimize
+
+        # Test score at different point
+        x_test = jnp.array([0.8, 0.6])  # Another point on sphere
+        score_at_point = estimator.score(x_test)
+        assert isinstance(score_at_point, float)
+        assert score_at_point <= 0
+
+    def test_score_method_sklearn_compatibility(self):
+        """Test score method for sklearn compatibility."""
+        def objective_func(x):
+            return jnp.sum(x ** 2)
+
+        x0 = jnp.array([1.0, 0.0])
+
+        estimator = RiemannianSGD(
+            manifold="sphere",
+            learning_rate=0.1,
+            max_iterations=5
+        )
+
+        # Fit first
+        estimator.fit(objective_func, x0)
+
+        # Test sklearn-style score call (no arguments)
+        score = estimator.score()
         assert isinstance(score, float)
-        assert score <= 0  # Negative because we minimize
+        assert score <= 0
+
+        # Test with X and y parameters (ignored for sklearn compatibility)
+        score_with_xy = estimator.score(X=None, y=None)
+        assert score_with_xy == score
 
 
 class TestRiemannianAdam:
@@ -308,13 +344,30 @@ class TestRiemannianAdam:
         estimator = RiemannianAdam(manifold="sphere", learning_rate=0.01)
         assert estimator is not None
 
-        # Invalid beta1
+        # Invalid beta1 range
         with pytest.raises(ParameterValidationError):
             RiemannianAdam(manifold="sphere", learning_rate=0.01, beta1=1.5)
 
-        # Invalid beta2
+        # Invalid beta2 range
         with pytest.raises(ParameterValidationError):
             RiemannianAdam(manifold="sphere", learning_rate=0.01, beta2=-0.1)
+
+        # Boolean parameters should be rejected
+        with pytest.raises(ParameterValidationError):
+            RiemannianAdam(manifold="sphere", learning_rate=0.01, beta1=True)
+
+        with pytest.raises(ParameterValidationError):
+            RiemannianAdam(manifold="sphere", learning_rate=0.01, beta2=False)
+
+        with pytest.raises(ParameterValidationError):
+            RiemannianAdam(manifold="sphere", learning_rate=0.01, eps=True)
+
+        # Non-numeric parameters should be rejected
+        with pytest.raises(ParameterValidationError):
+            RiemannianAdam(manifold="sphere", learning_rate=0.01, beta1="0.9")
+
+        with pytest.raises(ParameterValidationError):
+            RiemannianAdam(manifold="sphere", learning_rate=0.01, eps=None)
 
     def test_adam_fit(self):
         """Test Adam optimizer fitting."""

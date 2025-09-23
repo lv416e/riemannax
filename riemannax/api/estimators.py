@@ -320,6 +320,9 @@ class RiemannianEstimator(abc.ABC):
         Returns:
             OptimizationResult with optimization outcome and metadata.
         """
+        # Store objective function for later use in score()
+        self.objective_func_ = objective_func
+
         # Detect/create manifold
         manifold = self._detect_or_create_manifold(x0)
 
@@ -397,27 +400,33 @@ class RiemannianEstimator(abc.ABC):
     def score(self, X: Array | None = None, y: Array | None = None, **kwargs) -> float:
         """Return the score of the fitted estimator.
 
-        Compatible with scikit-learn scorer API. Evaluates the fitted parameters
-        by default, or optionally allows evaluation at a different point.
+        Compatible with scikit-learn scorer API. Returns negative objective value
+        for sklearn compatibility (higher is better). Can evaluate at fitted parameters
+        or at an optional point X.
 
         Args:
             X: Optional point for evaluation. If None, uses fitted parameters.
             y: Ignored (for sklearn compatibility).
-            **kwargs: Must include 'objective_func' - the objective function to evaluate.
+            **kwargs: Optional 'objective_func' - if not provided, uses stored function from fit().
 
         Returns:
             Negative objective value (higher is better for sklearn compatibility).
 
         Raises:
-            ValueError: If estimator has not been fitted yet or objective_func not provided.
+            ValueError: If estimator has not been fitted yet.
         """
         if not self._is_fitted:
             raise ValueError("Estimator must be fitted before calling score()")
 
-        # Extract objective function from kwargs
+        # Extract objective function from kwargs or use stored function from fit()
         objective_func = kwargs.get("objective_func")
         if objective_func is None:
-            raise ValueError("score() requires 'objective_func' in kwargs")
+            if not hasattr(self, "objective_func_"):
+                raise ValueError(
+                    "objective_func not found. Please fit the estimator first "
+                    "or provide it as a keyword argument to score()."
+                )
+            objective_func = self.objective_func_
 
         # Use fitted parameters by default, or allow override
         if X is not None:
@@ -514,6 +523,24 @@ class RiemannianAdam(RiemannianEstimator):
 
     def _validate_adam_parameters(self) -> None:
         """Validate Adam-specific parameters."""
+        # Explicitly reject booleans for numeric hyperparameters
+        for name, val in [("beta1", self.beta1), ("beta2", self.beta2), ("eps", self.eps)]:
+            if isinstance(val, bool):
+                raise ParameterValidationError(
+                    f"{name} must be a float, got bool",
+                    parameter_name=name,
+                    expected_type=float,
+                    received_value=val,
+                )
+            if not isinstance(val, int | float):
+                raise ParameterValidationError(
+                    f"{name} must be numeric, got {type(val).__name__}",
+                    parameter_name=name,
+                    expected_type=float,
+                    received_value=val,
+                )
+
+        # Range validations
         if not (0.0 <= self.beta1 < 1.0):
             raise ParameterValidationError(
                 f"beta1 must be in [0, 1), got {self.beta1}",
