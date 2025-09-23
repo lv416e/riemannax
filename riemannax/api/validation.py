@@ -100,21 +100,20 @@ def validate_spd_constraint(X: Array, atol: float = 1e-6) -> ValidationResult:
     if not is_symmetric:
         violations.append("Matrix must be symmetric (X = X^T)")
         suggestions.append("Symmetrize using X = (X + X^T) / 2")
+    else:
+        # Check positive definiteness via eigenvalues only if symmetric
+        try:
+            # Use eigvalsh for symmetric matrices: it's more stable and guarantees real eigenvalues.
+            eigenvals = jnp.linalg.eigvalsh(X)
+            min_eigenval = jnp.min(eigenvals)
+            is_positive_definite = min_eigenval > atol
 
-    # Check positive definiteness via eigenvalues
-    try:
-        eigenvals = jnp.linalg.eigvals(X)
-        # Take real part for numerical stability (SPD matrices should have real eigenvalues)
-        real_eigenvals = jnp.real(eigenvals)
-        min_eigenval = jnp.min(real_eigenvals)
-        is_positive_definite = min_eigenval > atol
-
-        if not is_positive_definite:
-            violations.append(f"Matrix must be positive definite, minimum eigenvalue={float(min_eigenval):.6f}")
-            suggestions.append("Add regularization: X + ε*I where ε > 0")
-    except (ValueError, RuntimeError):
-        violations.append("Could not compute eigenvalues for positive definiteness check")
-        suggestions.append("Ensure matrix is numerically stable")
+            if not is_positive_definite:
+                violations.append(f"Matrix must be positive definite, minimum eigenvalue={float(min_eigenval):.6f}")
+                suggestions.append("Add regularization: X + ε*I where ε > 0")
+        except (ValueError, RuntimeError):
+            violations.append("Could not compute eigenvalues for positive definiteness check")
+            suggestions.append("Ensure matrix is numerically stable")
 
     return ValidationResult(is_valid=len(violations) == 0, violations=violations, suggestions=suggestions)
 
@@ -133,7 +132,10 @@ def validate_parameter_type(value: Any, expected_type: type, parameter_name: str
     violations = []
     suggestions = []
 
-    if not isinstance(value, expected_type):
+    # Explicitly reject booleans for numeric types, as `isinstance(True, int)` is `True`.
+    is_valid = False if isinstance(value, bool) and expected_type in (int, float) else isinstance(value, expected_type)
+
+    if not is_valid:
         violations.append(
             f"Parameter '{parameter_name}' must be of type {expected_type.__name__}, got {type(value).__name__}"
         )
@@ -154,7 +156,8 @@ def validate_learning_rate(learning_rate: float) -> ValidationResult:
     violations = []
     suggestions = []
 
-    if not isinstance(learning_rate, (int, float)) or isinstance(learning_rate, bool):
+    # Use tuple form for isinstance to avoid TypeError with union syntax
+    if isinstance(learning_rate, bool) or not isinstance(learning_rate, (int, float)):  # noqa: UP038
         violations.append(f"Learning rate must be numeric, got {type(learning_rate).__name__}")
         suggestions.append("Use a float value like 0.01")
         return ValidationResult(is_valid=False, violations=violations, suggestions=suggestions)

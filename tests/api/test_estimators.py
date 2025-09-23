@@ -263,7 +263,7 @@ class TestRiemannianSGD:
             estimator.predict(jnp.array([1.0, 0.0]))
 
     def test_score_method(self):
-        """Test score method returns final objective value."""
+        """Test score method returns negative objective value."""
         def objective_func(x):
             return jnp.sum(x ** 2)
 
@@ -279,7 +279,7 @@ class TestRiemannianSGD:
         estimator.fit(objective_func, x0)
 
         # Score should return negative objective value (higher is better)
-        score = estimator.score(objective_func, x0)
+        score = estimator.score(x0, objective_func=objective_func)
         assert isinstance(score, float)
         assert score <= 0  # Negative because we minimize
 

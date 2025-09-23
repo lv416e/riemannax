@@ -87,7 +87,7 @@ class RiemannianEstimator(abc.ABC):
             learning_rate: Learning rate for optimization.
             max_iterations: Maximum number of optimization iterations.
             tolerance: Convergence tolerance.
-            random_state: Random state for reproducibility (reserved for future use).
+            random_state: Random state for reproducibility (currently not implemented).
         """
         self.manifold = manifold
         self.learning_rate = learning_rate
@@ -143,8 +143,8 @@ class RiemannianEstimator(abc.ABC):
                 received_value=self.max_iterations,
             )
 
-        # Validate tolerance
-        if not isinstance(self.tolerance, (int, float)):
+        # Validate tolerance - use tuple form and explicit bool check for consistency
+        if isinstance(self.tolerance, bool) or not isinstance(self.tolerance, (int, float)):  # noqa: UP038
             raise ParameterValidationError(
                 "tolerance must be a number",
                 parameter_name="tolerance",
@@ -159,14 +159,16 @@ class RiemannianEstimator(abc.ABC):
                 received_value=self.tolerance,
             )
 
-        # Validate random_state
-        if self.random_state is not None and not isinstance(self.random_state, int):
-            raise ParameterValidationError(
-                "random_state must be an int or None",
-                parameter_name="random_state",
-                expected_type=int,
-                received_value=self.random_state,
-            )
+        # Validate random_state - use validate_parameter_type for consistency
+        if self.random_state is not None:
+            rs_result = validate_parameter_type(self.random_state, int, "random_state")
+            if not rs_result.is_valid:
+                raise ParameterValidationError(
+                    f"Invalid random_state: {rs_result.violations[0]}",
+                    parameter_name="random_state",
+                    expected_type=int,
+                    received_value=self.random_state,
+                )
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
         """Get parameters for this estimator.
@@ -392,32 +394,39 @@ class RiemannianEstimator(abc.ABC):
         """
         raise NotImplementedError("Optimization estimators do not implement predict()")
 
-    def score(self, objective_func: Callable[[Array], float], X: Array | None = None) -> float:
+    def score(self, X: Array | None = None, y: Array | None = None, **kwargs) -> float:
         """Return the score of the fitted estimator.
 
         Compatible with scikit-learn scorer API. Evaluates the fitted parameters
         by default, or optionally allows evaluation at a different point.
 
         Args:
-            objective_func: Objective function to evaluate.
             X: Optional point for evaluation. If None, uses fitted parameters.
+            y: Ignored (for sklearn compatibility).
+            **kwargs: Must include 'objective_func' - the objective function to evaluate.
 
         Returns:
             Negative objective value (higher is better for sklearn compatibility).
 
         Raises:
-            ValueError: If estimator has not been fitted yet.
+            ValueError: If estimator has not been fitted yet or objective_func not provided.
         """
         if not self._is_fitted:
             raise ValueError("Estimator must be fitted before calling score()")
 
+        # Extract objective function from kwargs
+        objective_func = kwargs.get("objective_func")
+        if objective_func is None:
+            raise ValueError("score() requires 'objective_func' in kwargs")
+
         # Use fitted parameters by default, or allow override
         if X is not None:
             x_eval = X
-        else:
-            if self._optimization_result is None:
-                raise RuntimeError("No optimization result available")
+        elif self._optimization_result is not None:
             x_eval = self._optimization_result.optimized_params
+        else:
+            raise RuntimeError("No optimization result available")
+
         return -float(objective_func(x_eval))
 
 

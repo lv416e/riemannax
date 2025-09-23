@@ -101,7 +101,7 @@ ignore = [
     "D212",  # multi-line-summary-first-line (conflicts with D213)
     "E501",  # line too long (managed by formatter)
     "E741",  # ambiguous variable name (e.g. i, j, k)
-    "UP038", # isinstance with union syntax (deprecated due to performance degradation and non-idiomatic patterns)
+    "UP038", # Disabled to allow isinstance with tuple syntax (int, float) for clearer boolean exclusion logic
 ]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
