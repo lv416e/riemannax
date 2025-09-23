@@ -87,7 +87,14 @@ class RiemannianEstimator(abc.ABC):
             learning_rate: Learning rate for optimization.
             max_iterations: Maximum number of optimization iterations.
             tolerance: Convergence tolerance.
-            random_state: Random state for reproducibility (currently not implemented).
+            random_state: Random state for reproducibility. Currently reserved
+                         for future implementation of deterministic optimization.
+                         Setting this parameter is validated but has no effect
+                         on optimization behavior.
+
+        Note:
+            random_state implementation is planned for future releases to provide
+            deterministic optimization behavior compatible with JAX PRNG keys.
         """
         self.manifold = manifold
         self.learning_rate = learning_rate
@@ -221,8 +228,13 @@ class RiemannianEstimator(abc.ABC):
         # Re-validate after setting parameters
         self._validate_parameters()
 
-        # Reset fitted state if parameters changed
+        # Reset fitted state and clear stale results if parameters changed
         self._is_fitted = False
+        self._optimization_result = None
+        if hasattr(self, "optimization_result_"):
+            delattr(self, "optimization_result_")
+        if hasattr(self, "objective_func_"):
+            delattr(self, "objective_func_")
 
         return self
 
@@ -426,20 +438,26 @@ class RiemannianEstimator(abc.ABC):
         """Return the score of the fitted estimator.
 
         Compatible with scikit-learn scorer API. Returns negative objective value
-        for sklearn compatibility (higher is better). Primarily uses the objective
-        function from fit(), with backward compatibility for custom objective functions.
+        for sklearn compatibility (higher is better). Uses the objective function
+        stored during fit() for deterministic scoring behavior.
 
         Args:
             X: Optional point for evaluation. If None, uses fitted parameters.
             y: Ignored (for sklearn compatibility).
-            **kwargs: For backward compatibility only - 'objective_func' can be provided,
-                     but the default behavior uses the stored function from fit().
+            **kwargs: Deprecated - 'objective_func' override is supported for
+                     backward compatibility but not recommended. Use the stored
+                     function from fit() for consistent sklearn-style behavior.
 
         Returns:
             Negative objective value (higher is better for sklearn compatibility).
 
         Raises:
             ValueError: If estimator has not been fitted yet.
+
+        Note:
+            For sklearn compatibility, this method should use the objective function
+            from fit(). The kwargs override is maintained for backward compatibility
+            but may be removed in future versions.
         """
         if not self._is_fitted:
             raise ValueError("Estimator must be fitted before calling score()")
