@@ -154,7 +154,7 @@ def validate_learning_rate(learning_rate: float) -> ValidationResult:
     violations = []
     suggestions = []
 
-    if not isinstance(learning_rate, int | float):
+    if not isinstance(learning_rate, (int, float)) or isinstance(learning_rate, bool):  # noqa: UP038
         violations.append(f"Learning rate must be numeric, got {type(learning_rate).__name__}")
         suggestions.append("Use a float value like 0.01")
         return ValidationResult(is_valid=False, violations=violations, suggestions=suggestions)

@@ -43,14 +43,15 @@ class _SOManifoldWrapper:
         """Ensure matrix has positive determinant by flipping one column if needed.
 
         Args:
-            X: Orthogonal matrix from O(n).
+            X: Orthogonal matrix from O(n). Supports batched (..., n, n) inputs.
 
         Returns:
             Matrix in SO(n) with det(X) = +1.
         """
         det = jnp.linalg.det(X)
-        # If determinant is negative, flip the last column to make it positive
-        return jnp.where(det < 0, X.at[:, -1].set(-X[:, -1]), X)
+        # Flip the last column only when det < 0; supports batched (..., n, n) inputs.
+        sign = jnp.where(det < 0, jnp.array(-1.0, dtype=X.dtype), jnp.array(1.0, dtype=X.dtype))
+        return X.at[..., :, -1].set(sign[..., None] * X[..., :, -1])
 
     def retr(self, X: Array, U: Array) -> Array:
         """Retraction to SO(n) with det=+1 enforcement."""
@@ -236,7 +237,7 @@ class RiemannianEstimator(abc.ABC):
                 raise ManifoldDetectionError(
                     f"Could not automatically detect manifold type for input shape {x0.shape}. "
                     f"Errors: {detection_result.validation_errors}",
-                    alternatives=[t.value for t in detection_result.alternatives],
+                    alternatives=[t.value for t in (detection_result.alternatives or [])],
                 )
 
             if not detection_result.constraints_satisfied:
@@ -523,6 +524,12 @@ class RiemannianAdam(RiemannianEstimator):
             }
         )
         return params
+
+    def set_params(self, **params: Any) -> "RiemannianAdam":
+        """Set parameters with Adam-specific validation."""
+        super().set_params(**params)
+        self._validate_adam_parameters()
+        return self
 
     def _create_optimizer(self) -> tuple[Callable, Callable]:
         """Create Riemannian Adam optimizer."""
