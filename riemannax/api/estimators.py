@@ -19,6 +19,50 @@ from .results import ConvergenceStatus, OptimizationResult
 from .validation import validate_learning_rate, validate_parameter_type
 
 
+class _SOManifoldWrapper:
+    """Wrapper for SO(n) manifold using Stiefel backend with det=+1 enforcement.
+
+    This wrapper ensures that optimization iterates remain in SO(n) by projecting
+    any matrix with det < 0 back to det = +1 by flipping the sign of one column.
+    """
+
+    def __init__(self, n: int):
+        """Initialize SO(n) wrapper.
+
+        Args:
+            n: Dimension of the special orthogonal group SO(n).
+        """
+        self._stiefel = Stiefel(n=n, p=n)
+        self.n = n
+
+    def __getattr__(self, name):
+        """Delegate all other methods to underlying Stiefel manifold."""
+        return getattr(self._stiefel, name)
+
+    def _ensure_det_positive(self, X: Array) -> Array:
+        """Ensure matrix has positive determinant by flipping one column if needed.
+
+        Args:
+            X: Orthogonal matrix from O(n).
+
+        Returns:
+            Matrix in SO(n) with det(X) = +1.
+        """
+        det = jnp.linalg.det(X)
+        # If determinant is negative, flip the last column to make it positive
+        return jnp.where(det < 0, X.at[:, -1].set(-X[:, -1]), X)
+
+    def retr(self, X: Array, U: Array) -> Array:
+        """Retraction to SO(n) with det=+1 enforcement."""
+        Y = self._stiefel.retr(X, U)
+        return self._ensure_det_positive(Y)
+
+    def exp(self, X: Array, U: Array) -> Array:
+        """Exponential map to SO(n) with det=+1 enforcement."""
+        Y = self._stiefel.exp(X, U)
+        return self._ensure_det_positive(Y)
+
+
 class RiemannianEstimator(abc.ABC):
     """Abstract base class for Riemannian optimization estimators.
 
@@ -249,10 +293,8 @@ class RiemannianEstimator(abc.ABC):
         elif manifold_type == "so":
             if x0.ndim != 2 or x0.shape[0] != x0.shape[1]:
                 raise ManifoldDetectionError(f"SO manifold requires square matrices, got shape {x0.shape}")
-            # Note: Using Stiefel(n,n) as SO(n) backend. This provides O(n) (det=±1).
-            # For true SO(n) constraint (det=+1), additional projection may be needed.
-            # Future improvement: implement dedicated SO manifold with det=+1 enforcement.
-            return Stiefel(n=x0.shape[0], p=x0.shape[0])
+            # Use dedicated SO(n) wrapper that ensures det=+1 constraint
+            return _SOManifoldWrapper(n=x0.shape[0])
         else:
             raise ManifoldDetectionError(f"Unsupported manifold type: {manifold_type}")
 

@@ -99,6 +99,58 @@ class TestRiemannianEstimator:
         with pytest.raises(ParameterValidationError):
             RiemannianSGD(manifold="sphere", learning_rate=0.01, random_state="invalid")
 
+    def test_so_manifold_det_constraint(self):
+        """Test that SO(n) manifold maintains det=+1 constraint during optimization."""
+        # Start with a valid SO(2) rotation matrix (det = +1)
+        theta = jnp.pi / 6
+        x0 = jnp.array([[jnp.cos(theta), -jnp.sin(theta)],
+                        [jnp.sin(theta), jnp.cos(theta)]])
+
+        def objective_func(X):
+            # Simple objective to minimize trace
+            return jnp.trace(X)
+
+        estimator = RiemannianSGD(
+            manifold="so",
+            learning_rate=0.01,
+            max_iterations=5
+        )
+
+        result = estimator.fit(objective_func, x0)
+
+        # Check that final result has det = +1 (within tolerance)
+        final_det = float(jnp.linalg.det(result.optimized_params))
+        assert jnp.allclose(final_det, 1.0, atol=1e-6), f"Expected det=+1, got det={final_det}"
+
+        # Check that result is orthogonal
+        X = result.optimized_params
+        XTX = X.T @ X
+        I = jnp.eye(X.shape[0])
+        assert jnp.allclose(XTX, I, atol=1e-6), "Result should be orthogonal"
+
+    def test_so_wrapper_det_projection(self):
+        """Test that the SO wrapper correctly projects det=-1 to det=+1."""
+        from riemannax.api.estimators import _SOManifoldWrapper
+
+        # Create SO(2) wrapper
+        so_manifold = _SOManifoldWrapper(n=2)
+
+        # Test the determinant projection method directly
+        reflection = jnp.array([[1.0, 0.0],
+                               [0.0, -1.0]])  # det = -1
+
+        projected = so_manifold._ensure_det_positive(reflection)
+        final_det = float(jnp.linalg.det(projected))
+
+        assert jnp.allclose(final_det, 1.0, atol=1e-10), f"Expected det=+1 after projection, got {final_det}"
+
+        # Test that positive determinant matrices are unchanged
+        rotation = jnp.array([[0.0, -1.0],
+                             [1.0, 0.0]])  # det = +1
+
+        unchanged = so_manifold._ensure_det_positive(rotation)
+        assert jnp.allclose(unchanged, rotation, atol=1e-10), "Matrices with det=+1 should be unchanged"
+
 
 class TestRiemannianSGD:
     """Test RiemannianSGD estimator functionality."""
