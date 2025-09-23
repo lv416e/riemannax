@@ -144,7 +144,7 @@ class RiemannianEstimator(abc.ABC):
             )
 
         # Validate tolerance - use tuple form and explicit bool check for consistency
-        if isinstance(self.tolerance, bool) or not isinstance(self.tolerance, (int, float)):  # noqa: UP038
+        if isinstance(self.tolerance, bool) or not isinstance(self.tolerance, int | float):
             raise ParameterValidationError(
                 "tolerance must be a number",
                 parameter_name="tolerance",
