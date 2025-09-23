@@ -112,7 +112,7 @@ def validate_spd_constraint(X: Array, atol: float = 1e-6) -> ValidationResult:
         if not is_positive_definite:
             violations.append(f"Matrix must be positive definite, minimum eigenvalue={float(min_eigenval):.6f}")
             suggestions.append("Add regularization: X + ε*I where ε > 0")
-    except (ValueError, Exception):
+    except (ValueError, RuntimeError):
         violations.append("Could not compute eigenvalues for positive definiteness check")
         suggestions.append("Ensure matrix is numerically stable")
 

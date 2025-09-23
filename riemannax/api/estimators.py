@@ -87,7 +87,7 @@ class RiemannianEstimator(abc.ABC):
             learning_rate: Learning rate for optimization.
             max_iterations: Maximum number of optimization iterations.
             tolerance: Convergence tolerance.
-            random_state: Random state for reproducibility.
+            random_state: Random state for reproducibility (reserved for future use).
         """
         self.manifold = manifold
         self.learning_rate = learning_rate
@@ -345,8 +345,12 @@ class RiemannianEstimator(abc.ABC):
             # Update state
             state = update_fn(riemannian_grad, state, manifold)
 
-            # Check convergence (simple gradient norm criterion)
-            grad_norm = float(jnp.linalg.norm(riemannian_grad))
+            # Check convergence using manifold norm when available
+            if hasattr(manifold, "norm"):
+                grad_norm_val = manifold.norm(current_x, riemannian_grad)
+            else:
+                grad_norm_val = jnp.linalg.norm(riemannian_grad)
+            grad_norm = float(grad_norm_val)
             if grad_norm < self.tolerance:
                 converged = True
                 break
@@ -388,20 +392,33 @@ class RiemannianEstimator(abc.ABC):
         """
         raise NotImplementedError("Optimization estimators do not implement predict()")
 
-    def score(self, objective_func: Callable[[Array], float], X: Array) -> float:
-        """Return the score on the given test data.
+    def score(self, objective_func: Callable[[Array], float], X: Array | None = None) -> float:
+        """Return the score of the fitted estimator.
+
+        Compatible with scikit-learn scorer API. Evaluates the fitted parameters
+        by default, or optionally allows evaluation at a different point.
 
         Args:
             objective_func: Objective function to evaluate.
-            X: Test input.
+            X: Optional point for evaluation. If None, uses fitted parameters.
 
         Returns:
             Negative objective value (higher is better for sklearn compatibility).
+
+        Raises:
+            ValueError: If estimator has not been fitted yet.
         """
         if not self._is_fitted:
             raise ValueError("Estimator must be fitted before calling score()")
 
-        return -float(objective_func(X))
+        # Use fitted parameters by default, or allow override
+        if X is not None:
+            x_eval = X
+        else:
+            if self._optimization_result is None:
+                raise RuntimeError("No optimization result available")
+            x_eval = self._optimization_result.optimized_params
+        return -float(objective_func(x_eval))
 
 
 class RiemannianSGD(RiemannianEstimator):
@@ -428,7 +445,7 @@ class RiemannianSGD(RiemannianEstimator):
             max_iterations: Maximum number of optimization iterations.
             tolerance: Convergence tolerance.
             use_retraction: Whether to use retraction instead of exponential map.
-            random_state: Random state for reproducibility.
+            random_state: Random state for reproducibility (reserved for future use).
         """
         self.use_retraction = use_retraction
         super().__init__(manifold, learning_rate, max_iterations, tolerance, random_state)
@@ -474,7 +491,7 @@ class RiemannianAdam(RiemannianEstimator):
             beta2: Exponential decay rate for second moment estimates.
             eps: Small constant for numerical stability.
             use_retraction: Whether to use retraction instead of exponential map.
-            random_state: Random state for reproducibility.
+            random_state: Random state for reproducibility (reserved for future use).
         """
         self.beta1 = beta1
         self.beta2 = beta2

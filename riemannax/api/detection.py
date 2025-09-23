@@ -171,7 +171,7 @@ class ManifoldDetector:
                                 reason=f"Square matrix with orthogonal characteristics and det={det:.6f}",
                             )
                         )
-                except Exception:
+                except (ValueError, RuntimeError):
                     # Skip SO detection if determinant computation fails
                     pass
 
@@ -200,7 +200,7 @@ class ManifoldDetector:
                 eigenvals = jnp.linalg.eigvals(x)
                 min_eigenval = float(jnp.min(jnp.real(eigenvals)))
             pd_score = 1.0 if min_eigenval > atol else max(0.0, min_eigenval / atol)
-        except Exception:
+        except (ValueError, RuntimeError):
             pd_score = 0.0
 
         # Combine scores (both need to be reasonable)
