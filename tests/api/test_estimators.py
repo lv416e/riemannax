@@ -116,7 +116,7 @@ class TestRiemannianEstimator:
             max_iterations=5
         )
 
-        result = estimator.fit(objective_func, x0)
+        result = estimator.fit_optimize(objective_func, x0)
 
         # Check that final result has det = +1 (within tolerance)
         final_det = float(jnp.linalg.det(result.optimized_params))
@@ -171,7 +171,7 @@ class TestRiemannianSGD:
             max_iterations=10
         )
 
-        result = estimator.fit(objective_func, x0)
+        result = estimator.fit_optimize(objective_func, x0)
 
         # Check result structure
         assert isinstance(result, OptimizationResult)
@@ -196,7 +196,7 @@ class TestRiemannianSGD:
             max_iterations=5
         )
 
-        result = estimator.fit(objective_func, x0)
+        result = estimator.fit_optimize(objective_func, x0)
 
         assert isinstance(result, OptimizationResult)
         assert estimator._detected_manifold_type == ManifoldType.SPHERE
@@ -216,7 +216,7 @@ class TestRiemannianSGD:
             max_iterations=5
         )
 
-        result = estimator.fit(objective_func, x0)
+        result = estimator.fit_optimize(objective_func, x0)
 
         assert isinstance(result, OptimizationResult)
         assert result.optimized_params.shape == x0.shape
@@ -382,10 +382,38 @@ class TestRiemannianAdam:
             max_iterations=10
         )
 
-        result = estimator.fit(objective_func, x0)
+        result = estimator.fit_optimize(objective_func, x0)
 
         assert isinstance(result, OptimizationResult)
         assert estimator._is_fitted
+
+    def test_fit_returns_self_sklearn_compatible(self):
+        """Test that fit() returns self for sklearn compatibility."""
+        def objective_func(x):
+            return jnp.sum((x - jnp.array([0.6, 0.8])) ** 2)
+
+        x0 = jnp.array([1.0, 0.0])
+
+        estimator = RiemannianAdam(
+            manifold="sphere",
+            learning_rate=0.1,
+            max_iterations=5
+        )
+
+        # fit() should return self (sklearn compatible)
+        result = estimator.fit(objective_func, x0)
+        assert result is estimator
+        assert estimator._is_fitted
+
+        # Optimization result should be available as property
+        assert hasattr(estimator, "optimization_result_")
+        assert isinstance(estimator.optimization_result_, OptimizationResult)
+
+        # fit_optimize() should return OptimizationResult for backward compatibility
+        estimator2 = RiemannianAdam(manifold="sphere", learning_rate=0.1, max_iterations=5)
+        opt_result = estimator2.fit_optimize(objective_func, x0)
+        assert isinstance(opt_result, OptimizationResult)
+        assert estimator2._is_fitted
 
 
 class TestScikitLearnCompatibility:
