@@ -144,7 +144,7 @@ class RiemannianEstimator(abc.ABC):
             )
 
         # Validate tolerance
-        if not isinstance(self.tolerance, (int, float)):  # noqa: UP038
+        if not isinstance(self.tolerance, (int, float)):
             raise ParameterValidationError(
                 "tolerance must be a number",
                 parameter_name="tolerance",
