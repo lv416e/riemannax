@@ -157,6 +157,24 @@ class ManifoldDetector:
                     )
                 )
 
+            # Check for SO(n) (special orthogonal: orthogonal with det +1)
+            if m == n and stiefel_confidence > 0.1:
+                try:
+                    det = float(jnp.linalg.det(x))
+                    det_closeness = max(0.0, 1.0 - abs(det - 1.0) / atol)
+                    so_confidence = min(1.0, stiefel_confidence * det_closeness)
+                    if so_confidence > 0.1:
+                        candidates.append(
+                            ManifoldCandidate(
+                                manifold_type=ManifoldType.SO,
+                                confidence=so_confidence,
+                                reason=f"Square matrix with orthogonal characteristics and det={det:.6f}",
+                            )
+                        )
+                except Exception:
+                    # Skip SO detection if determinant computation fails
+                    pass
+
         return sorted(candidates, key=lambda c: c.confidence, reverse=True)
 
     @staticmethod
@@ -172,12 +190,17 @@ class ManifoldDetector:
 
         # Check positive definiteness
         try:
-            eigenvals = jnp.linalg.eigvals(x)
-            # Take real part since SPD matrices have real eigenvalues
-            real_eigenvals = jnp.real(eigenvals)
-            min_eigenval = float(jnp.min(real_eigenvals))
+            if symmetry_error < 10 * atol:
+                # Use more stable eigvalsh for nearly symmetric matrices
+                X_sym = 0.5 * (x + x.T)
+                eigenvals = jnp.linalg.eigvalsh(X_sym)
+                min_eigenval = float(jnp.min(eigenvals))
+            else:
+                # Fallback to general eigvals for non-symmetric matrices
+                eigenvals = jnp.linalg.eigvals(x)
+                min_eigenval = float(jnp.min(jnp.real(eigenvals)))
             pd_score = 1.0 if min_eigenval > atol else max(0.0, min_eigenval / atol)
-        except (ValueError, Exception):
+        except Exception:
             pd_score = 0.0
 
         # Combine scores (both need to be reasonable)

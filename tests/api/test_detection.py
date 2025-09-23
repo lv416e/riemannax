@@ -167,6 +167,22 @@ class TestManifoldDetector:
         else:
             assert result.detected_type == ManifoldType.UNKNOWN
 
+    def test_detect_so_manifold_valid(self):
+        """Test detection of valid SO(n) manifold points."""
+        # Valid SO(2) rotation matrix
+        theta = jnp.pi / 4
+        X = jnp.array([[jnp.cos(theta), -jnp.sin(theta)],
+                       [jnp.sin(theta), jnp.cos(theta)]])
+        result = ManifoldDetector.detect_manifold(X)
+
+        # Should detect as Stiefel or SO (both are valid), but SO should be in alternatives
+        assert result.detected_type in [ManifoldType.STIEFEL, ManifoldType.SO]
+        assert result.confidence > 0.9
+        assert result.constraints_satisfied == True
+        # Ensure SO is among the detected candidates
+        if result.detected_type == ManifoldType.STIEFEL:
+            assert ManifoldType.SO in result.alternatives
+
     def test_detect_manifold_unknown(self):
         """Test detection returns UNKNOWN for ambiguous cases."""
         # Scalar value
@@ -265,3 +281,13 @@ class TestManifoldDetector:
         result = ManifoldDetector.detect_manifold(x)
         # Could be sphere in 1D, but implementation dependent
         assert result.detected_type in [ManifoldType.SPHERE, ManifoldType.UNKNOWN]
+
+    def test_estimator_rejects_s0(self):
+        """Test that estimator rejects S^0 sphere with clear error."""
+        from riemannax.api.estimators import RiemannianSGD
+        from riemannax.api.errors import ManifoldDetectionError
+
+        x = jnp.array([1.0])
+        est = RiemannianSGD(manifold="sphere")
+        with pytest.raises(ManifoldDetectionError, match="S\\^0 is not supported"):
+            est.fit(lambda z: float(jnp.sum(z**2)), x)

@@ -98,6 +98,31 @@ class RiemannianEstimator(abc.ABC):
                 received_value=self.max_iterations,
             )
 
+        # Validate tolerance
+        if not isinstance(self.tolerance, int | float):
+            raise ParameterValidationError(
+                "tolerance must be a number",
+                parameter_name="tolerance",
+                expected_type=float,
+                received_value=self.tolerance,
+            )
+        if self.tolerance <= 0:
+            raise ParameterValidationError(
+                "tolerance must be positive",
+                parameter_name="tolerance",
+                expected_type=float,
+                received_value=self.tolerance,
+            )
+
+        # Validate random_state
+        if self.random_state is not None and not isinstance(self.random_state, int):
+            raise ParameterValidationError(
+                "random_state must be an int or None",
+                parameter_name="random_state",
+                expected_type=int,
+                received_value=self.random_state,
+            )
+
     def get_params(self, deep: bool = True) -> dict[str, Any]:
         """Get parameters for this estimator.
 
@@ -206,7 +231,12 @@ class RiemannianEstimator(abc.ABC):
             Manifold instance.
         """
         if manifold_type == "sphere":
-            return Sphere(n=x0.shape[0] - 1)
+            if x0.ndim != 1:
+                raise ManifoldDetectionError(f"Sphere manifold requires 1D vectors, got {x0.ndim}D")
+            n = x0.shape[0] - 1
+            if n < 1:
+                raise ManifoldDetectionError("Sphere S^0 is not supported (require len(x0) >= 2)")
+            return Sphere(n=n)
         elif manifold_type == "stiefel":
             if x0.ndim != 2:
                 raise ManifoldDetectionError(f"Stiefel manifold requires 2D arrays, got {x0.ndim}D")
@@ -219,7 +249,10 @@ class RiemannianEstimator(abc.ABC):
         elif manifold_type == "so":
             if x0.ndim != 2 or x0.shape[0] != x0.shape[1]:
                 raise ManifoldDetectionError(f"SO manifold requires square matrices, got shape {x0.shape}")
-            return Stiefel(n=x0.shape[0], p=x0.shape[0])  # SO(n) is special case of Stiefel
+            # Note: Using Stiefel(n,n) as SO(n) backend. This provides O(n) (det=±1).
+            # For true SO(n) constraint (det=+1), additional projection may be needed.
+            # Future improvement: implement dedicated SO manifold with det=+1 enforcement.
+            return Stiefel(n=x0.shape[0], p=x0.shape[0])
         else:
             raise ManifoldDetectionError(f"Unsupported manifold type: {manifold_type}")
 

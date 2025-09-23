@@ -91,6 +91,14 @@ class TestRiemannianEstimator:
         with pytest.raises(ParameterValidationError):
             RiemannianSGD(manifold="invalid_manifold", learning_rate=0.01)
 
+        # Invalid tolerance
+        with pytest.raises(ParameterValidationError):
+            RiemannianSGD(manifold="sphere", learning_rate=0.01, tolerance=-0.01)
+
+        # Invalid random_state
+        with pytest.raises(ParameterValidationError):
+            RiemannianSGD(manifold="sphere", learning_rate=0.01, random_state="invalid")
+
 
 class TestRiemannianSGD:
     """Test RiemannianSGD estimator functionality."""
