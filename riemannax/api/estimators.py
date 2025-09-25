@@ -235,6 +235,7 @@ class RiemannianEstimator(abc.ABC):
             delattr(self, "optimization_result_")
         if hasattr(self, "objective_func_"):
             delattr(self, "objective_func_")
+        self._detected_manifold_type = None
 
         return self
 
@@ -353,6 +354,8 @@ class RiemannianEstimator(abc.ABC):
 
         # Create gradient function
         grad_fn = jax.grad(objective_func)
+        # TODO: Future optimization: Consider jax.value_and_grad + JIT compilation
+        # for improved performance in the optimization loop
 
         # Optimization loop with simple convergence checking
         converged = False

@@ -74,7 +74,7 @@ def test_minimize_result_attributes(sphere_problem, point_on_sphere):
 
     # Check types
     assert isinstance(result.x, jnp.ndarray)
-    assert isinstance(result.fun, float | jnp.ndarray)
+    assert isinstance(result.fun, (float, jnp.ndarray))
     assert isinstance(result.success, bool)
     assert isinstance(result.niter, int)
     assert isinstance(result.message, str)
@@ -91,7 +91,7 @@ def test_minimize_convergence(sphere_problem):
 
     # Only verify that optimization runs and returns valid results
     assert isinstance(result.x, jnp.ndarray)
-    assert isinstance(result.fun, float | jnp.ndarray)
+    assert isinstance(result.fun, (float, jnp.ndarray))
 
 
 def test_minimize_with_retraction(sphere_problem):
@@ -105,7 +105,7 @@ def test_minimize_with_retraction(sphere_problem):
 
     # Only verify that optimization runs and returns valid results
     assert isinstance(result.x, jnp.ndarray)
-    assert isinstance(result.fun, float | jnp.ndarray)
+    assert isinstance(result.fun, (float, jnp.ndarray))
 
 
 def test_minimize_different_learning_rates(sphere_problem):
