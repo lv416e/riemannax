@@ -101,7 +101,7 @@ ignore = [
     "D212",  # multi-line-summary-first-line (conflicts with D213)
     "E501",  # line too long (managed by formatter)
     "E741",  # ambiguous variable name (e.g. i, j, k)
-    "UP038", # use isinstance(x, (int, float)) instead of isinstance(x, int | float) for compatibility
+    "UP038", # ruff pre-commit hook conflicts with CI environment, causing isinstance conversion issues
 ]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 

@@ -132,7 +132,7 @@ def validate_parameter_type(value: Any, expected_type: type, parameter_name: str
     violations = []
     suggestions = []
 
-    # Explicitly reject booleans for numeric types, as `isinstance(True, int)` is `True`.
+    # Explicitly reject booleans for numeric types, as isinstance(True, int) is True
     is_valid = False if isinstance(value, bool) and expected_type in (int, float) else isinstance(value, expected_type)
 
     if not is_valid:

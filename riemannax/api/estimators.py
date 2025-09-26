@@ -238,6 +238,10 @@ class RiemannianEstimator(abc.ABC):
             delattr(self, "objective_func_")
         self._detected_manifold_type = None
 
+        # TODO: When random_state is implemented with JAX PRNG keys, add:
+        # if hasattr(self, "_rng_key"):
+        #     delattr(self, "_rng_key")
+
         return self
 
     def _detect_or_create_manifold(self, x0: Array) -> Any:
@@ -355,8 +359,11 @@ class RiemannianEstimator(abc.ABC):
 
         # Create value-and-gradient function for efficiency (eliminates redundant computation)
         value_and_grad_fn = jax.value_and_grad(objective_func)
-        # TODO: Future optimization: Consider JIT compilation with lax.while_loop
-        # to eliminate host syncs and keep computations on-device
+        # TODO: Performance optimization opportunity: JIT + lax.while_loop
+        # - Benefits: Eliminate host-device syncs, ~2-5x speed improvement
+        # - Implementation: Convert to lax.while_loop with JAX-compatible state
+        # - Challenges: Complex convergence logic, debugging difficulty
+        # - Priority: Address after basic functionality is stable
 
         # Optimization loop with simple convergence checking
         converged = False
