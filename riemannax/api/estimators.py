@@ -151,7 +151,7 @@ class RiemannianEstimator(abc.ABC):
             )
 
         # Validate tolerance - use tuple form and explicit bool check for consistency
-        if isinstance(self.tolerance, bool) or not isinstance(self.tolerance, (int, float)):  # noqa: UP038
+        if isinstance(self.tolerance, bool) or not isinstance(self.tolerance, (int, float)):
             raise ParameterValidationError(
                 "tolerance must be a number",
                 parameter_name="tolerance",
@@ -581,7 +581,7 @@ class RiemannianAdam(RiemannianEstimator):
         """Validate Adam-specific parameters."""
         # Validate numeric type (explicitly reject booleans)
         for name, val in [("beta1", self.beta1), ("beta2", self.beta2), ("eps", self.eps)]:
-            if isinstance(val, bool) or not isinstance(val, (int, float)):  # noqa: UP038
+            if isinstance(val, bool) or not isinstance(val, (int, float)):
                 raise ParameterValidationError(
                     f"{name} must be numeric, got {type(val).__name__}",
                     parameter_name=name,
