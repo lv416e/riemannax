@@ -43,7 +43,7 @@ def validate_sphere_constraint(x: Array, atol: float = 1e-6) -> ValidationResult
         violations.append(f"Vector must have unit norm, got norm={float(norm):.6f}")
         suggestions.append("Normalize the vector using x / ||x||")
 
-    return ValidationResult(is_valid=bool(is_unit), violations=violations, suggestions=suggestions)
+    return ValidationResult(is_valid=len(violations) == 0, violations=violations, suggestions=suggestions)
 
 
 def validate_orthogonal_constraint(X: Array, atol: float = 1e-6) -> ValidationResult:
@@ -63,7 +63,7 @@ def validate_orthogonal_constraint(X: Array, atol: float = 1e-6) -> ValidationRe
     m, n = X.shape
 
     XTX = X.T @ X
-    I = jnp.eye(n)
+    I = jnp.eye(n, dtype=X.dtype)
     is_orthogonal = jnp.allclose(XTX, I, atol=atol)
 
     if not is_orthogonal:

@@ -1,6 +1,7 @@
 """Scikit-learn compatible estimator framework for RiemannAX."""
 
 import abc
+import math
 from collections.abc import Callable
 from typing import Any
 
@@ -142,9 +143,9 @@ class RiemannianEstimator(abc.ABC):
                 received_value=self.max_iterations,
             )
 
-        if self.max_iterations <= 0:
+        if self.max_iterations < 0:
             raise ParameterValidationError(
-                "max_iterations must be positive",
+                "max_iterations must be non-negative",
                 parameter_name="max_iterations",
                 expected_type=int,
                 received_value=self.max_iterations,
@@ -387,7 +388,9 @@ class RiemannianEstimator(abc.ABC):
         # Determine convergence status
         convergence_status = ConvergenceStatus.CONVERGED if converged else ConvergenceStatus.MAX_ITERATIONS
 
-        # Use final objective value from optimization loop (eliminates redundant computation)
+        # Ensure we have a finite objective (loop may not run if max_iterations=0)
+        if not math.isfinite(current_objective):
+            current_objective = float(objective_func(state.x))
         final_objective = float(current_objective)
 
         # Create result
@@ -483,15 +486,13 @@ class RiemannianEstimator(abc.ABC):
             )
         objective_func = kwargs.get("objective_func", self.objective_func_)
 
-        # Use fitted parameters by default, or allow override
-        if X is not None:
-            x_eval = X
-        else:
-            # Since _is_fitted is True, _optimization_result is guaranteed to exist
-            # Add assertion for mypy type checking
+        # Fast path: use cached objective when evaluating at fitted params
+        if X is None and "objective_func" not in kwargs:
             assert self._optimization_result is not None, "optimization_result must exist when fitted"
-            x_eval = self._optimization_result.optimized_params
+            return -float(self._optimization_result.objective_value)
 
+        # Otherwise, evaluate at the provided X
+        x_eval = X if X is not None else self._optimization_result.optimized_params  # type: ignore[union-attr]
         return -float(objective_func(x_eval))
 
 
