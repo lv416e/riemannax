@@ -470,6 +470,15 @@ class RiemannianEstimator(abc.ABC):
             raise ValueError("objective_func not found. Please fit the estimator first.")
 
         # Use stored function by default, allow override for backward compatibility
+        if "objective_func" in kwargs:
+            import warnings
+
+            warnings.warn(
+                "Passing 'objective_func' to score() is deprecated and may be removed "
+                "in future versions. Use the objective function from fit() for sklearn compatibility.",
+                FutureWarning,
+                stacklevel=2,
+            )
         objective_func = kwargs.get("objective_func", self.objective_func_)
 
         # Use fitted parameters by default, or allow override
