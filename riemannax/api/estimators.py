@@ -151,7 +151,7 @@ class RiemannianEstimator(abc.ABC):
             )
 
         # Validate tolerance - use tuple form and explicit bool check for consistency
-        if isinstance(self.tolerance, bool) or not isinstance(self.tolerance, int | float):
+        if isinstance(self.tolerance, bool) or not isinstance(self.tolerance, (int, float)):  # noqa: UP038
             raise ParameterValidationError(
                 "tolerance must be a number",
                 parameter_name="tolerance",
@@ -352,19 +352,21 @@ class RiemannianEstimator(abc.ABC):
         # Initialize optimizer state
         state = init_fn(x0)
 
-        # Create gradient function
-        grad_fn = jax.grad(objective_func)
-        # TODO: Future optimization: Consider jax.value_and_grad + JIT compilation
-        # for improved performance in the optimization loop
+        # Create value-and-gradient function for efficiency (eliminates redundant computation)
+        value_and_grad_fn = jax.value_and_grad(objective_func)
+        # TODO: Future optimization: Consider JIT compilation with lax.while_loop
+        # to eliminate host syncs and keep computations on-device
 
         # Optimization loop with simple convergence checking
         converged = False
         iteration_count = 0
         grad_norm = float("inf")  # Initialize with infinity
+        current_objective = float("inf")  # Track objective value
+
         for _iteration in range(self.max_iterations):
             iteration_count = _iteration + 1  # Track number of iterations performed
             current_x = state.x
-            gradient = grad_fn(current_x)
+            current_objective, gradient = value_and_grad_fn(current_x)
 
             # Project gradient to tangent space
             riemannian_grad = manifold.proj(current_x, gradient)
@@ -385,8 +387,8 @@ class RiemannianEstimator(abc.ABC):
         # Determine convergence status
         convergence_status = ConvergenceStatus.CONVERGED if converged else ConvergenceStatus.MAX_ITERATIONS
 
-        # Compute final objective value
-        final_objective = float(objective_func(state.x))
+        # Use final objective value from optimization loop (eliminates redundant computation)
+        final_objective = float(current_objective)
 
         # Create result
         self._optimization_result = OptimizationResult(
@@ -579,7 +581,7 @@ class RiemannianAdam(RiemannianEstimator):
         """Validate Adam-specific parameters."""
         # Validate numeric type (explicitly reject booleans)
         for name, val in [("beta1", self.beta1), ("beta2", self.beta2), ("eps", self.eps)]:
-            if isinstance(val, bool) or not isinstance(val, int | float):
+            if isinstance(val, bool) or not isinstance(val, (int, float)):  # noqa: UP038
                 raise ParameterValidationError(
                     f"{name} must be numeric, got {type(val).__name__}",
                     parameter_name=name,

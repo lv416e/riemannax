@@ -157,7 +157,7 @@ def validate_learning_rate(learning_rate: float) -> ValidationResult:
     suggestions = []
 
     # Use tuple form for isinstance to avoid TypeError with union syntax
-    if isinstance(learning_rate, bool) or not isinstance(learning_rate, int | float):
+    if isinstance(learning_rate, bool) or not isinstance(learning_rate, (int, float)):  # noqa: UP038
         violations.append(f"Learning rate must be numeric, got {type(learning_rate).__name__}")
         suggestions.append("Use a float value like 0.01")
         return ValidationResult(is_valid=False, violations=violations, suggestions=suggestions)
