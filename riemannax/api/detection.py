@@ -254,14 +254,12 @@ class ManifoldDetector:
                 if validation_result.is_valid:
                     det = jnp.linalg.det(x)
                     if not jnp.allclose(det, 1.0, atol=atol):
-                        validation_result = ValidationResult(
-                            is_valid=False,
-                            violations=[
-                                *validation_result.violations,
-                                f"Matrix determinant must be +1 for SO(n), got {float(det):.6f}",
-                            ],
-                            suggestions=[*validation_result.suggestions, "Ensure the matrix has a determinant of +1."],
+                        # Modify existing ValidationResult instead of creating new instance
+                        validation_result.is_valid = False
+                        validation_result.violations.append(
+                            f"Matrix determinant must be +1 for SO(n), got {float(det):.6f}"
                         )
+                        validation_result.suggestions.append("Ensure the matrix has a determinant of +1.")
         else:
             raise ManifoldDetectionError(f"Unsupported manifold type for validation: {manifold_type}")
 

@@ -484,10 +484,11 @@ class RiemannianEstimator(abc.ABC):
         # Use fitted parameters by default, or allow override
         if X is not None:
             x_eval = X
-        elif self._optimization_result is not None:
-            x_eval = self._optimization_result.optimized_params
         else:
-            raise RuntimeError("No optimization result available")
+            # Since _is_fitted is True, _optimization_result is guaranteed to exist
+            # Add assertion for mypy type checking
+            assert self._optimization_result is not None, "optimization_result must exist when fitted"
+            x_eval = self._optimization_result.optimized_params
 
         return -float(objective_func(x_eval))
 
