@@ -371,12 +371,11 @@ class RiemannianEstimator(abc.ABC):
         converged = False
         iteration_count = 0
         grad_norm = float("inf")  # Initialize with infinity
-        current_objective = float("inf")  # Track objective value
 
         for _iteration in range(self.max_iterations):
             iteration_count = _iteration + 1  # Track number of iterations performed
             current_x = state.x
-            current_objective, gradient = value_and_grad_fn(current_x)
+            _, gradient = value_and_grad_fn(current_x)
 
             # Project gradient to tangent space
             riemannian_grad = manifold.proj(current_x, gradient)
