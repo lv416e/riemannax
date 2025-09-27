@@ -166,8 +166,9 @@ def validate_learning_rate(learning_rate: float) -> ValidationResult:
         violations.append(f"Learning rate must be positive, got {learning_rate}")
         suggestions.append("Use a small positive value like 0.01 or 0.1")
 
+    # Note: Large learning rates (> 1.0) are allowed but we provide guidance
+    # This gives users flexibility for hyperparameter experimentation
     if learning_rate > 1.0:
-        violations.append(f"Learning rate {learning_rate} is unusually large")
-        suggestions.append("Consider using a smaller value like 0.01-0.1 for stability")
+        suggestions.append(f"Learning rate {learning_rate} is large - consider 0.01-0.1 range for stability")
 
     return ValidationResult(is_valid=len(violations) == 0, violations=violations, suggestions=suggestions)

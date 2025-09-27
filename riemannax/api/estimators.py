@@ -3,7 +3,7 @@
 import abc
 import math
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -18,6 +18,9 @@ from .detection import ManifoldDetector, ManifoldType
 from .errors import ManifoldDetectionError, ParameterValidationError
 from .results import ConvergenceStatus, OptimizationResult
 from .validation import validate_learning_rate, validate_parameter_type
+
+# TypeVar for proper return type annotation in set_params method
+TEstimator = TypeVar("TEstimator", bound="RiemannianEstimator")
 
 
 class _SOManifoldWrapper:
@@ -203,7 +206,7 @@ class RiemannianEstimator(abc.ABC):
             "random_state": self.random_state,
         }
 
-    def set_params(self, **params: Any) -> "RiemannianEstimator":
+    def set_params(self: TEstimator, **params: Any) -> TEstimator:
         """Set the parameters of this estimator.
 
         Args:
@@ -382,11 +385,8 @@ class RiemannianEstimator(abc.ABC):
             # Update state
             state = update_fn(riemannian_grad, state, manifold)
 
-            # Check convergence using manifold norm when available
-            if hasattr(manifold, "norm"):
-                grad_norm_val = manifold.norm(current_x, riemannian_grad)
-            else:
-                grad_norm_val = jnp.linalg.norm(riemannian_grad)
+            # Check convergence using manifold norm (all manifolds implement this)
+            grad_norm_val = manifold.norm(current_x, riemannian_grad)
             grad_norm = float(grad_norm_val)
             if grad_norm < self.tolerance:
                 converged = True
