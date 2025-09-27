@@ -1,7 +1,6 @@
 """Scikit-learn compatible estimator framework for RiemannAX."""
 
 import abc
-import math
 from collections.abc import Callable
 from typing import Any, TypeVar
 
@@ -395,10 +394,8 @@ class RiemannianEstimator(abc.ABC):
         # Determine convergence status
         convergence_status = ConvergenceStatus.CONVERGED if converged else ConvergenceStatus.MAX_ITERATIONS
 
-        # Ensure we have a finite objective (loop may not run if max_iterations=0)
-        if not math.isfinite(current_objective):
-            current_objective = float(objective_func(state.x))
-        final_objective = float(current_objective)
+        # Evaluate objective at the final iterate to ensure correctness (and handle max_iterations=0)
+        final_objective = float(objective_func(state.x))
 
         # Create result
         self._optimization_result = OptimizationResult(
