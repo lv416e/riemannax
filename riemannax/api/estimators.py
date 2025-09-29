@@ -51,10 +51,10 @@ class _SOManifoldWrapper:
         Returns:
             Matrix in SO(n) with det(X) = +1.
         """
-        det = jnp.linalg.det(X)
-        # Flip the last column only when det < 0; supports batched (..., n, n) inputs.
-        sign = jnp.where(det < 0, jnp.array(-1.0, dtype=X.dtype), jnp.array(1.0, dtype=X.dtype))
-        return X.at[..., :, -1].set(sign[..., None] * X[..., :, -1])
+        det_sign, _ = jnp.linalg.slogdet(X)
+        # Flip the last column only when det_sign < 0; supports batched (..., n, n) inputs.
+        flip = jnp.where(det_sign < 0, jnp.array(-1.0, dtype=X.dtype), jnp.array(1.0, dtype=X.dtype))
+        return X.at[..., :, -1].set(flip[..., None] * X[..., :, -1])
 
     def retr(self, X: Array, U: Array) -> Array:
         """Retraction to SO(n) with det=+1 enforcement."""
@@ -126,7 +126,7 @@ class RiemannianEstimator(abc.ABC):
             )
 
         # Validate manifold type
-        valid_manifolds = ["auto", "sphere", "stiefel", "spd", "so"]
+        valid_manifolds = ["auto"] + [t.value for t in ManifoldType if t is not ManifoldType.UNKNOWN]
         if self.manifold not in valid_manifolds:
             raise ParameterValidationError(
                 f"Invalid manifold type '{self.manifold}'. Must be one of {valid_manifolds}",
@@ -378,22 +378,20 @@ class RiemannianEstimator(abc.ABC):
         grad_norm = float("inf")  # Initialize with infinity
 
         for _iteration in range(self.max_iterations):
-            iteration_count = _iteration + 1  # Track number of iterations performed
             current_x = state.x
             gradient = grad_fn(current_x)
-
-            # Project gradient to tangent space
             riemannian_grad = manifold.proj(current_x, gradient)
 
-            # Update state
-            state = update_fn(riemannian_grad, state, manifold)
-
-            # Check convergence using manifold norm (all manifolds implement this)
+            # Check convergence at current_x before stepping
             grad_norm_val = manifold.norm(current_x, riemannian_grad)
             grad_norm = float(grad_norm_val)
             if grad_norm < self.tolerance:
                 converged = True
                 break
+
+            # Take a step only if not converged
+            state = update_fn(riemannian_grad, state, manifold)
+            iteration_count = _iteration + 1  # Track number of updates performed
 
         # Determine convergence status
         convergence_status = ConvergenceStatus.CONVERGED if converged else ConvergenceStatus.MAX_ITERATIONS
@@ -411,6 +409,9 @@ class RiemannianEstimator(abc.ABC):
                 "manifold_type": self._detected_manifold_type.value if self._detected_manifold_type else self.manifold,
                 "final_gradient_norm": grad_norm,
                 "tolerance": self.tolerance,
+                "optimizer": self.__class__.__name__,
+                "learning_rate": self.learning_rate,
+                **({"use_retraction": self.use_retraction} if hasattr(self, "use_retraction") else {}),
             },
         )
 
@@ -496,7 +497,8 @@ class RiemannianEstimator(abc.ABC):
 
         # Fast path: use cached objective when evaluating at fitted params
         if X is None and "objective_func" not in kwargs:
-            assert self._optimization_result is not None, "optimization_result must exist when fitted"
+            if self._optimization_result is None:
+                raise RuntimeError("Internal error: optimization_result missing after fit")
             return -float(self._optimization_result.objective_value)
 
         # Otherwise, evaluate at the provided X
@@ -532,6 +534,15 @@ class RiemannianSGD(RiemannianEstimator):
         """
         self.use_retraction = use_retraction
         super().__init__(manifold, learning_rate, max_iterations, tolerance, random_state)
+
+        # Validate SGD-specific parameter
+        if not isinstance(self.use_retraction, bool):
+            raise ParameterValidationError(
+                "use_retraction must be a bool",
+                parameter_name="use_retraction",
+                expected_type=bool,
+                received_value=self.use_retraction,
+            )
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
         """Get parameters for this estimator."""
@@ -588,6 +599,15 @@ class RiemannianAdam(RiemannianEstimator):
 
     def _validate_adam_parameters(self) -> None:
         """Validate Adam-specific parameters."""
+        # use_retraction should be bool
+        if not isinstance(self.use_retraction, bool):
+            raise ParameterValidationError(
+                "use_retraction must be a bool",
+                parameter_name="use_retraction",
+                expected_type=bool,
+                received_value=self.use_retraction,
+            )
+
         # Validate numeric type (explicitly reject booleans)
         for name, val in [("beta1", self.beta1), ("beta2", self.beta2), ("eps", self.eps)]:
             if isinstance(val, bool) or not isinstance(val, (int, float)):
