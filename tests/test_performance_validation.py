@@ -532,5 +532,11 @@ class TestComprehensivePerformanceValidation:
             assert pass_rate >= 80.0, f"CI performance test pass rate {pass_rate}% below 80% threshold"
 
             avg_speedup = ci_report["summary"]["average_speedup"]
-            min_expected = 1.5 * 0.8  # Apply same 20% tolerance as individual operations for CI robustness
+            device_str = str(jax.devices()[0]).lower()
+            base = (
+                PerformanceThresholds.MIN_GPU_SPEEDUP
+                if "gpu" in device_str
+                else PerformanceThresholds.MIN_CPU_SPEEDUP
+            )
+            min_expected = base * 0.8  # Apply 20% tolerance for CI robustness
             assert avg_speedup >= min_expected, f"Average speedup {avg_speedup}x below {min_expected}x threshold"
