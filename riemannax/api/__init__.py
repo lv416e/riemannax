@@ -13,7 +13,12 @@ from .errors import (
 )
 from .estimators import RiemannianAdam, RiemannianEstimator, RiemannianSGD
 from .results import ConvergenceStatus, OptimizationResult
-from .validation import ValidationResult, validate_sphere_constraint
+from .validation import (
+    ValidationResult,
+    validate_orthogonal_constraint,
+    validate_spd_constraint,
+    validate_sphere_constraint,
+)
 
 __all__ = [
     "ConstraintViolationError",
@@ -29,5 +34,7 @@ __all__ = [
     "RiemannianEstimator",
     "RiemannianSGD",
     "ValidationResult",
+    "validate_orthogonal_constraint",
+    "validate_spd_constraint",
     "validate_sphere_constraint",
 ]

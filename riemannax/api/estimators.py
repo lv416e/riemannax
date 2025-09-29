@@ -502,7 +502,9 @@ class RiemannianEstimator(abc.ABC):
             return -float(self._optimization_result.objective_value)
 
         # Otherwise, evaluate at the provided X
-        x_eval = X if X is not None else self._optimization_result.optimized_params  # type: ignore[union-attr]
+        # We know _optimization_result is not None because _is_fitted was checked earlier
+        assert self._optimization_result is not None, "optimization_result must exist when fitted"
+        x_eval = X if X is not None else self._optimization_result.optimized_params
         return -float(objective_func(x_eval))
 
 
