@@ -121,7 +121,7 @@ class ManifoldDetector:
         if x.ndim == 1 and x.size > 0:
             norm = float(jnp.linalg.norm(x))
             if norm > atol:  # Non-zero vector
-                confidence = 1.0 if abs(norm - 1.0) < atol else max(0.1, 1.0 - abs(norm - 1.0))
+                confidence = 1.0 if abs(norm - 1.0) < atol else max(0.0, 1.0 - abs(norm - 1.0))
                 candidates.append(
                     ManifoldCandidate(
                         manifold_type=ManifoldType.SPHERE,
@@ -214,7 +214,7 @@ class ManifoldDetector:
 
         # Compute X^T X
         XTX = x.T @ x
-        I = jnp.eye(n)
+        I = jnp.eye(n, dtype=x.dtype)
 
         # Check how close X^T X is to identity
         orthogonality_error = float(jnp.max(jnp.abs(XTX - I)))
@@ -257,7 +257,7 @@ class ManifoldDetector:
 
                 if is_valid:
                     det = jnp.linalg.det(x)
-                    if not jnp.allclose(det, 1.0, atol=atol):
+                    if not jnp.allclose(det, 1.0, atol=atol, rtol=0.0):
                         is_valid = False
                         violations.append(f"Matrix determinant must be +1 for SO(n), got {float(det):.6f}")
                         suggestions.append("Ensure the matrix has a determinant of +1.")

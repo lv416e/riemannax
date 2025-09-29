@@ -263,7 +263,7 @@ class RiemannianEstimator(abc.ABC):
         """
         if self.manifold == "auto":
             # Automatic manifold detection
-            detection_result = ManifoldDetector.detect_manifold(x0)
+            detection_result = ManifoldDetector.detect_manifold(x0, atol=self.tolerance)
 
             if detection_result.detected_type == ManifoldType.UNKNOWN:
                 raise ManifoldDetectionError(
@@ -287,7 +287,9 @@ class RiemannianEstimator(abc.ABC):
             self._detected_manifold_type = ManifoldType(manifold_type)
 
             # Validate that initial point satisfies manifold constraints
-            validation_result = ManifoldDetector.validate_constraints(x0, self._detected_manifold_type)
+            validation_result = ManifoldDetector.validate_constraints(
+                x0, self._detected_manifold_type, atol=self.tolerance
+            )
             if not validation_result.constraints_satisfied:
                 raise ManifoldDetectionError(
                     f"Initial point does not satisfy {manifold_type} manifold constraints. "
@@ -362,8 +364,8 @@ class RiemannianEstimator(abc.ABC):
         # Initialize optimizer state
         state = init_fn(x0)
 
-        # Create value-and-gradient function for efficiency (eliminates redundant computation)
-        value_and_grad_fn = jax.value_and_grad(objective_func)
+        # Create gradient function for efficiency (value computed separately at end)
+        grad_fn = jax.grad(objective_func)
         # TODO: Performance optimization opportunity: JIT + lax.while_loop
         # - Benefits: Eliminate host-device syncs, ~2-5x speed improvement
         # - Implementation: Convert to lax.while_loop with JAX-compatible state
@@ -378,7 +380,7 @@ class RiemannianEstimator(abc.ABC):
         for _iteration in range(self.max_iterations):
             iteration_count = _iteration + 1  # Track number of iterations performed
             current_x = state.x
-            _, gradient = value_and_grad_fn(current_x)
+            gradient = grad_fn(current_x)
 
             # Project gradient to tangent space
             riemannian_grad = manifold.proj(current_x, gradient)
