@@ -101,7 +101,7 @@ ignore = [
     "D212",  # multi-line-summary-first-line (conflicts with D213)
     "E501",  # line too long (managed by formatter)
     "E741",  # ambiguous variable name (e.g. i, j, k)
-    "UP038", # isinstance union syntax - different ruff versions have different behaviors
+    "UP038", # isinstance union syntax - empirically proven CI/local ruff inconsistencies despite version constraints
 ]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
