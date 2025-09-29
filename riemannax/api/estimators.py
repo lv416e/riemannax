@@ -217,6 +217,9 @@ class RiemannianEstimator(abc.ABC):
         Raises:
             ParameterValidationError: If invalid parameters are provided.
         """
+        if not params:
+            return self
+
         valid_params = set(self.get_params().keys())
 
         for key, value in params.items():

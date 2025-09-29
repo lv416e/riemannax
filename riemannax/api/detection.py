@@ -250,16 +250,19 @@ class ManifoldDetector:
                     suggestions=["Use a square orthogonal matrix"],
                 )
             else:
-                validation_result = validate_orthogonal_constraint(x, atol)
-                if validation_result.is_valid:
+                ortho_result = validate_orthogonal_constraint(x, atol)
+                violations = list(ortho_result.violations)
+                suggestions = list(ortho_result.suggestions)
+                is_valid = ortho_result.is_valid
+
+                if is_valid:
                     det = jnp.linalg.det(x)
                     if not jnp.allclose(det, 1.0, atol=atol):
-                        # Modify existing ValidationResult instead of creating new instance
-                        validation_result.is_valid = False
-                        validation_result.violations.append(
-                            f"Matrix determinant must be +1 for SO(n), got {float(det):.6f}"
-                        )
-                        validation_result.suggestions.append("Ensure the matrix has a determinant of +1.")
+                        is_valid = False
+                        violations.append(f"Matrix determinant must be +1 for SO(n), got {float(det):.6f}")
+                        suggestions.append("Ensure the matrix has a determinant of +1.")
+
+                validation_result = ValidationResult(is_valid, violations, suggestions)
         else:
             raise ManifoldDetectionError(f"Unsupported manifold type for validation: {manifold_type}")
 
