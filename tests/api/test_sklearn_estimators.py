@@ -1,5 +1,7 @@
 """Tests for scikit-learn estimator compatibility."""
 
+import numbers
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -15,8 +17,8 @@ except ImportError:
 
 from riemannax.api.sklearn_estimators import (
     RiemannianManifoldEstimator,
-    RiemannianPCA,
     RiemannianOptimizer,
+    RiemannianPCA,
 )
 from riemannax.manifolds import Sphere, Stiefel
 
@@ -231,7 +233,7 @@ class TestGridSearchIntegration:
         X = jnp.stack([manifold.random_point(jax.random.fold_in(key, i)) for i in range(20)])
 
         # Create a simple scoring function
-        def score_fn(estimator, X):
+        def score_fn(estimator, X, y=None):
             X_transformed = estimator.transform(X)
             # Simple score: negative variance (higher is better)
             return -float(jnp.var(X_transformed))
@@ -269,14 +271,14 @@ class TestCrossValidation:
             return manifold.dist(x, target) ** 2
 
         # Custom scorer that works with the optimizer
-        def custom_scorer(estimator, X_test):
+        def custom_scorer(estimator, X_test, y=None):
             # For each point in X_test, optimize and return negative loss
             scores = []
             for x in X_test:
                 estimator.fit(x.reshape(1, -1), objective)
                 score = estimator.score(x.reshape(1, -1), objective)
                 scores.append(score)
-            return jnp.mean(jnp.array(scores))
+            return float(jnp.mean(jnp.array(scores)))
 
         optimizer = RiemannianOptimizer(
             manifold=manifold, learning_rate=0.01, max_iter=5
@@ -287,4 +289,4 @@ class TestCrossValidation:
 
         # Assert
         assert len(scores) == 3
-        assert all(isinstance(s, (int, float)) for s in scores)
+        assert all(isinstance(s, numbers.Real) for s in scores)

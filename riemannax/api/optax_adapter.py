@@ -204,6 +204,10 @@ def chain_with_optax(
     This function allows you to compose Riemannian optimization with standard
     Optax gradient transformations like clipping, weight decay, etc.
 
+    IMPORTANT: The Riemannian optimizer must be the LAST transformation in the chain.
+    This ensures that Euclidean gradient transformations (clipping, weight decay, etc.)
+    are applied before projection to the tangent space and retraction onto the manifold.
+
     Args:
         riemannian_opt: Riemannian Optax adapter.
         *optax_transforms: Optax gradient transformations to chain.

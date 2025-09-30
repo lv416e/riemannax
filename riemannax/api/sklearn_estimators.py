@@ -130,11 +130,14 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
         mean = self._compute_riemannian_mean(X)
         self.mean_ = mean
 
-        # Project data to tangent space at mean
-        tangent_vectors = jnp.stack([self.manifold.log(mean, x) for x in X])
+        # Project data to tangent space at mean (vectorized for performance)
+        log_at_mean = jax.vmap(lambda x: self.manifold.log(mean, x))
+        tangent_vectors = log_at_mean(X)
 
         # Flatten tangent vectors for PCA
         n_samples = tangent_vectors.shape[0]
+        if n_samples < 2:
+            raise ValueError(f"RiemannianPCA requires at least 2 samples for covariance computation, got {n_samples}.")
         tangent_flat = tangent_vectors.reshape(n_samples, -1)
 
         # Standard PCA in tangent space
@@ -169,8 +172,10 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
         if self.mean_ is None or self.components_ is None:
             raise ValueError("PCA not fitted. Call fit() first.")
 
-        # Project to tangent space at mean
-        tangent_vectors = jnp.stack([self.manifold.log(self.mean_, x) for x in X])
+        # Project to tangent space at mean (vectorized for performance)
+        mean = self.mean_  # Type narrowing for mypy
+        log_at_mean = jax.vmap(lambda x: self.manifold.log(mean, x))
+        tangent_vectors = log_at_mean(X)
 
         # Flatten and project onto principal components
         n_samples = tangent_vectors.shape[0]
@@ -196,10 +201,13 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
         learning_rate = 0.1
         max_iter = 50
 
+        def compute_mean_tangent(current_mean: Array) -> Array:
+            logs = jax.vmap(lambda x: self.manifold.log(current_mean, x))(X)
+            return jnp.mean(logs, axis=0)
+
         for _ in range(max_iter):
-            # Compute mean of log maps (tangent vector pointing to mean)
-            tangent_sum = sum(self.manifold.log(mean, x) for x in X)
-            mean_tangent = tangent_sum / len(X)
+            # Compute mean of log maps (vectorized for performance)
+            mean_tangent = compute_mean_tangent(mean)
 
             # Update mean using exponential map
             scaled_tangent = jnp.asarray(learning_rate * mean_tangent)

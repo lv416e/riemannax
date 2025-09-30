@@ -116,11 +116,30 @@ class ManifoldConstrainedModule(nnx.Module):
 
         if not is_valid:
             # Parameters violate constraints, project back
-            # Use retraction from a base point on the manifold
-            base_point = self.manifold.random_point(jax.random.PRNGKey(0), *self.param_shape)
-            # Project the difference to tangent space, then retract
-            tangent = self.manifold.proj(base_point, self.params.value - base_point)
-            self.params.value = self.manifold.retr(base_point, tangent)
+            # Use manifold-specific projection heuristics
+            try:
+                # For Stiefel/Grassmann: QR-based orthogonalization
+                if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
+                    # Stiefel-like manifold: orthogonalize via QR
+                    q, r = jnp.linalg.qr(self.params.value)
+                    self.params.value = q
+                # For Sphere: normalize to unit norm
+                elif hasattr(self.manifold, "dimension"):
+                    norm = jnp.linalg.norm(self.params.value)
+                    if norm > 1e-8:
+                        self.params.value = self.params.value / norm
+                    else:
+                        # Reinitialize if collapsed to zero
+                        key = jax.random.PRNGKey(int(self.constraint_violations.value))
+                        self.params.value = self.manifold.random_point(key, *self.param_shape)
+                else:
+                    # Generic fallback: reinitialize on manifold
+                    key = jax.random.PRNGKey(int(self.constraint_violations.value))
+                    self.params.value = self.manifold.random_point(key, *self.param_shape)
+            except Exception:
+                # Last resort: reinitialize
+                key = jax.random.PRNGKey(int(self.constraint_violations.value))
+                self.params.value = self.manifold.random_point(key, *self.param_shape)
 
             # Increment violation counter using mutable state
             self.constraint_violations.value = self.constraint_violations.value + 1.0
@@ -135,10 +154,20 @@ class ManifoldConstrainedModule(nnx.Module):
         if is_valid:
             return 0.0
         else:
-            # Compute distance from manifold (heuristic)
-            base_point = self.manifold.random_point(jax.random.PRNGKey(0), *self.param_shape)
-            projected = self.manifold.proj(base_point, self.params.value)
-            return float(jnp.linalg.norm(self.params.value - projected))
+            # Compute manifold-specific residual
+            if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
+                # Stiefel: measure orthogonality violation
+                gram = self.params.value.T @ self.params.value
+                p = self.params.value.shape[1]
+                residual = jnp.linalg.norm(gram - jnp.eye(p))
+                return float(residual)
+            elif hasattr(self.manifold, "dimension"):
+                # Sphere: measure norm deviation
+                norm = jnp.linalg.norm(self.params.value)
+                return float(jnp.abs(norm - 1.0))
+            else:
+                # Generic: return constant penalty if invalid
+                return 1.0
 
     def get_constraint_penalty(self) -> float:
         """Compute penalty for constraint violations.
@@ -198,6 +227,20 @@ class ManifoldConstrainedLinear(nnx.Module):
         # For manifolds like Stiefel, random_point() already knows the shape (n, p)
         # Don't pass shape for single matrix
         initial_weight = self.manifold.random_point(key)
+
+        # Validate shape: must be a 2D matrix for linear layer
+        if initial_weight.ndim != 2:
+            raise ValueError(
+                f"ManifoldConstrainedLinear requires a 2D weight matrix, "
+                f"but manifold.random_point() returned shape {initial_weight.shape}. "
+                f"Use Stiefel(n={in_features}, p={out_features}) for orthogonal weights."
+            )
+        if initial_weight.shape != (in_features, out_features):
+            raise ValueError(
+                f"Weight shape {initial_weight.shape} does not match "
+                f"({in_features}, {out_features}). Ensure manifold dimensions match layer dimensions."
+            )
+
         self.weight = ManifoldParam(initial_weight)
 
         # Initialize constraint violation counter
@@ -233,11 +276,29 @@ class ManifoldConstrainedLinear(nnx.Module):
         is_valid = self.manifold.validate_point(self.weight.value)
 
         if not is_valid:
-            # Project back using retraction from a base point on the manifold
-            base_point = self.manifold.random_point(jax.random.PRNGKey(0))
-            # Project the difference to tangent space, then retract
-            tangent = self.manifold.proj(base_point, self.weight.value - base_point)
-            self.weight.value = self.manifold.retr(base_point, tangent)
+            # Use manifold-specific projection heuristics
+            try:
+                # For Stiefel/Grassmann: QR-based orthogonalization
+                if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
+                    q, r = jnp.linalg.qr(self.weight.value)
+                    self.weight.value = q
+                # For Sphere: normalize to unit norm
+                elif hasattr(self.manifold, "dimension"):
+                    norm = jnp.linalg.norm(self.weight.value)
+                    if norm > 1e-8:
+                        self.weight.value = self.weight.value / norm
+                    else:
+                        # Reinitialize if collapsed
+                        key = jax.random.PRNGKey(int(self.constraint_violations.value))
+                        self.weight.value = self.manifold.random_point(key)
+                else:
+                    # Generic fallback: reinitialize
+                    key = jax.random.PRNGKey(int(self.constraint_violations.value))
+                    self.weight.value = self.manifold.random_point(key)
+            except Exception:
+                # Last resort: reinitialize
+                key = jax.random.PRNGKey(int(self.constraint_violations.value))
+                self.weight.value = self.manifold.random_point(key)
 
             self.constraint_violations.value = self.constraint_violations.value + 1.0
 
@@ -247,9 +308,20 @@ class ManifoldConstrainedLinear(nnx.Module):
         if is_valid:
             return 0.0
         else:
-            base_point = self.manifold.random_point(jax.random.PRNGKey(0))
-            projected = self.manifold.proj(base_point, self.weight.value)
-            return float(jnp.linalg.norm(self.weight.value - projected))
+            # Compute manifold-specific residual
+            if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
+                # Stiefel: measure orthogonality violation
+                gram = self.weight.value.T @ self.weight.value
+                p = self.weight.value.shape[1]
+                residual = jnp.linalg.norm(gram - jnp.eye(p))
+                return float(residual)
+            elif hasattr(self.manifold, "dimension"):
+                # Sphere: measure norm deviation
+                norm = jnp.linalg.norm(self.weight.value)
+                return float(jnp.abs(norm - 1.0))
+            else:
+                # Generic: return constant penalty if invalid
+                return 1.0
 
     def get_constraint_penalty(self) -> float:
         """Compute constraint violation penalty."""
@@ -284,7 +356,7 @@ def create_manifold_linear(
         ...     rngs=nnx.Rngs(0)
         ... )
     """
-    from riemannax.manifolds import create_sphere, create_stiefel
+    from riemannax.manifolds import create_stiefel
 
     if rngs is None:
         rngs = nnx.Rngs(0)
@@ -296,7 +368,11 @@ def create_manifold_linear(
             raise ValueError(f"Stiefel requires in_features >= out_features, got {in_features} < {out_features}")
         manifold = create_stiefel(p=out_features, n=in_features)
     elif manifold_type.lower() == "sphere":
-        manifold = create_sphere(n=in_features * out_features - 1)
+        raise NotImplementedError(
+            "ManifoldConstrainedLinear requires a matrix-shaped manifold. "
+            "Sphere manifold produces 1D vectors, not 2D weight matrices. "
+            "Use 'stiefel' for orthogonal weights, or implement custom oblique/product-sphere support."
+        )
     else:
         raise ValueError(f"Unsupported manifold type: {manifold_type}")
 

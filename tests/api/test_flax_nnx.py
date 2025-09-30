@@ -164,7 +164,7 @@ class TestManifoldConstrainedLinear:
         layer.project_params()
 
         # Assert
-        assert layer.constraint_violations.value > 0
+        assert float(layer.constraint_violations.value) > 0
 
 
 class TestConstraintViolationTracking:
@@ -189,15 +189,16 @@ class TestConstraintViolationTracking:
             rngs=nnx.Rngs(key)
         )
 
-        initial_count = module.constraint_violations.value
+        initial_count = float(module.constraint_violations.value)
 
         # Act - violate constraint multiple times
-        for _ in range(3):
-            module.params.value = jax.random.normal(jax.random.PRNGKey(1), (4,))
+        for i in range(3):
+            k_i = jax.random.fold_in(key, i + 1)
+            module.params.value = jax.random.normal(k_i, (4,))
             module.project_params()
 
         # Assert
-        assert module.constraint_violations.value > initial_count
+        assert float(module.constraint_violations.value) > initial_count
 
 
 class TestNNXCheckpointing:
