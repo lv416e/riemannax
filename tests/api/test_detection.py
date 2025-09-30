@@ -117,22 +117,16 @@ class TestManifoldDetector:
         assert result.constraints_satisfied == True
 
     def test_detect_stiefel_manifold_invalid(self):
-        """Test detection fails for invalid Stiefel points."""
-        # Non-orthogonal matrix (this is actually SPD, so update expectation)
+        """Test detection correctly identifies SPD matrix instead of Stiefel."""
+        # This matrix is diagonal SPD, not Stiefel (not orthogonal)
         X = jnp.array([[2.0, 0.0],
                        [0.0, 1.0]])
         result = ManifoldDetector.detect_manifold(X)
 
-        # This matrix could be detected as SPD (which is correct) or other types
-        # The key is that if detected as Stiefel, it should show constraint violations
-        if result.detected_type == ManifoldType.STIEFEL:
-            assert result.constraints_satisfied == False
-            assert len(result.validation_errors) > 0
-        elif result.detected_type == ManifoldType.SPD:
-            # This is actually correct - the matrix is SPD
-            assert result.constraints_satisfied == True
-        else:
-            assert result.detected_type == ManifoldType.UNKNOWN
+        # This matrix is SPD, so the detector should identify it as such
+        assert result.detected_type == ManifoldType.SPD
+        assert result.constraints_satisfied is True
+        assert result.confidence > 0.9
 
     def test_detect_spd_manifold_valid(self):
         """Test detection of valid SPD manifold points."""

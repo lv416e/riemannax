@@ -1,6 +1,7 @@
 """Scikit-learn compatible estimator framework for RiemannAX."""
 
 import abc
+import warnings
 from collections.abc import Callable
 from typing import Any, TypeVar
 
@@ -491,8 +492,6 @@ class RiemannianEstimator(abc.ABC):
 
         # Use stored function by default, allow override for backward compatibility
         if "objective_func" in kwargs:
-            import warnings
-
             warnings.warn(
                 "Passing 'objective_func' to score() is deprecated and may be removed "
                 "in future versions. Use the objective function from fit() for sklearn compatibility.",

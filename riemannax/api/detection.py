@@ -164,7 +164,7 @@ class ManifoldDetector:
             if m == n and stiefel_confidence > _MIN_CONFIDENCE_THRESHOLD:
                 try:
                     det = float(jnp.linalg.det(x))
-                    det_closeness = max(0.0, 1.0 - abs(det - 1.0) / atol)
+                    det_closeness = max(0.0, 1.0 - abs(det - 1.0) / (10 * atol))
                     so_confidence = min(1.0, stiefel_confidence * det_closeness)
                     if so_confidence > _MIN_CONFIDENCE_THRESHOLD:
                         candidates.append(
