@@ -14,6 +14,9 @@ from .validation import (
     validate_sphere_constraint,
 )
 
+# Minimum confidence threshold for manifold detection candidates
+_MIN_CONFIDENCE_THRESHOLD = 0.1
+
 
 class ManifoldType(Enum):
     """Enumeration of supported manifold types for automatic detection."""
@@ -137,7 +140,7 @@ class ManifoldDetector:
             # Check for SPD manifold (symmetric positive definite)
             if m == n:  # Square matrix
                 spd_confidence = ManifoldDetector._assess_spd_likelihood(x, atol)
-                if spd_confidence > 0.1:
+                if spd_confidence > _MIN_CONFIDENCE_THRESHOLD:
                     candidates.append(
                         ManifoldCandidate(
                             manifold_type=ManifoldType.SPD,
@@ -148,7 +151,7 @@ class ManifoldDetector:
 
             # Check for Stiefel manifold (orthogonal matrices)
             stiefel_confidence = ManifoldDetector._assess_stiefel_likelihood(x, atol)
-            if stiefel_confidence > 0.1:
+            if stiefel_confidence > _MIN_CONFIDENCE_THRESHOLD:
                 candidates.append(
                     ManifoldCandidate(
                         manifold_type=ManifoldType.STIEFEL,
@@ -158,12 +161,12 @@ class ManifoldDetector:
                 )
 
             # Check for SO(n) (special orthogonal: orthogonal with det +1)
-            if m == n and stiefel_confidence > 0.1:
+            if m == n and stiefel_confidence > _MIN_CONFIDENCE_THRESHOLD:
                 try:
                     det = float(jnp.linalg.det(x))
                     det_closeness = max(0.0, 1.0 - abs(det - 1.0) / atol)
                     so_confidence = min(1.0, stiefel_confidence * det_closeness)
-                    if so_confidence > 0.1:
+                    if so_confidence > _MIN_CONFIDENCE_THRESHOLD:
                         candidates.append(
                             ManifoldCandidate(
                                 manifold_type=ManifoldType.SO,

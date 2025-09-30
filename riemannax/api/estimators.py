@@ -561,6 +561,9 @@ class RiemannianSGD(RiemannianEstimator):
     def set_params(self, **params: Any) -> "RiemannianSGD":
         """Set parameters with SGD-specific validation."""
         super().set_params(**params)
+        # NOTE: Inline validation preferred over helper method for single parameter.
+        # Unlike Adam (4 params), SGD has only use_retraction, making abstraction overkill.
+        # This follows YAGNI principle and maintains clarity over premature optimization.
         if not isinstance(self.use_retraction, bool):
             raise ParameterValidationError(
                 "use_retraction must be a bool",
