@@ -152,6 +152,9 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
         eigenvectors = eigenvectors[:, idx]
 
         # Keep top n_components
+        D = eigenvectors.shape[0]
+        if not (1 <= int(self.n_components) <= int(D)):
+            raise ValueError(f"n_components must be in [1, {int(D)}], got {self.n_components}.")
         principal_directions = eigenvectors[:, : self.n_components]
 
         # Reshape back to manifold shape
@@ -307,7 +310,7 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
         )
         return params
 
-    def fit(self, X: Array, y: Callable[[Array], float] | None = None) -> "RiemannianOptimizer":
+    def fit(self, X: Array, y: Callable[[Array], Array] | None = None) -> "RiemannianOptimizer":
         """Fit optimizer by minimizing objective function.
 
         Args:
@@ -348,7 +351,7 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
         self.result_ = x
         return self
 
-    def score(self, X: Array, y: Callable[[Array], float] | None = None) -> float:
+    def score(self, X: Array, y: Callable[[Array], Array] | None = None) -> float:
         """Compute negative loss (higher is better for sklearn).
 
         Args:

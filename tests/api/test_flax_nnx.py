@@ -140,7 +140,7 @@ class TestManifoldConstrainedLinear:
 
         # Assert - W^T W should be identity for orthogonal matrices
         gram = weights.T @ weights
-        expected = jnp.eye(out_features)
+        expected = jnp.eye(out_features, dtype=weights.dtype)
         assert jnp.allclose(gram, expected, atol=1e-5)
 
     def test_linear_layer_tracks_constraint_violations(self):
@@ -287,7 +287,7 @@ class TestTrainingWithConstraints:
         # Assert - Should still be orthogonal
         weights = layer.weight.value
         gram = weights.T @ weights
-        expected = jnp.eye(out_features)
+        expected = jnp.eye(out_features, dtype=weights.dtype)
         assert jnp.allclose(gram, expected, atol=1e-4)
 
     def test_jit_compilation_with_constraints(self):
