@@ -32,6 +32,7 @@ except ImportError:
             pass
 
 
+from riemannax.manifolds import create_stiefel
 from riemannax.manifolds.base import Manifold
 
 
@@ -380,8 +381,6 @@ def create_manifold_linear(
         raise ImportError(
             "Flax NNX is required to use create_manifold_linear(). Please install flax>=0.8 with nnx support."
         )
-
-    from riemannax.manifolds import create_stiefel
 
     if rngs is None:
         rngs = nnx.Rngs(0)

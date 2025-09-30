@@ -251,6 +251,49 @@ class TestNNXCheckpointing:
         assert jnp.allclose(module2.params.value, original_params)
 
 
+class TestFactoryFunctionEdgeCases:
+    """Test suite for create_manifold_linear factory function edge cases."""
+
+    def test_factory_rejects_stiefel_with_in_lt_out(self):
+        """Test that factory raises ValueError when in_features < out_features for Stiefel."""
+        # Arrange
+        key = jax.random.PRNGKey(0)
+
+        # Act & Assert - Stiefel requires n >= p
+        with pytest.raises(ValueError, match="Stiefel requires in_features >= out_features"):
+            from riemannax.api.flax_nnx import create_manifold_linear
+
+            create_manifold_linear(
+                in_features=2, out_features=3, manifold_type="stiefel", rngs=nnx.Rngs(key)
+            )
+
+    def test_factory_rejects_sphere_for_linear_weights(self):
+        """Test that factory raises NotImplementedError for sphere manifold."""
+        # Arrange
+        key = jax.random.PRNGKey(0)
+
+        # Act & Assert - Sphere produces 1D vectors, not 2D matrices
+        with pytest.raises(NotImplementedError, match="ManifoldConstrainedLinear requires a matrix-shaped manifold"):
+            from riemannax.api.flax_nnx import create_manifold_linear
+
+            create_manifold_linear(
+                in_features=4, out_features=2, manifold_type="sphere", rngs=nnx.Rngs(key)
+            )
+
+    def test_factory_rejects_unsupported_manifold_type(self):
+        """Test that factory raises ValueError for unsupported manifold types."""
+        # Arrange
+        key = jax.random.PRNGKey(0)
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="Unsupported manifold type"):
+            from riemannax.api.flax_nnx import create_manifold_linear
+
+            create_manifold_linear(
+                in_features=4, out_features=2, manifold_type="unsupported", rngs=nnx.Rngs(key)
+            )
+
+
 class TestTrainingWithConstraints:
     """Test suite for training neural networks with manifold constraints."""
 
