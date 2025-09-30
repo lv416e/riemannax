@@ -17,7 +17,7 @@ from ..optimizers.sgd import riemannian_gradient_descent
 from .detection import ManifoldDetector, ManifoldType
 from .errors import ManifoldDetectionError, ParameterValidationError
 from .results import ConvergenceStatus, OptimizationResult
-from .validation import validate_learning_rate, validate_parameter_type
+from .validation import validate_learning_rate, validate_numeric_parameter, validate_parameter_type
 
 # TypeVar for proper return type annotation in set_params method
 TEstimator = TypeVar("TEstimator", bound="RiemannianEstimator")
@@ -154,14 +154,11 @@ class RiemannianEstimator(abc.ABC):
                 received_value=self.max_iterations,
             )
 
-        # Validate tolerance - use tuple form and explicit bool check for consistency
-        # NOTE: Manual validation required here instead of validate_parameter_type()
-        # because isinstance(True, (int, float)) == True in Python, which would
-        # incorrectly accept boolean values. This explicit check prevents the
-        # isinstance(True, int) edge case that validate_parameter_type cannot handle.
-        if isinstance(self.tolerance, bool) or not isinstance(self.tolerance, (int, float)):
+        # Validate tolerance using helper function
+        tol_result = validate_numeric_parameter(self.tolerance, "tolerance", allow_negative=False)
+        if not tol_result.is_valid:
             raise ParameterValidationError(
-                "tolerance must be a number",
+                f"Invalid tolerance: {tol_result.violations[0]}",
                 parameter_name="tolerance",
                 expected_type=float,
                 received_value=self.tolerance,
@@ -645,14 +642,12 @@ class RiemannianAdam(RiemannianEstimator):
                 received_value=self.use_retraction,
             )
 
-        # Validate numeric type (explicitly reject booleans)
-        # NOTE: Explicit validation preferred over helper abstraction to maintain
-        # parameter-specific error messages and avoid premature DRY optimization.
-        # This follows the "rule of three" - abstract after third occurrence, not second.
+        # Validate numeric type using helper (DRY principle after third occurrence)
         for name, val in [("beta1", self.beta1), ("beta2", self.beta2), ("eps", self.eps)]:
-            if isinstance(val, bool) or not isinstance(val, (int, float)):
+            result = validate_numeric_parameter(val, name, allow_negative=False)
+            if not result.is_valid:
                 raise ParameterValidationError(
-                    f"{name} must be numeric, got {type(val).__name__}",
+                    f"Invalid {name}: {result.violations[0]}",
                     parameter_name=name,
                     expected_type=float,
                     received_value=val,
