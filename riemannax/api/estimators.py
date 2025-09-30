@@ -52,8 +52,8 @@ class _SOManifoldWrapper:
             Matrix in SO(n) with det(X) = +1.
         """
         det_sign, _ = jnp.linalg.slogdet(X)
-        # Flip the last column only when det_sign < 0; supports batched (..., n, n) inputs.
-        flip = jnp.where(det_sign < 0, jnp.array(-1.0, dtype=X.dtype), jnp.array(1.0, dtype=X.dtype))
+        # Treat non-positive sign as needing a flip for extra robustness.
+        flip = jnp.where(det_sign <= 0, jnp.array(-1.0, dtype=X.dtype), jnp.array(1.0, dtype=X.dtype))
         return X.at[..., :, -1].set(flip[..., None] * X[..., :, -1])
 
     def retr(self, X: Array, U: Array) -> Array:
@@ -335,7 +335,7 @@ class RiemannianEstimator(abc.ABC):
         """
         pass
 
-    def fit(self, objective_func: Callable[[Array], float], x0: Array) -> "RiemannianEstimator":
+    def fit(self: TEstimator, objective_func: Callable[[Array], float], x0: Array) -> TEstimator:
         """Fit the estimator to the optimization problem.
 
         Args:
@@ -388,6 +388,11 @@ class RiemannianEstimator(abc.ABC):
 
         # Determine convergence status
         convergence_status = ConvergenceStatus.CONVERGED if converged else ConvergenceStatus.MAX_ITERATIONS
+
+        # If no iterations ran, compute gradient norm at x0 for informative metadata
+        if iteration_count == 0 and grad_norm == float("inf"):
+            g0 = manifold.proj(x0, grad_fn(x0))
+            grad_norm = float(manifold.norm(x0, g0))
 
         # Evaluate objective at the final iterate to ensure correctness (and handle max_iterations=0)
         final_objective = float(objective_func(state.x))
@@ -544,6 +549,18 @@ class RiemannianSGD(RiemannianEstimator):
         params = super().get_params(deep)
         params["use_retraction"] = self.use_retraction
         return params
+
+    def set_params(self, **params: Any) -> "RiemannianSGD":
+        """Set parameters with SGD-specific validation."""
+        super().set_params(**params)
+        if not isinstance(self.use_retraction, bool):
+            raise ParameterValidationError(
+                "use_retraction must be a bool",
+                parameter_name="use_retraction",
+                expected_type=bool,
+                received_value=self.use_retraction,
+            )
+        return self
 
     def _create_optimizer(self) -> tuple[Callable, Callable]:
         """Create Riemannian SGD optimizer."""
