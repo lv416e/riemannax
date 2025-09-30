@@ -54,7 +54,7 @@ class _SOManifoldWrapper:
         """
         det_sign, _ = jnp.linalg.slogdet(X)
         # Flip the last column only when det_sign < 0; supports batched (..., n, n) inputs.
-        flip = jnp.where(det_sign < 0, jnp.array(-1.0, dtype=X.dtype), jnp.array(1.0, dtype=X.dtype))
+        flip = jnp.where(det_sign < 0, -1.0, 1.0)
         return X.at[..., :, -1].set(flip[..., None] * X[..., :, -1])
 
     def retr(self, X: Array, U: Array) -> Array:
@@ -344,6 +344,22 @@ class RiemannianEstimator(abc.ABC):
         """
         pass
 
+    def _get_optimizer_metadata(self) -> dict[str, Any]:
+        """Return optimizer-specific metadata for results.
+
+        Subclasses should override this method to include optimizer-specific
+        hyperparameters in the optimization results metadata. This ensures
+        complete reproducibility and analysis capabilities.
+
+        Returns:
+            Dictionary of optimizer-specific metadata keys and values.
+
+        Example:
+            For Adam optimizer, this might return:
+            {"beta1": 0.9, "beta2": 0.999, "eps": 1e-8, "use_retraction": False}
+        """
+        return {}
+
     def fit(self: TEstimator, objective_func: Callable[[Array], float], x0: Array) -> TEstimator:
         """Fit the estimator to the optimization problem.
 
@@ -418,7 +434,7 @@ class RiemannianEstimator(abc.ABC):
                 "tolerance": self.tolerance,
                 "optimizer": self.__class__.__name__,
                 "learning_rate": self.learning_rate,
-                **({"use_retraction": self.use_retraction} if hasattr(self, "use_retraction") else {}),
+                **self._get_optimizer_metadata(),
             },
         )
 
@@ -576,6 +592,10 @@ class RiemannianSGD(RiemannianEstimator):
         """Create Riemannian SGD optimizer."""
         return riemannian_gradient_descent(learning_rate=self.learning_rate, use_retraction=self.use_retraction)
 
+    def _get_optimizer_metadata(self) -> dict[str, Any]:
+        """Return SGD-specific metadata."""
+        return {"use_retraction": self.use_retraction}
+
 
 class RiemannianAdam(RiemannianEstimator):
     """Riemannian Adam estimator.
@@ -696,3 +716,12 @@ class RiemannianAdam(RiemannianEstimator):
             eps=self.eps,
             use_retraction=self.use_retraction,
         )
+
+    def _get_optimizer_metadata(self) -> dict[str, Any]:
+        """Return Adam-specific metadata."""
+        return {
+            "beta1": self.beta1,
+            "beta2": self.beta2,
+            "eps": self.eps,
+            "use_retraction": self.use_retraction,
+        }
