@@ -129,10 +129,11 @@ class ManifoldDetector:
 
         # Check for sphere manifold (vector)
         if x.ndim == 1 and x.size > 0:
+            safe_atol = _safe_atol(atol)  # Cache to avoid repeated calls
             norm = float(jnp.linalg.norm(x))
-            if norm > _safe_atol(atol):  # Non-zero vector
+            if norm > safe_atol:  # Non-zero vector
                 delta = abs(norm - 1.0)
-                confidence = 1.0 if delta < _safe_atol(atol) else max(0.0, 1.0 - delta / (10 * _safe_atol(atol)))
+                confidence = 1.0 if delta < safe_atol else max(0.0, 1.0 - delta / (10 * safe_atol))
                 candidates.append(
                     ManifoldCandidate(
                         manifold_type=ManifoldType.SPHERE,
@@ -172,7 +173,8 @@ class ManifoldDetector:
             if m == n and stiefel_confidence > _MIN_CONFIDENCE_THRESHOLD:
                 try:
                     det = float(jnp.linalg.det(x))
-                    det_closeness = max(0.0, 1.0 - abs(det - 1.0) / (10 * _safe_atol(atol)))
+                    safe_atol_10x = 10 * _safe_atol(atol)  # Cache calculation
+                    det_closeness = max(0.0, 1.0 - abs(det - 1.0) / safe_atol_10x)
                     so_confidence = min(1.0, stiefel_confidence * det_closeness)
                     if so_confidence > _MIN_CONFIDENCE_THRESHOLD:
                         candidates.append(
@@ -197,11 +199,12 @@ class ManifoldDetector:
 
         # Check symmetry
         symmetry_error = float(jnp.max(jnp.abs(x - x.T)))
-        symmetry_score = max(0.0, 1.0 - symmetry_error / (10 * _safe_atol(atol)))  # More lenient
+        safe_atol_10x = 10 * _safe_atol(atol)  # Cache calculation
+        symmetry_score = max(0.0, 1.0 - symmetry_error / safe_atol_10x)  # More lenient
 
         # Check positive definiteness
         try:
-            if symmetry_error < 10 * atol:
+            if symmetry_error < safe_atol_10x:
                 # Use more stable eigvalsh for nearly symmetric matrices
                 X_sym = 0.5 * (x + x.T)
                 eigenvals = jnp.linalg.eigvalsh(X_sym)
@@ -229,7 +232,8 @@ class ManifoldDetector:
 
         # Check how close X^T X is to identity
         orthogonality_error = float(jnp.max(jnp.abs(XTX - I)))
-        return max(0.0, 1.0 - orthogonality_error / _safe_atol(atol))
+        safe_atol = _safe_atol(atol)  # Cache to avoid repeated calls
+        return max(0.0, 1.0 - orthogonality_error / safe_atol)
 
     @staticmethod
     def validate_constraints(x: Array, manifold_type: ManifoldType, atol: float = 1e-6) -> ManifoldDetectionResult:
