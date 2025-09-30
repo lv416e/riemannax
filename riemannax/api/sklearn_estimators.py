@@ -185,37 +185,75 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
 
         return tangent_flat @ components_flat.T
 
-    def _compute_riemannian_mean(self, X: Array) -> Array:
+    def _compute_riemannian_mean(
+        self, X: Array, learning_rate: float = 0.1, max_iter: int = 50, tol: float = 1e-6
+    ) -> Array:
         """Compute Riemannian mean using gradient descent.
 
         Args:
             X: Data points on the manifold.
+            learning_rate: Initial learning rate for gradient descent.
+            max_iter: Maximum number of iterations.
+            tol: Convergence tolerance for gradient norm and step size.
 
         Returns:
             Riemannian mean point.
         """
-        # Initialize at first point
-        mean = X[0]
+        import warnings
+
+        # Initialize at Euclidean mean projected to manifold
+        # Compute ambient mean and project it
+        euclidean_mean = jnp.mean(X, axis=0)
+        # Use exponential map from first point as a simple projection heuristic
+        try:
+            mean = self.manifold.exp(X[0], self.manifold.log(X[0], euclidean_mean))
+        except Exception:
+            # Fallback to first point if projection fails
+            mean = X[0]
 
         # Gradient descent to find Frechet mean
-        learning_rate = 0.1
-        max_iter = 50
+        lr = learning_rate
+        prev_mean = mean
 
         def compute_mean_tangent(current_mean: Array) -> Array:
             logs = jax.vmap(lambda x: self.manifold.log(current_mean, x))(X)
             return jnp.mean(logs, axis=0)
 
-        for _ in range(max_iter):
+        converged = False
+        for iteration in range(max_iter):
             # Compute mean of log maps (vectorized for performance)
             mean_tangent = compute_mean_tangent(mean)
 
             # Update mean using exponential map
-            scaled_tangent = jnp.asarray(learning_rate * mean_tangent)
+            scaled_tangent = jnp.asarray(lr * mean_tangent)
             mean = self.manifold.exp(mean, scaled_tangent)
 
-            # Check convergence
-            if jnp.linalg.norm(mean_tangent) < 1e-6:
+            # Compute convergence metrics
+            grad_norm = jnp.linalg.norm(mean_tangent)
+            step_norm = jnp.linalg.norm(scaled_tangent)
+            mean_change = jnp.linalg.norm(self.manifold.log(prev_mean, mean) if iteration > 0 else scaled_tangent)
+
+            # Check convergence (any of three criteria)
+            if grad_norm < tol or step_norm < tol or mean_change < tol:
+                converged = True
                 break
+
+            # Adaptive learning rate: reduce if gradient norm increases
+            if iteration > 0:
+                prev_grad_norm = jnp.linalg.norm(compute_mean_tangent(prev_mean))
+                if grad_norm > prev_grad_norm:
+                    lr = lr * 0.5  # Backtracking
+
+            prev_mean = mean
+
+        # Warn if not converged
+        if not converged:
+            warnings.warn(
+                f"Riemannian mean computation did not converge after {max_iter} iterations. "
+                f"Final gradient norm: {grad_norm:.2e}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         return mean
 
@@ -297,6 +335,11 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
 
             # Project to tangent space (Riemannian gradient)
             riemannian_grad = self.manifold.proj(x, euclidean_grad)
+
+            # Check convergence
+            grad_norm = jnp.linalg.norm(riemannian_grad)
+            if grad_norm < 1e-6:
+                break
 
             # Update using retraction
             tangent_step = -self.learning_rate * riemannian_grad
