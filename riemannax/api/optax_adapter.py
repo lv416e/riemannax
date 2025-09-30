@@ -124,7 +124,11 @@ class RiemannianOptaxAdapter:
 
         if self.method == "adam":
             # Adam update with Riemannian gradients
-            assert state.adam_m is not None and state.adam_v is not None, "Adam state must be initialized"
+            if state.adam_m is None or state.adam_v is None:
+                raise ValueError(
+                    "Adam state is not initialized correctly for method='adam'. "
+                    "Please initialize the state using `adapter.init(params)` before the first update."
+                )
             m = self.b1 * state.adam_m + (1 - self.b1) * riemannian_grads
             v = self.b2 * state.adam_v + (1 - self.b2) * (riemannian_grads**2)
 
@@ -132,17 +136,22 @@ class RiemannianOptaxAdapter:
             m_hat = m / (1 - self.b1 ** (step + 1))
             v_hat = v / (1 - self.b2 ** (step + 1))
 
-            # Compute updates
-            updates = -lr * m_hat / (jnp.sqrt(v_hat) + self.eps)
-
+            # Compute the Riemannian tangent step
+            tangent_step = -lr * m_hat / (jnp.sqrt(v_hat) + self.eps)
             new_state = RiemannianOptaxState(
                 step_count=step + 1,
                 adam_m=m,
                 adam_v=v,
             )
         else:  # sgd
-            updates = -lr * riemannian_grads
+            tangent_step = -lr * riemannian_grads
             new_state = RiemannianOptaxState(step_count=step + 1)
+
+        # Retract back onto the manifold and compute the ambient-space update
+        # This ensures that when optax.apply_updates(params, updates) computes
+        # params + updates, the result is exactly new_params on the manifold
+        new_params = self.manifold.retr(params, tangent_step)
+        updates = new_params - params
 
         return updates, new_state
 

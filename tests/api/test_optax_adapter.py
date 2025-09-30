@@ -3,12 +3,11 @@
 import jax
 import jax.numpy as jnp
 import optax
-import pytest
 
 from riemannax.api.optax_adapter import (
     RiemannianOptaxAdapter,
-    create_riemannian_optimizer,
     chain_with_optax,
+    create_riemannian_optimizer,
 )
 from riemannax.manifolds import Sphere, Stiefel
 
@@ -62,6 +61,7 @@ class TestRiemannianOptaxAdapter:
         # Assert
         assert new_params.shape == params.shape
         assert not jnp.allclose(new_params, params)  # Parameters should change
+        assert manifold.validate_point(new_params, atol=1e-5)  # Must remain on manifold
 
     def test_adapter_chain_with_optax_transformations(self):
         """Test chaining RiemannianOptaxAdapter with standard Optax transformations."""
@@ -87,6 +87,7 @@ class TestRiemannianOptaxAdapter:
         assert new_params.shape == params.shape
         gradient_norm = jnp.linalg.norm(updates)
         assert gradient_norm < 2.0  # Should be clipped
+        assert manifold.validate_point(new_params, atol=1e-5)  # Must remain on manifold
 
     def test_adapter_with_learning_rate_schedule(self):
         """Test adapter with Optax learning rate scheduler."""
@@ -112,6 +113,7 @@ class TestRiemannianOptaxAdapter:
         assert params.shape == (3,)
         # After 5 updates, params should have changed
         assert not jnp.allclose(params, jnp.array([1.0, 0.0, 0.0]))
+        assert manifold.validate_point(params, atol=1e-5)  # Must remain on manifold
 
 
 class TestCreateRiemannianOptimizer:
@@ -173,12 +175,13 @@ class TestChainWithOptax:
             optax.clip_by_global_norm(1.0)
         )
 
-        # Assert
+        # Assert - Apply updates and verify manifold constraint
         params = jnp.array([1.0, 0.0, 0.0])
         state = optimizer.init(params)
         grads = jnp.array([10.0, 10.0, 10.0])
         updates, new_state = optimizer.update(grads, state, params)
-        assert jnp.linalg.norm(updates) < 2.0
+        new_params = optax.apply_updates(params, updates)
+        assert manifold.validate_point(new_params, atol=1e-5)  # Must remain on manifold
 
     def test_chain_with_weight_decay(self):
         """Test chaining Riemannian optimizer with weight decay."""
@@ -192,30 +195,11 @@ class TestChainWithOptax:
             optax.add_decayed_weights(weight_decay=0.01)
         )
 
-        # Assert
+        # Assert - Apply updates and verify manifold constraint
         params = jnp.array([1.0, 0.0, 0.0])
         state = optimizer.init(params)
         grads = jnp.array([0.1, 0.2, 0.1])
         updates, new_state = optimizer.update(grads, state, params)
-        assert updates.shape == params.shape
-
-
-class TestManifoldConstraintValidation:
-    """Test suite for manifold constraint validation with Optax."""
-
-    def test_detect_incompatible_transformation(self):
-        """Test that incompatible Optax transformations are detected."""
-        # Arrange
-        manifold = Sphere(n=3)
-        adapter = RiemannianOptaxAdapter(manifold=manifold, learning_rate=0.01)
-
-        # Act & Assert
-        # Some transformations might not be compatible with manifold constraints
-        # This test ensures we can detect and handle such cases
-        params = jnp.array([1.0, 0.0, 0.0])
-        state = adapter.init(params)
-        grads = jnp.array([0.1, 0.2, 0.1])
-
-        # Should not raise error for compatible operations
-        updates, new_state = adapter.update(grads, state, params)
-        assert updates.shape == params.shape
+        new_params = optax.apply_updates(params, updates)
+        assert new_params.shape == params.shape
+        assert manifold.validate_point(new_params, atol=1e-5)  # Must remain on manifold
