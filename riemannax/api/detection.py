@@ -16,6 +16,13 @@ from .validation import (
 
 # Minimum confidence threshold for manifold detection candidates
 _MIN_CONFIDENCE_THRESHOLD = 0.1
+_ATOL_EPS = 1e-12
+
+
+def _safe_atol(t: float) -> float:
+    """Clamp non-positive tolerances to a tiny epsilon to avoid div-by-zero."""
+    t = float(t)
+    return t if t > _ATOL_EPS else _ATOL_EPS
 
 
 class ManifoldType(Enum):
@@ -123,8 +130,9 @@ class ManifoldDetector:
         # Check for sphere manifold (vector)
         if x.ndim == 1 and x.size > 0:
             norm = float(jnp.linalg.norm(x))
-            if norm > atol:  # Non-zero vector
-                confidence = 1.0 if abs(norm - 1.0) < atol else max(0.0, 1.0 - abs(norm - 1.0))
+            if norm > _safe_atol(atol):  # Non-zero vector
+                delta = abs(norm - 1.0)
+                confidence = 1.0 if delta < _safe_atol(atol) else max(0.0, 1.0 - delta / (10 * _safe_atol(atol)))
                 candidates.append(
                     ManifoldCandidate(
                         manifold_type=ManifoldType.SPHERE,
@@ -164,7 +172,7 @@ class ManifoldDetector:
             if m == n and stiefel_confidence > _MIN_CONFIDENCE_THRESHOLD:
                 try:
                     det = float(jnp.linalg.det(x))
-                    det_closeness = max(0.0, 1.0 - abs(det - 1.0) / (10 * atol))
+                    det_closeness = max(0.0, 1.0 - abs(det - 1.0) / (10 * _safe_atol(atol)))
                     so_confidence = min(1.0, stiefel_confidence * det_closeness)
                     if so_confidence > _MIN_CONFIDENCE_THRESHOLD:
                         candidates.append(
@@ -189,7 +197,7 @@ class ManifoldDetector:
 
         # Check symmetry
         symmetry_error = float(jnp.max(jnp.abs(x - x.T)))
-        symmetry_score = max(0.0, 1.0 - symmetry_error / (10 * atol))  # More lenient
+        symmetry_score = max(0.0, 1.0 - symmetry_error / (10 * _safe_atol(atol)))  # More lenient
 
         # Check positive definiteness
         try:
@@ -221,7 +229,7 @@ class ManifoldDetector:
 
         # Check how close X^T X is to identity
         orthogonality_error = float(jnp.max(jnp.abs(XTX - I)))
-        return max(0.0, 1.0 - orthogonality_error / atol)
+        return max(0.0, 1.0 - orthogonality_error / _safe_atol(atol))
 
     @staticmethod
     def validate_constraints(x: Array, manifold_type: ManifoldType, atol: float = 1e-6) -> ManifoldDetectionResult:
