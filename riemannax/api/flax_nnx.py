@@ -121,7 +121,7 @@ class ManifoldConstrainedModule(nnx.Module):
                 # For Stiefel/Grassmann: QR-based orthogonalization
                 if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
                     # Stiefel-like manifold: orthogonalize via QR
-                    q, r = jnp.linalg.qr(self.params.value)
+                    q, _ = jnp.linalg.qr(self.params.value)
                     self.params.value = q
                 # For Sphere: normalize to unit norm
                 elif hasattr(self.manifold, "dimension"):
@@ -280,7 +280,7 @@ class ManifoldConstrainedLinear(nnx.Module):
             try:
                 # For Stiefel/Grassmann: QR-based orthogonalization
                 if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
-                    q, r = jnp.linalg.qr(self.weight.value)
+                    q, _ = jnp.linalg.qr(self.weight.value)
                     self.weight.value = q
                 # For Sphere: normalize to unit norm
                 elif hasattr(self.manifold, "dimension"):
