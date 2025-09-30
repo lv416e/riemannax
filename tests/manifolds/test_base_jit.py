@@ -156,13 +156,13 @@ class TestCleanBaseManifold:
 
         # Test validate_tangent method
         is_valid = self.manifold.validate_tangent(x, v)
-        assert isinstance(is_valid, bool | np.bool_)
+        assert isinstance(is_valid, (bool, np.bool_))
 
         # Test validate_point method if available (base class raises NotImplementedError)
         if hasattr(self.manifold, "validate_point"):
             try:
                 is_valid_point = self.manifold.validate_point(x)
-                assert isinstance(is_valid_point, bool | np.bool_)
+                assert isinstance(is_valid_point, (bool, np.bool_))
             except NotImplementedError:
                 # Expected for base class - validate_point is not implemented
                 pass

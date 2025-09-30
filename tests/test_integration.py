@@ -39,7 +39,7 @@ def test_integration_sphere_optimization():
 
     # Only verify that optimization runs and returns valid results
     assert isinstance(result.x, jnp.ndarray)
-    assert isinstance(result.fun, float | jnp.ndarray)
+    assert isinstance(result.fun, (float, jnp.ndarray))
 
 
 def test_integration_so3_optimization(key):
