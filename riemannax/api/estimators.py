@@ -558,14 +558,8 @@ class RiemannianSGD(RiemannianEstimator):
         self.use_retraction = use_retraction
         super().__init__(manifold, learning_rate, max_iterations, tolerance, random_state)
 
-        # Validate SGD-specific parameter
-        if not isinstance(self.use_retraction, bool):
-            raise ParameterValidationError(
-                "use_retraction must be a bool",
-                parameter_name="use_retraction",
-                expected_type=bool,
-                received_value=self.use_retraction,
-            )
+        # Validate SGD-specific parameters
+        self._validate_sgd_parameters()
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
         """Get parameters for this estimator."""
@@ -576,9 +570,11 @@ class RiemannianSGD(RiemannianEstimator):
     def set_params(self, **params: Any) -> "RiemannianSGD":
         """Set parameters with SGD-specific validation."""
         super().set_params(**params)
-        # NOTE: Inline validation preferred over helper method for single parameter.
-        # Unlike Adam (4 params), SGD has only use_retraction, making abstraction overkill.
-        # This follows YAGNI principle and maintains clarity over premature optimization.
+        self._validate_sgd_parameters()
+        return self
+
+    def _validate_sgd_parameters(self) -> None:
+        """Validate SGD-specific parameters."""
         if not isinstance(self.use_retraction, bool):
             raise ParameterValidationError(
                 "use_retraction must be a bool",
@@ -586,7 +582,6 @@ class RiemannianSGD(RiemannianEstimator):
                 expected_type=bool,
                 received_value=self.use_retraction,
             )
-        return self
 
     def _create_optimizer(self) -> tuple[Callable, Callable]:
         """Create Riemannian SGD optimizer."""
