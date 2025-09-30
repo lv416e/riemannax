@@ -71,7 +71,7 @@ def validate_orthogonal_constraint(X: Array, atol: float = 1e-6) -> ValidationRe
             "Matrix must be orthogonal (X^T X = I)" if m == n else "Matrix columns must be orthonormal (X^T X = I)"
         )
         violations.append(message)
-        suggestions.append("Use QR decomposition: X, _ = jax.scipy.linalg.qr(X)")
+        suggestions.append("Use QR decomposition: Q, R = jnp.linalg.qr(X)")
 
     return ValidationResult(is_valid=len(violations) == 0, violations=violations, suggestions=suggestions)
 
