@@ -144,6 +144,43 @@ def validate_parameter_type(value: Any, expected_type: type, parameter_name: str
     return ValidationResult(is_valid=len(violations) == 0, violations=violations, suggestions=suggestions)
 
 
+def validate_numeric_parameter(value: Any, parameter_name: str, allow_negative: bool = True) -> ValidationResult:
+    """Validate that a parameter is numeric (int or float), explicitly rejecting booleans.
+
+    This helper addresses the Python edge case where isinstance(True, int) == True,
+    which would incorrectly accept boolean values for numeric parameters.
+
+    Args:
+        value: Value to validate.
+        parameter_name: Name of the parameter being validated.
+        allow_negative: Whether to allow negative values (default: True).
+
+    Returns:
+        ValidationResult indicating whether value is a valid numeric parameter.
+
+    Example:
+        >>> validate_numeric_parameter(0.9, "beta1")
+        ValidationResult(is_valid=True, violations=[], suggestions=[])
+        >>> validate_numeric_parameter(True, "beta1")
+        ValidationResult(is_valid=False, violations=["Parameter 'beta1' must be numeric..."], ...)
+    """
+    violations = []
+    suggestions = []
+
+    # Explicitly reject booleans, as isinstance(True, int) is True in Python
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        violations.append(f"Parameter '{parameter_name}' must be numeric, got {type(value).__name__}")
+        suggestions.append("Use a numeric value (int or float)")
+        return ValidationResult(is_valid=False, violations=violations, suggestions=suggestions)
+
+    # Optional: validate sign if allow_negative is False
+    if not allow_negative and value < 0:
+        violations.append(f"Parameter '{parameter_name}' must be non-negative, got {value}")
+        suggestions.append(f"Use a non-negative value for {parameter_name}")
+
+    return ValidationResult(is_valid=len(violations) == 0, violations=violations, suggestions=suggestions)
+
+
 def validate_learning_rate(learning_rate: float) -> ValidationResult:
     """Validate learning rate parameter.
 
