@@ -5,7 +5,6 @@ manifold constraints on parameters during training. Uses NNX's explicit state
 management and mutable reference semantics for constraint tracking.
 """
 
-import jax
 import jax.numpy as jnp
 from jaxtyping import Array
 
@@ -88,12 +87,17 @@ class ManifoldConstrainedModule(nnx.Module):
         use_bias: bool = False,
     ):
         """Initialize manifold-constrained module."""
+        if not FLAX_AVAILABLE:
+            raise ImportError(
+                "Flax NNX is required for ManifoldConstrainedModule. Please install flax>=0.8 with nnx support."
+            )
         self.manifold = manifold
         self.param_shape = param_shape
         self.use_bias = use_bias
+        self._rngs = rngs  # Store for reinitialization
 
         # Initialize parameters on the manifold
-        key = rngs()
+        key = self._rngs()
         initial_params = self.manifold.random_point(key, *param_shape)
         self.params = ManifoldParam(initial_params)
 
@@ -134,29 +138,27 @@ class ManifoldConstrainedModule(nnx.Module):
             except (ValueError, RuntimeError):
                 pass  # Projection failed, will reinitialize
 
-            # Last resort: reinitialize on manifold with non-deterministic key
+            # Last resort: reinitialize on manifold with fresh RNG key
             if not projection_successful:
-                # Use fold_in to create non-deterministic key based on violation count
-                base_key = jax.random.PRNGKey(0)
-                key = jax.random.fold_in(base_key, int(self.constraint_violations.value))
+                key = self._rngs()
                 self.params.value = self.manifold.random_point(key, *self.param_shape)
 
             # Increment violation counter using mutable state
             self.constraint_violations.value = self.constraint_violations.value + 1.0
 
-    def _compute_constraint_violation(self, param_value: Array) -> float:
+    def _compute_constraint_violation(self, param_value: Array) -> Array:
         """Compute constraint violation measure for given parameter value.
 
         Args:
             param_value: Parameter array to check.
 
         Returns:
-            Violation measure (0.0 if valid, positive value otherwise).
+            Violation measure (0.0 if valid, positive value otherwise) as JAX scalar.
         """
         # Check validity first
         is_valid = self.manifold.validate_point(param_value)
         if is_valid:
-            return 0.0
+            return jnp.array(0.0)
 
         # Compute manifold-specific residual
         if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
@@ -164,16 +166,16 @@ class ManifoldConstrainedModule(nnx.Module):
             gram = param_value.T @ param_value
             p = param_value.shape[1]
             residual = jnp.linalg.norm(gram - jnp.eye(p))
-            return float(residual)
+            return residual
         elif hasattr(self.manifold, "dimension"):
             # Sphere: measure norm deviation (||x|| - 1)
             norm = jnp.linalg.norm(param_value)
-            return float(jnp.abs(norm - 1.0))
+            return jnp.abs(norm - 1.0)
         else:
             # Generic: return constant penalty if invalid
-            return 1.0
+            return jnp.array(1.0)
 
-    def validate_constraints(self) -> float:
+    def validate_constraints(self) -> Array:
         """Validate that parameters satisfy manifold constraints.
 
         Returns:
@@ -181,17 +183,17 @@ class ManifoldConstrainedModule(nnx.Module):
         """
         return self._compute_constraint_violation(self.params.value)
 
-    def get_constraint_penalty(self) -> float:
+    def get_constraint_penalty(self) -> Array:
         """Compute penalty for constraint violations.
 
         This can be added to the loss function to discourage
         parameter drift from the manifold.
 
         Returns:
-            Penalty value based on constraint violation measure.
+            Penalty value based on constraint violation measure as JAX scalar.
         """
         violation = self._compute_constraint_violation(self.params.value)
-        return violation**2
+        return jnp.square(violation)
 
 
 class ManifoldConstrainedLinear(nnx.Module):
@@ -229,10 +231,15 @@ class ManifoldConstrainedLinear(nnx.Module):
         use_bias: bool = True,
     ):
         """Initialize manifold-constrained linear layer."""
+        if not FLAX_AVAILABLE:
+            raise ImportError(
+                "Flax NNX is required for ManifoldConstrainedLinear. Please install flax>=0.8 with nnx support."
+            )
         self.in_features = in_features
         self.out_features = out_features
         self.manifold = manifold
         self.use_bias = use_bias
+        self._rngs = rngs  # Store for reinitialization
 
         # Validate manifold shape before initialization
         # Check if manifold has explicit shape attributes
@@ -264,7 +271,7 @@ class ManifoldConstrainedLinear(nnx.Module):
                 )
 
         # Initialize weight matrix on manifold
-        key = rngs()
+        key = self._rngs()
         initial_weight = self.manifold.random_point(key)
 
         # Validate returned shape
@@ -332,27 +339,26 @@ class ManifoldConstrainedLinear(nnx.Module):
             except (ValueError, RuntimeError):
                 pass
 
-            # Last resort: reinitialize on manifold with non-deterministic key
+            # Last resort: reinitialize on manifold with fresh RNG key
             if not projection_successful:
-                base_key = jax.random.PRNGKey(0)
-                key = jax.random.fold_in(base_key, int(self.constraint_violations.value))
+                key = self._rngs()
                 self.weight.value = self.manifold.random_point(key)
 
             self.constraint_violations.value = self.constraint_violations.value + 1.0
 
-    def _compute_constraint_violation(self, param_value: Array) -> float:
+    def _compute_constraint_violation(self, param_value: Array) -> Array:
         """Compute constraint violation measure for given parameter value.
 
         Args:
             param_value: Parameter array to check.
 
         Returns:
-            Violation measure (0.0 if valid, positive value otherwise).
+            Violation measure (0.0 if valid, positive value otherwise) as JAX scalar.
         """
         # Check validity first
         is_valid = self.manifold.validate_point(param_value)
         if is_valid:
-            return 0.0
+            return jnp.array(0.0)
 
         # Compute manifold-specific residual
         if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
@@ -360,23 +366,23 @@ class ManifoldConstrainedLinear(nnx.Module):
             gram = param_value.T @ param_value
             p = param_value.shape[1]
             residual = jnp.linalg.norm(gram - jnp.eye(p))
-            return float(residual)
+            return residual
         elif hasattr(self.manifold, "dimension"):
             # Sphere: measure norm deviation (||x|| - 1)
             norm = jnp.linalg.norm(param_value)
-            return float(jnp.abs(norm - 1.0))
+            return jnp.abs(norm - 1.0)
         else:
             # Generic: return constant penalty if invalid
-            return 1.0
+            return jnp.array(1.0)
 
-    def validate_constraints(self) -> float:
+    def validate_constraints(self) -> Array:
         """Validate weight matrix constraints."""
         return self._compute_constraint_violation(self.weight.value)
 
-    def get_constraint_penalty(self) -> float:
-        """Compute constraint violation penalty."""
+    def get_constraint_penalty(self) -> Array:
+        """Compute constraint violation penalty as JAX scalar."""
         violation = self._compute_constraint_violation(self.weight.value)
-        return violation**2
+        return jnp.square(violation)
 
 
 def create_manifold_linear(
@@ -406,6 +412,11 @@ def create_manifold_linear(
         ...     rngs=nnx.Rngs(0)
         ... )
     """
+    if not FLAX_AVAILABLE:
+        raise ImportError(
+            "Flax NNX is required to use create_manifold_linear(). Please install flax>=0.8 with nnx support."
+        )
+
     from riemannax.manifolds import create_stiefel
 
     if rngs is None:
