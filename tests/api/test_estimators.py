@@ -279,7 +279,8 @@ class TestRiemannianSGD:
         estimator.fit(objective_func, x0)
 
         # Test score with explicitly provided objective_func (backward compatibility)
-        score_explicit = estimator.score(x0, objective_func=objective_func)
+        with pytest.warns(FutureWarning):
+            score_explicit = estimator.score(x0, objective_func=objective_func)
         assert isinstance(score_explicit, float)
         assert score_explicit <= 0  # Negative because we minimize
 
