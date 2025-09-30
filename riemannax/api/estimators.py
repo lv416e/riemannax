@@ -187,10 +187,17 @@ class RiemannianEstimator(abc.ABC):
 
         Args:
             deep: If True, return parameters for this estimator and
-                contained subobjects that are estimators.
+                contained subobjects that are estimators. Currently, this
+                estimator has no nested estimator parameters, so this
+                parameter has no effect. Included for sklearn API compatibility.
 
         Returns:
             Dictionary of parameter names to their values.
+
+        Note:
+            This implementation follows sklearn's BaseEstimator convention.
+            The `deep` parameter will recursively gather nested estimator
+            parameters when such parameters are added in the future.
         """
         return {
             "manifold": self.manifold,
@@ -204,13 +211,19 @@ class RiemannianEstimator(abc.ABC):
         """Set the parameters of this estimator.
 
         Args:
-            **params: Estimator parameters to set.
+            **params: Estimator parameters to set. Parameter names should
+                match those returned by get_params().
 
         Returns:
             Self (for method chaining).
 
         Raises:
             ParameterValidationError: If invalid parameters are provided.
+
+        Note:
+            This implementation follows sklearn's BaseEstimator convention.
+            For nested estimator parameters (when added in the future), use
+            the double underscore notation: `nested_estimator__param=value`.
         """
         if not params:
             return self
