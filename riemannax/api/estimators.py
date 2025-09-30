@@ -154,6 +154,10 @@ class RiemannianEstimator(abc.ABC):
             )
 
         # Validate tolerance - use tuple form and explicit bool check for consistency
+        # NOTE: Manual validation required here instead of validate_parameter_type()
+        # because isinstance(True, (int, float)) == True in Python, which would
+        # incorrectly accept boolean values. This explicit check prevents the
+        # isinstance(True, int) edge case that validate_parameter_type cannot handle.
         if isinstance(self.tolerance, bool) or not isinstance(self.tolerance, (int, float)):
             raise ParameterValidationError(
                 "tolerance must be a number",
@@ -256,6 +260,10 @@ class RiemannianEstimator(abc.ABC):
         """
         if self.manifold == "auto":
             # Automatic manifold detection
+            # NOTE: Detection confidence not exposed in metadata to avoid API complexity.
+            # Users requiring detailed detection info can call ManifoldDetector.detect_manifold()
+            # directly. This keeps the estimator API focused and consistent between auto
+            # and manual manifold specification modes.
             detection_result = ManifoldDetector.detect_manifold(x0, atol=self.tolerance)
 
             if detection_result.detected_type == ManifoldType.UNKNOWN:
@@ -621,6 +629,9 @@ class RiemannianAdam(RiemannianEstimator):
             )
 
         # Validate numeric type (explicitly reject booleans)
+        # NOTE: Explicit validation preferred over helper abstraction to maintain
+        # parameter-specific error messages and avoid premature DRY optimization.
+        # This follows the "rule of three" - abstract after third occurrence, not second.
         for name, val in [("beta1", self.beta1), ("beta2", self.beta2), ("eps", self.eps)]:
             if isinstance(val, bool) or not isinstance(val, (int, float)):
                 raise ParameterValidationError(
