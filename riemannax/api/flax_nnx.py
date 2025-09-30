@@ -116,33 +116,62 @@ class ManifoldConstrainedModule(nnx.Module):
 
         if not is_valid:
             # Parameters violate constraints, project back
-            # Use manifold-specific projection heuristics
+            projection_successful = False
+
+            # Use heuristic projection based on manifold type
             try:
                 # For Stiefel/Grassmann: QR-based orthogonalization
                 if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
-                    # Stiefel-like manifold: orthogonalize via QR
                     q, _ = jnp.linalg.qr(self.params.value)
                     self.params.value = q
+                    projection_successful = True
                 # For Sphere: normalize to unit norm
                 elif hasattr(self.manifold, "dimension"):
                     norm = jnp.linalg.norm(self.params.value)
                     if norm > 1e-8:
                         self.params.value = self.params.value / norm
-                    else:
-                        # Reinitialize if collapsed to zero
-                        key = jax.random.PRNGKey(int(self.constraint_violations.value))
-                        self.params.value = self.manifold.random_point(key, *self.param_shape)
-                else:
-                    # Generic fallback: reinitialize on manifold
-                    key = jax.random.PRNGKey(int(self.constraint_violations.value))
-                    self.params.value = self.manifold.random_point(key, *self.param_shape)
-            except Exception:
-                # Last resort: reinitialize
-                key = jax.random.PRNGKey(int(self.constraint_violations.value))
+                        projection_successful = True
+            except (ValueError, RuntimeError):
+                pass  # Projection failed, will reinitialize
+
+            # Last resort: reinitialize on manifold with non-deterministic key
+            if not projection_successful:
+                # Use fold_in to create non-deterministic key based on violation count
+                base_key = jax.random.PRNGKey(0)
+                key = jax.random.fold_in(base_key, int(self.constraint_violations.value))
                 self.params.value = self.manifold.random_point(key, *self.param_shape)
 
             # Increment violation counter using mutable state
             self.constraint_violations.value = self.constraint_violations.value + 1.0
+
+    def _compute_constraint_violation(self, param_value: Array) -> float:
+        """Compute constraint violation measure for given parameter value.
+
+        Args:
+            param_value: Parameter array to check.
+
+        Returns:
+            Violation measure (0.0 if valid, positive value otherwise).
+        """
+        # Check validity first
+        is_valid = self.manifold.validate_point(param_value)
+        if is_valid:
+            return 0.0
+
+        # Compute manifold-specific residual
+        if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
+            # Stiefel: measure orthogonality violation (||X^T X - I||)
+            gram = param_value.T @ param_value
+            p = param_value.shape[1]
+            residual = jnp.linalg.norm(gram - jnp.eye(p))
+            return float(residual)
+        elif hasattr(self.manifold, "dimension"):
+            # Sphere: measure norm deviation (||x|| - 1)
+            norm = jnp.linalg.norm(param_value)
+            return float(jnp.abs(norm - 1.0))
+        else:
+            # Generic: return constant penalty if invalid
+            return 1.0
 
     def validate_constraints(self) -> float:
         """Validate that parameters satisfy manifold constraints.
@@ -150,24 +179,7 @@ class ManifoldConstrainedModule(nnx.Module):
         Returns:
             Constraint violation measure (0.0 if satisfied).
         """
-        is_valid = self.manifold.validate_point(self.params.value)
-        if is_valid:
-            return 0.0
-        else:
-            # Compute manifold-specific residual
-            if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
-                # Stiefel: measure orthogonality violation
-                gram = self.params.value.T @ self.params.value
-                p = self.params.value.shape[1]
-                residual = jnp.linalg.norm(gram - jnp.eye(p))
-                return float(residual)
-            elif hasattr(self.manifold, "dimension"):
-                # Sphere: measure norm deviation
-                norm = jnp.linalg.norm(self.params.value)
-                return float(jnp.abs(norm - 1.0))
-            else:
-                # Generic: return constant penalty if invalid
-                return 1.0
+        return self._compute_constraint_violation(self.params.value)
 
     def get_constraint_penalty(self) -> float:
         """Compute penalty for constraint violations.
@@ -178,7 +190,7 @@ class ManifoldConstrainedModule(nnx.Module):
         Returns:
             Penalty value based on constraint violation measure.
         """
-        violation = self.validate_constraints()
+        violation = self._compute_constraint_violation(self.params.value)
         return violation**2
 
 
@@ -222,23 +234,49 @@ class ManifoldConstrainedLinear(nnx.Module):
         self.manifold = manifold
         self.use_bias = use_bias
 
+        # Validate manifold shape before initialization
+        # Check if manifold has explicit shape attributes
+        if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
+            # Stiefel-like manifold: validate (n, p) matches (in_features, out_features)
+            manifold_shape = (self.manifold.n, self.manifold.p)
+            expected_shape = (in_features, out_features)
+
+            if manifold_shape != expected_shape:
+                # Provide helpful error message with correct convention
+                if in_features >= out_features:
+                    suggestion = f"Stiefel(n={in_features}, p={out_features})"
+                else:
+                    suggestion = (
+                        f"Stiefel(n={out_features}, p={in_features}) and swap "
+                        f"in_features/out_features, or transpose the weight matrix"
+                    )
+                raise ValueError(
+                    f"Manifold shape {manifold_shape} does not match layer dimensions "
+                    f"{expected_shape}. For Stiefel manifolds, n >= p is required. "
+                    f"Use {suggestion}."
+                )
+        elif hasattr(self.manifold, "shape"):
+            # Manifold with explicit shape attribute
+            if self.manifold.shape != (in_features, out_features):
+                raise ValueError(
+                    f"Manifold shape {self.manifold.shape} does not match "
+                    f"layer dimensions ({in_features}, {out_features})."
+                )
+
         # Initialize weight matrix on manifold
         key = rngs()
-        # For manifolds like Stiefel, random_point() already knows the shape (n, p)
-        # Don't pass shape for single matrix
         initial_weight = self.manifold.random_point(key)
 
-        # Validate shape: must be a 2D matrix for linear layer
+        # Validate returned shape
         if initial_weight.ndim != 2:
             raise ValueError(
                 f"ManifoldConstrainedLinear requires a 2D weight matrix, "
-                f"but manifold.random_point() returned shape {initial_weight.shape}. "
-                f"Use Stiefel(n={in_features}, p={out_features}) for orthogonal weights."
+                f"but manifold.random_point() returned shape {initial_weight.shape}."
             )
         if initial_weight.shape != (in_features, out_features):
             raise ValueError(
                 f"Weight shape {initial_weight.shape} does not match "
-                f"({in_features}, {out_features}). Ensure manifold dimensions match layer dimensions."
+                f"({in_features}, {out_features}). Manifold configuration error."
             )
 
         self.weight = ManifoldParam(initial_weight)
@@ -276,56 +314,68 @@ class ManifoldConstrainedLinear(nnx.Module):
         is_valid = self.manifold.validate_point(self.weight.value)
 
         if not is_valid:
-            # Use manifold-specific projection heuristics
+            projection_successful = False
+
+            # Use heuristic projection based on manifold type
             try:
                 # For Stiefel/Grassmann: QR-based orthogonalization
                 if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
                     q, _ = jnp.linalg.qr(self.weight.value)
                     self.weight.value = q
+                    projection_successful = True
                 # For Sphere: normalize to unit norm
                 elif hasattr(self.manifold, "dimension"):
                     norm = jnp.linalg.norm(self.weight.value)
                     if norm > 1e-8:
                         self.weight.value = self.weight.value / norm
-                    else:
-                        # Reinitialize if collapsed
-                        key = jax.random.PRNGKey(int(self.constraint_violations.value))
-                        self.weight.value = self.manifold.random_point(key)
-                else:
-                    # Generic fallback: reinitialize
-                    key = jax.random.PRNGKey(int(self.constraint_violations.value))
-                    self.weight.value = self.manifold.random_point(key)
-            except Exception:
-                # Last resort: reinitialize
-                key = jax.random.PRNGKey(int(self.constraint_violations.value))
+                        projection_successful = True
+            except (ValueError, RuntimeError):
+                pass
+
+            # Last resort: reinitialize on manifold with non-deterministic key
+            if not projection_successful:
+                base_key = jax.random.PRNGKey(0)
+                key = jax.random.fold_in(base_key, int(self.constraint_violations.value))
                 self.weight.value = self.manifold.random_point(key)
 
             self.constraint_violations.value = self.constraint_violations.value + 1.0
 
-    def validate_constraints(self) -> float:
-        """Validate weight matrix constraints."""
-        is_valid = self.manifold.validate_point(self.weight.value)
+    def _compute_constraint_violation(self, param_value: Array) -> float:
+        """Compute constraint violation measure for given parameter value.
+
+        Args:
+            param_value: Parameter array to check.
+
+        Returns:
+            Violation measure (0.0 if valid, positive value otherwise).
+        """
+        # Check validity first
+        is_valid = self.manifold.validate_point(param_value)
         if is_valid:
             return 0.0
+
+        # Compute manifold-specific residual
+        if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
+            # Stiefel: measure orthogonality violation (||X^T X - I||)
+            gram = param_value.T @ param_value
+            p = param_value.shape[1]
+            residual = jnp.linalg.norm(gram - jnp.eye(p))
+            return float(residual)
+        elif hasattr(self.manifold, "dimension"):
+            # Sphere: measure norm deviation (||x|| - 1)
+            norm = jnp.linalg.norm(param_value)
+            return float(jnp.abs(norm - 1.0))
         else:
-            # Compute manifold-specific residual
-            if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
-                # Stiefel: measure orthogonality violation
-                gram = self.weight.value.T @ self.weight.value
-                p = self.weight.value.shape[1]
-                residual = jnp.linalg.norm(gram - jnp.eye(p))
-                return float(residual)
-            elif hasattr(self.manifold, "dimension"):
-                # Sphere: measure norm deviation
-                norm = jnp.linalg.norm(self.weight.value)
-                return float(jnp.abs(norm - 1.0))
-            else:
-                # Generic: return constant penalty if invalid
-                return 1.0
+            # Generic: return constant penalty if invalid
+            return 1.0
+
+    def validate_constraints(self) -> float:
+        """Validate weight matrix constraints."""
+        return self._compute_constraint_violation(self.weight.value)
 
     def get_constraint_penalty(self) -> float:
         """Compute constraint violation penalty."""
-        violation = self.validate_constraints()
+        violation = self._compute_constraint_violation(self.weight.value)
         return violation**2
 
 
