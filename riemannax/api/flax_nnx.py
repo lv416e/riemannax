@@ -119,27 +119,13 @@ class ManifoldConstrainedModule(nnx.Module):
         is_valid = self.manifold.validate_point(self.params.value)
 
         if not is_valid:
-            # Parameters violate constraints, project back
-            projection_successful = False
-
-            # Use heuristic projection based on manifold type
+            # Parameters violate constraints, project back using manifold's retraction
+            # Retraction with zero tangent vector projects onto the manifold
             try:
-                # For Stiefel/Grassmann: QR-based orthogonalization
-                if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
-                    q, _ = jnp.linalg.qr(self.params.value)
-                    self.params.value = q
-                    projection_successful = True
-                # For Sphere: normalize to unit norm
-                elif hasattr(self.manifold, "dimension"):
-                    norm = jnp.linalg.norm(self.params.value)
-                    if norm > 1e-8:
-                        self.params.value = self.params.value / norm
-                        projection_successful = True
+                zero_tangent = jnp.zeros_like(self.params.value)
+                self.params.value = self.manifold.retr(self.params.value, zero_tangent)
             except (ValueError, RuntimeError):
-                pass  # Projection failed, will reinitialize
-
-            # Last resort: reinitialize on manifold with fresh RNG key
-            if not projection_successful:
+                # Retraction failed, reinitialize on manifold with fresh RNG key
                 key = self._rngs()
                 self.params.value = self.manifold.random_point(key, *self.param_shape)
 
@@ -160,19 +146,15 @@ class ManifoldConstrainedModule(nnx.Module):
         if is_valid:
             return jnp.array(0.0)
 
-        # Compute manifold-specific residual
-        if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
-            # Stiefel: measure orthogonality violation (||X^T X - I||)
-            gram = param_value.T @ param_value
-            p = param_value.shape[1]
-            residual = jnp.linalg.norm(gram - jnp.eye(p))
-            return residual
-        elif hasattr(self.manifold, "dimension"):
-            # Sphere: measure norm deviation (||x|| - 1)
-            norm = jnp.linalg.norm(param_value)
-            return jnp.abs(norm - 1.0)
-        else:
-            # Generic: return constant penalty if invalid
+        # Compute violation as distance from projected point
+        # Use retraction with zero tangent vector to project onto manifold
+        try:
+            zero_tangent = jnp.zeros_like(param_value)
+            projected = self.manifold.retr(param_value, zero_tangent)
+            # Measure violation as Euclidean distance from projection
+            return jnp.linalg.norm(param_value - projected)
+        except (ValueError, RuntimeError):
+            # If projection fails, return constant penalty
             return jnp.array(1.0)
 
     def validate_constraints(self) -> Array:
@@ -321,26 +303,12 @@ class ManifoldConstrainedLinear(nnx.Module):
         is_valid = self.manifold.validate_point(self.weight.value)
 
         if not is_valid:
-            projection_successful = False
-
-            # Use heuristic projection based on manifold type
+            # Use manifold's retraction with zero tangent vector to project
             try:
-                # For Stiefel/Grassmann: QR-based orthogonalization
-                if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
-                    q, _ = jnp.linalg.qr(self.weight.value)
-                    self.weight.value = q
-                    projection_successful = True
-                # For Sphere: normalize to unit norm
-                elif hasattr(self.manifold, "dimension"):
-                    norm = jnp.linalg.norm(self.weight.value)
-                    if norm > 1e-8:
-                        self.weight.value = self.weight.value / norm
-                        projection_successful = True
+                zero_tangent = jnp.zeros_like(self.weight.value)
+                self.weight.value = self.manifold.retr(self.weight.value, zero_tangent)
             except (ValueError, RuntimeError):
-                pass
-
-            # Last resort: reinitialize on manifold with fresh RNG key
-            if not projection_successful:
+                # Retraction failed, reinitialize on manifold with fresh RNG key
                 key = self._rngs()
                 self.weight.value = self.manifold.random_point(key)
 
@@ -360,19 +328,15 @@ class ManifoldConstrainedLinear(nnx.Module):
         if is_valid:
             return jnp.array(0.0)
 
-        # Compute manifold-specific residual
-        if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
-            # Stiefel: measure orthogonality violation (||X^T X - I||)
-            gram = param_value.T @ param_value
-            p = param_value.shape[1]
-            residual = jnp.linalg.norm(gram - jnp.eye(p))
-            return residual
-        elif hasattr(self.manifold, "dimension"):
-            # Sphere: measure norm deviation (||x|| - 1)
-            norm = jnp.linalg.norm(param_value)
-            return jnp.abs(norm - 1.0)
-        else:
-            # Generic: return constant penalty if invalid
+        # Compute violation as distance from projected point
+        # Use retraction with zero tangent vector to project onto manifold
+        try:
+            zero_tangent = jnp.zeros_like(param_value)
+            projected = self.manifold.retr(param_value, zero_tangent)
+            # Measure violation as Euclidean distance from projection
+            return jnp.linalg.norm(param_value - projected)
+        except (ValueError, RuntimeError):
+            # If projection fails, return constant penalty
             return jnp.array(1.0)
 
     def validate_constraints(self) -> Array:

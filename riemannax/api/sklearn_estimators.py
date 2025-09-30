@@ -231,10 +231,12 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
             scaled_tangent = jnp.asarray(lr * mean_tangent)
             mean = self.manifold.exp(mean, scaled_tangent)
 
-            # Compute convergence metrics
-            grad_norm = jnp.linalg.norm(mean_tangent)
-            step_norm = jnp.linalg.norm(scaled_tangent)
-            mean_change = jnp.linalg.norm(self.manifold.log(prev_mean, mean) if iteration > 0 else scaled_tangent)
+            # Compute convergence metrics (convert to Python floats for control flow)
+            grad_norm = float(jnp.linalg.norm(mean_tangent))
+            step_norm = float(jnp.linalg.norm(scaled_tangent))
+            mean_change = float(
+                jnp.linalg.norm(self.manifold.log(prev_mean, mean) if iteration > 0 else scaled_tangent)
+            )
 
             # Check convergence (any of three criteria)
             if grad_norm < tol or step_norm < tol or mean_change < tol:
@@ -243,7 +245,7 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
 
             # Adaptive learning rate: reduce if gradient norm increases
             if iteration > 0:
-                prev_grad_norm = jnp.linalg.norm(compute_mean_tangent(prev_mean))
+                prev_grad_norm = float(jnp.linalg.norm(compute_mean_tangent(prev_mean)))
                 if grad_norm > prev_grad_norm:
                     lr = lr * 0.5  # Backtracking
 
@@ -329,18 +331,20 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
         # Use first point as initial guess
         x0 = X[0] if X.ndim > 1 else X
 
+        # Compute gradient function once outside loop
+        grad_fn = jax.grad(y)
+
         # Simple Riemannian gradient descent
         x = x0
         for _ in range(self.max_iter):
             # Compute Euclidean gradient
-            grad_fn = jax.grad(y)
             euclidean_grad = grad_fn(x)
 
             # Project to tangent space (Riemannian gradient)
             riemannian_grad = self.manifold.proj(x, euclidean_grad)
 
-            # Check convergence
-            grad_norm = jnp.linalg.norm(riemannian_grad)
+            # Check convergence (convert to Python float for control flow)
+            grad_norm = float(jnp.linalg.norm(riemannian_grad))
             if grad_norm < 1e-6:
                 break
 
