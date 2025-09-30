@@ -169,15 +169,8 @@ class RiemannianEstimator(abc.ABC):
                 received_value=self.tolerance,
             )
 
-        # Validate random_state - explicitly reject booleans before type checking
+        # Validate random_state
         if self.random_state is not None:
-            if isinstance(self.random_state, bool):
-                raise ParameterValidationError(
-                    "random_state must be an int or None, got bool",
-                    parameter_name="random_state",
-                    expected_type=int,
-                    received_value=self.random_state,
-                )
             rs_result = validate_parameter_type(self.random_state, int, "random_state")
             if not rs_result.is_valid:
                 raise ParameterValidationError(
