@@ -114,6 +114,10 @@ class ManifoldDetector:
         # Validate constraints for the detected type
         validation_result = ManifoldDetector.validate_constraints(x, best_candidate.manifold_type, atol)
 
+        # NOTE: Alternative confidence scores not exposed to maintain API simplicity.
+        # Users requiring detailed candidate rankings can call suggest_manifold() directly
+        # for full ManifoldCandidate objects with confidence and reason information.
+        # This design prioritizes ease of use for common cases over exhaustive detail.
         return ManifoldDetectionResult(
             detected_type=best_candidate.manifold_type,
             confidence=best_candidate.confidence,
@@ -199,7 +203,8 @@ class ManifoldDetector:
 
         # Check symmetry
         symmetry_error = float(jnp.max(jnp.abs(x - x.T)))
-        safe_atol_10x = 10 * _safe_atol(atol)  # Cache calculation
+        safe_atol = _safe_atol(atol)  # Cache to avoid repeated calls
+        safe_atol_10x = 10 * safe_atol  # Cache calculation
         symmetry_score = max(0.0, 1.0 - symmetry_error / safe_atol_10x)  # More lenient
 
         # Check positive definiteness
@@ -213,7 +218,7 @@ class ManifoldDetector:
                 # Fallback to general eigvals for non-symmetric matrices
                 eigenvals = jnp.linalg.eigvals(x)
                 min_eigenval = float(jnp.min(jnp.real(eigenvals)))
-            pd_score = 1.0 if min_eigenval > atol else max(0.0, min_eigenval / atol)
+            pd_score = 1.0 if min_eigenval > safe_atol else max(0.0, min_eigenval / safe_atol)
         except (ValueError, RuntimeError):
             pd_score = 0.0
 
@@ -231,6 +236,10 @@ class ManifoldDetector:
         I = jnp.eye(n, dtype=x.dtype)
 
         # Check how close X^T X is to identity
+        # NOTE: Using max-abs error instead of Frobenius norm for simplicity and performance.
+        # While Frobenius normalization could provide scale invariance, the current approach
+        # is computationally efficient, intuitive for debugging, and has proven stable in testing.
+        # For scale-invariant alternatives, consider: jnp.linalg.norm(XTX - I, ord="fro") / jnp.linalg.norm(I, ord="fro")
         orthogonality_error = float(jnp.max(jnp.abs(XTX - I)))
         safe_atol = _safe_atol(atol)  # Cache to avoid repeated calls
         return max(0.0, 1.0 - orthogonality_error / safe_atol)
