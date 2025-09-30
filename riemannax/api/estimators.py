@@ -52,8 +52,8 @@ class _SOManifoldWrapper:
             Matrix in SO(n) with det(X) = +1.
         """
         det_sign, _ = jnp.linalg.slogdet(X)
-        # Treat non-positive sign as needing a flip for extra robustness.
-        flip = jnp.where(det_sign <= 0, jnp.array(-1.0, dtype=X.dtype), jnp.array(1.0, dtype=X.dtype))
+        # Flip the last column only when det_sign < 0; supports batched (..., n, n) inputs.
+        flip = jnp.where(det_sign < 0, jnp.array(-1.0, dtype=X.dtype), jnp.array(1.0, dtype=X.dtype))
         return X.at[..., :, -1].set(flip[..., None] * X[..., :, -1])
 
     def retr(self, X: Array, U: Array) -> Array:
