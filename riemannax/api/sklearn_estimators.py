@@ -51,6 +51,7 @@ class RiemannianManifoldEstimator(BaseEstimator):
         manifold: The Riemannian manifold for optimization/transformation.
 
     Example:
+        >>> from riemannax.manifolds import Sphere
         >>> manifold = Sphere(n=3)
         >>> estimator = RiemannianManifoldEstimator(manifold=manifold)
         >>> params = estimator.get_params(deep=True)
@@ -98,8 +99,13 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
         n_components: Number of principal components to keep.
 
     Example:
+        >>> import jax
+        >>> from riemannax.manifolds import Stiefel
         >>> manifold = Stiefel(n=10, p=5)
         >>> pca = RiemannianPCA(manifold=manifold, n_components=3)
+        >>> # Generate sample data on the manifold
+        >>> key = jax.random.PRNGKey(0)
+        >>> X = jax.numpy.stack([manifold.random_point(jax.random.fold_in(key, i)) for i in range(20)])
         >>> X_transformed = pca.fit_transform(X)
     """
 
@@ -210,7 +216,7 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
         # Use exponential map from first point as a simple projection heuristic
         try:
             mean = self.manifold.exp(X[0], self.manifold.log(X[0], euclidean_mean))
-        except Exception:
+        except (ValueError, RuntimeError, NotImplementedError):
             # Fallback to first point if projection fails
             mean = X[0]
 
@@ -276,13 +282,20 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
         method: Optimization method ('sgd' or 'adam').
 
     Example:
+        >>> import jax.numpy as jnp
+        >>> from riemannax.manifolds import Sphere
         >>> manifold = Sphere(n=3)
         >>> optimizer = RiemannianOptimizer(
         ...     manifold=manifold,
         ...     learning_rate=0.01,
         ...     max_iter=100
         ... )
-        >>> optimizer.fit(X, objective_fn)
+        >>> # Define objective function and initial point
+        >>> target = jnp.array([1.0, 0.0, 0.0, 0.0])
+        >>> objective_fn = lambda x: manifold.dist(x, target) ** 2
+        >>> X = jnp.array([[0.0, 1.0, 0.0, 0.0]])
+        >>> optimizer.fit(X, objective_fn)  # doctest: +ELLIPSIS
+        RiemannianOptimizer(...)
         >>> score = optimizer.score(X, objective_fn)
     """
 
@@ -291,11 +304,34 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
         manifold: Manifold,
         learning_rate: float = 0.01,
         max_iter: int = 100,
+        method: str = "sgd",
+        b1: float = 0.9,
+        b2: float = 0.999,
+        eps: float = 1e-8,
     ):
-        """Initialize Riemannian optimizer."""
+        """Initialize Riemannian optimizer.
+
+        Args:
+            manifold: Riemannian manifold for optimization.
+            learning_rate: Learning rate for optimization.
+            max_iter: Maximum number of iterations.
+            method: Optimization method ('sgd' or 'adam').
+            b1: Exponential decay rate for first moment (Adam only).
+            b2: Exponential decay rate for second moment (Adam only).
+            eps: Small constant for numerical stability (Adam only).
+        """
         super().__init__(manifold=manifold)
+        # Validate method before storing (sklearn clone needs exact parameter match)
+        method_lower = method.lower()
+        if method_lower not in ["sgd", "adam"]:
+            raise ValueError(f"Unsupported method: {method}. Use 'sgd' or 'adam'.")
+
         self.learning_rate = learning_rate
         self.max_iter = max_iter
+        self.method = method  # Store original case for sklearn compatibility
+        self.b1 = b1
+        self.b2 = b2
+        self.eps = eps
         self.result_: Array | None = None
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
@@ -305,6 +341,10 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
             {
                 "learning_rate": self.learning_rate,
                 "max_iter": self.max_iter,
+                "method": self.method,
+                "b1": self.b1,
+                "b2": self.b2,
+                "eps": self.eps,
             }
         )
         return params
@@ -331,9 +371,14 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
         # Compute gradient function once outside loop
         grad_fn = jax.grad(y)
 
-        # Simple Riemannian gradient descent
+        # Riemannian optimization loop
         x = x0
-        for _ in range(self.max_iter):
+        method_lower = self.method.lower()
+        if method_lower == "adam":
+            # Initialize Adam state
+            m, v = jnp.zeros_like(x), jnp.zeros_like(x)
+
+        for i in range(self.max_iter):
             # Compute Euclidean gradient
             euclidean_grad = grad_fn(x)
 
@@ -345,8 +390,19 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
             if grad_norm < 1e-6:
                 break
 
+            # Compute tangent step
+            if method_lower == "adam":
+                # Adam update
+                m = self.b1 * m + (1 - self.b1) * riemannian_grad
+                v = self.b2 * v + (1 - self.b2) * jnp.square(riemannian_grad)
+                # Bias correction
+                m_hat = m / (1 - self.b1 ** (i + 1))
+                v_hat = v / (1 - self.b2 ** (i + 1))
+                tangent_step = -self.learning_rate * m_hat / (jnp.sqrt(v_hat) + self.eps)
+            else:  # sgd
+                tangent_step = -self.learning_rate * riemannian_grad
+
             # Update using retraction
-            tangent_step = -self.learning_rate * riemannian_grad
             x = self.manifold.retr(x, tangent_step)
 
         self.result_ = x
@@ -383,13 +439,19 @@ def create_riemannian_pipeline(manifold: Manifold, n_components: int = 2, **opti
         scikit-learn Pipeline with Riemannian transformers/estimators.
 
     Example:
+        >>> import jax
+        >>> from riemannax.manifolds import Stiefel
         >>> manifold = Stiefel(n=10, p=5)
         >>> pipeline = create_riemannian_pipeline(
         ...     manifold=manifold,
         ...     n_components=3,
         ...     learning_rate=0.01
         ... )
-        >>> pipeline.fit_transform(X)
+        >>> # Generate sample data on the manifold
+        >>> key = jax.random.PRNGKey(0)
+        >>> X = jax.numpy.stack([manifold.random_point(jax.random.fold_in(key, i)) for i in range(20)])
+        >>> pipeline.fit_transform(X)  # doctest: +ELLIPSIS
+        Array...
     """
     if not SKLEARN_AVAILABLE:
         raise ImportError("scikit-learn is required for pipeline creation")

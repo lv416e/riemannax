@@ -47,7 +47,8 @@ class RiemannianOptaxAdapter:
         eps: Small constant for numerical stability (Adam only).
 
     Example:
-        >>> manifold = SphereManifold(dim=3)
+        >>> from riemannax.manifolds import Sphere
+        >>> manifold = Sphere(n=2)  # 2-sphere S^2 embedded in R^3
         >>> adapter = RiemannianOptaxAdapter(manifold=manifold, learning_rate=0.01)
         >>> params = jnp.array([1.0, 0.0, 0.0])
         >>> state = adapter.init(params)
@@ -180,7 +181,8 @@ def create_riemannian_optimizer(
         Optax-compatible Riemannian optimizer.
 
     Example:
-        >>> manifold = SphereManifold(dim=3)
+        >>> from riemannax.manifolds import Sphere
+        >>> manifold = Sphere(n=2)  # 2-sphere S^2 embedded in R^3
         >>> optimizer = create_riemannian_optimizer(
         ...     manifold=manifold,
         ...     method="adam",
@@ -216,7 +218,8 @@ def chain_with_optax(
         Chained optimizer combining Riemannian and Optax transformations.
 
     Example:
-        >>> manifold = SphereManifold(dim=3)
+        >>> from riemannax.manifolds import Sphere
+        >>> manifold = Sphere(n=2)  # 2-sphere S^2 embedded in R^3
         >>> riemannian_opt = RiemannianOptaxAdapter(manifold=manifold, learning_rate=0.01)
         >>> optimizer = chain_with_optax(
         ...     riemannian_opt,

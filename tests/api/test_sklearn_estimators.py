@@ -178,6 +178,52 @@ class TestRiemannianOptimizer:
         assert isinstance(score, (int, float))
         assert score <= 0  # Negative loss (scikit-learn convention)
 
+    def test_optimizer_adam_method(self):
+        """Test that RiemannianOptimizer works with Adam method."""
+        # Arrange
+        manifold = Sphere(n=3)
+        optimizer = RiemannianOptimizer(
+            manifold=manifold,
+            learning_rate=0.1,
+            max_iter=20,
+            method="adam",
+            b1=0.9,
+            b2=0.999,
+        )
+
+        target = jnp.array([1.0, 0.0, 0.0, 0.0])
+
+        def objective(x):
+            return manifold.dist(x, target) ** 2
+
+        X = jnp.array([[0.0, 1.0, 0.0, 0.0]])
+
+        # Act
+        optimizer.fit(X, objective)
+
+        # Assert
+        assert optimizer.result_ is not None
+        assert manifold.validate_point(optimizer.result_)
+        # Adam should converge to a point closer to target
+        final_dist = float(manifold.dist(optimizer.result_, target))
+        initial_dist = float(manifold.dist(X[0], target))
+        assert final_dist < initial_dist
+
+    def test_optimizer_method_validation(self):
+        """Test that RiemannianOptimizer validates method parameter."""
+        # Arrange
+        manifold = Sphere(n=3)
+
+        # Act & Assert - should raise ValueError for invalid method
+        try:
+            RiemannianOptimizer(
+                manifold=manifold,
+                method="invalid_method"
+            )
+            raise AssertionError("Expected ValueError for invalid method")
+        except ValueError as e:
+            assert "Unsupported method" in str(e)
+
 
 class TestPipelineIntegration:
     """Test suite for pipeline integration with scikit-learn."""
