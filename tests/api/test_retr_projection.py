@@ -110,6 +110,7 @@ class TestRetrAsProjector:
     def test_constraint_violation_computation_works(self):
         """Test that _compute_constraint_violation correctly measures violations."""
         # This test validates our use of retr(x, 0) in flax_nnx.py
+        pytest.importorskip("flax", reason="flax not installed")
         from riemannax.api.flax_nnx import ManifoldConstrainedModule
         from flax import nnx
 
