@@ -291,13 +291,11 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
         manifold: Manifold,
         learning_rate: float = 0.01,
         max_iter: int = 100,
-        method: str = "sgd",
     ):
         """Initialize Riemannian optimizer."""
         super().__init__(manifold=manifold)
         self.learning_rate = learning_rate
         self.max_iter = max_iter
-        self.method = method
         self.result_: Array | None = None
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
@@ -307,7 +305,6 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
             {
                 "learning_rate": self.learning_rate,
                 "max_iter": self.max_iter,
-                "method": self.method,
             }
         )
         return params
