@@ -5,6 +5,7 @@ RiemannAX optimizers and transformers to work seamlessly with sklearn's
 ecosystem including pipelines, GridSearchCV, and cross-validation.
 """
 
+import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -208,16 +209,20 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
         Returns:
             Riemannian mean point.
         """
-        import warnings
-
         # Initialize at Euclidean mean projected to manifold
-        # Compute ambient mean and project it
+        # Compute ambient mean and project it onto the manifold
         euclidean_mean = jnp.mean(X, axis=0)
-        # Use exponential map from first point as a simple projection heuristic
+        # Project Euclidean mean onto manifold using retraction with zero tangent
         try:
-            mean = self.manifold.exp(X[0], self.manifold.log(X[0], euclidean_mean))
-        except (ValueError, RuntimeError, NotImplementedError):
+            zero_tangent = jnp.zeros_like(euclidean_mean)
+            mean = self.manifold.retr(euclidean_mean, zero_tangent)
+        except (ValueError, RuntimeError, NotImplementedError) as e:
             # Fallback to first point if projection fails
+            warnings.warn(
+                f"Failed to project Euclidean mean onto manifold: {e}. Using first data point as initial mean.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             mean = X[0]
 
         # Gradient descent to find Frechet mean
