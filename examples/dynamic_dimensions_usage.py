@@ -13,6 +13,8 @@ Examples include:
 """
 
 
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 import jax.random as jr
@@ -222,7 +224,6 @@ def benchmark_dimension_scaling() -> None:
     # Test sphere performance across dimensions
     print("Sphere Performance Scaling:")
     dimensions = [10, 50, 100, 200]
-    from typing import Any
 
     key = jr.PRNGKey(42)
 

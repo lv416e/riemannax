@@ -22,6 +22,7 @@ Author: RiemannAX Development Team
 
 import time
 from pathlib import Path
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -86,8 +87,6 @@ def create_spd_covariance_problem(data: jnp.ndarray):
 
 def run_optimizer_comparison(problem, manifold, x0, problem_name: str, max_iterations: int = 100):
     """Run all optimizers on the same problem and collect detailed results."""
-    from typing import Any
-
     optimizers: dict[str, dict[str, Any]] = {
         "RSGD": {"method": "rsgd", "options": {"learning_rate": 0.01, "max_iterations": max_iterations}},
         "RAdaM": {
@@ -172,8 +171,6 @@ def analyze_convergence_profiles(problems_and_manifolds: list[tuple], max_iterat
         print(f"\nAnalyzing Problem {i + 1}: {problem_name}")
 
         # Run detailed optimization with cost tracking
-        from typing import Any
-
         optimizers: dict[str, tuple[str, dict[str, Any]]] = {
             "RSGD": ("rsgd", {"learning_rate": 0.01}),
             "RAdaM": ("radam", {"learning_rate": 0.001, "beta1": 0.9, "beta2": 0.999}),
