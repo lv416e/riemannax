@@ -56,7 +56,93 @@ class ManifoldParam(nnx.Param):
     pass
 
 
-class ManifoldConstrainedModule(nnx.Module):
+class _ConstraintHandlerMixin:
+    """Mixin providing common constraint validation and projection logic.
+
+    This mixin centralizes manifold constraint handling methods used by both
+    ManifoldConstrainedModule and ManifoldConstrainedLinear, eliminating
+    code duplication.
+
+    Required attributes in subclasses:
+        - manifold: Manifold instance
+        - constraint_violations: ConstraintViolation variable
+        - _rngs: RNG state for reinitialization
+        - _get_constrained_param(): method returning the parameter to constrain
+        - _set_constrained_param(value): method to set the constrained parameter
+        - _get_param_shape(): method returning parameter shape tuple
+    """
+
+    def _compute_constraint_violation(self, param_value: Array) -> Array:
+        """Compute constraint violation measure for given parameter value.
+
+        Args:
+            param_value: Parameter array to check.
+
+        Returns:
+            Violation measure (0.0 if valid, positive value otherwise) as JAX scalar.
+        """
+        # Check validity first
+        is_valid = self.manifold.validate_point(param_value)  # type: ignore[attr-defined]
+        if is_valid:
+            return jnp.array(0.0)
+
+        # Compute violation as distance from projected point
+        # Use retraction with zero tangent vector to project onto manifold
+        try:
+            zero_tangent = jnp.zeros_like(param_value)
+            projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
+            # Measure violation as Euclidean distance from projection
+            return jnp.linalg.norm(param_value - projected)
+        except (ValueError, RuntimeError):
+            # If projection fails, return constant penalty
+            return jnp.array(1.0)
+
+    def project_params(self) -> None:
+        """Project parameters back to the manifold using mutable state.
+
+        This method enforces manifold constraints by projecting parameters
+        and incrementing the violation counter. Uses direct state mutation
+        as supported by NNX's reference semantics.
+        """
+        param_value = self._get_constrained_param()  # type: ignore[attr-defined]
+        is_valid = self.manifold.validate_point(param_value)  # type: ignore[attr-defined]
+
+        if not is_valid:
+            # Parameters violate constraints, project back using manifold's retraction
+            # Retraction with zero tangent vector projects onto the manifold
+            try:
+                zero_tangent = jnp.zeros_like(param_value)
+                projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
+                self._set_constrained_param(projected)  # type: ignore[attr-defined]
+            except (ValueError, RuntimeError):
+                # Retraction failed, reinitialize on manifold with fresh RNG key
+                key = self._rngs()  # type: ignore[attr-defined]
+                new_value = self.manifold.random_point(key, *self._get_param_shape())  # type: ignore[attr-defined]
+                self._set_constrained_param(new_value)  # type: ignore[attr-defined]
+
+            # Increment violation counter using mutable state
+            self.constraint_violations.value = self.constraint_violations.value + 1.0  # type: ignore[attr-defined]
+
+    def validate_constraints(self) -> Array:
+        """Validate that parameters satisfy manifold constraints.
+
+        Returns:
+            Constraint violation measure (0.0 if satisfied).
+        """
+        param_value = self._get_constrained_param()  # type: ignore[attr-defined]
+        return self._compute_constraint_violation(param_value)
+
+    def get_constraint_penalty(self) -> Array:
+        """Get regularization penalty for constraint violations.
+
+        Returns:
+            Penalty term (squared violation) to add to loss.
+        """
+        violation = self.validate_constraints()
+        return jnp.square(violation)
+
+
+class ManifoldConstrainedModule(_ConstraintHandlerMixin, nnx.Module):
     """Base class for Flax NNX modules with manifold-constrained parameters.
 
     This module provides the foundation for neural network layers where
@@ -109,77 +195,21 @@ class ManifoldConstrainedModule(nnx.Module):
         if use_bias:
             self.bias = nnx.Param(jnp.zeros(param_shape[-1] if len(param_shape) > 1 else param_shape[0]))
 
-    def project_params(self) -> None:
-        """Project parameters back to the manifold using mutable state.
+    # Implement mixin interface methods
+    def _get_constrained_param(self) -> Array:
+        """Get the constrained parameter value."""
+        return self.params.value
 
-        This method enforces manifold constraints by projecting parameters
-        and incrementing the violation counter. Uses direct state mutation
-        as supported by NNX's reference semantics.
-        """
-        # Check if parameters satisfy constraints
-        is_valid = self.manifold.validate_point(self.params.value)
+    def _set_constrained_param(self, value: Array) -> None:
+        """Set the constrained parameter value."""
+        self.params.value = value
 
-        if not is_valid:
-            # Parameters violate constraints, project back using manifold's retraction
-            # Retraction with zero tangent vector projects onto the manifold
-            try:
-                zero_tangent = jnp.zeros_like(self.params.value)
-                self.params.value = self.manifold.retr(self.params.value, zero_tangent)
-            except (ValueError, RuntimeError):
-                # Retraction failed, reinitialize on manifold with fresh RNG key
-                key = self._rngs()
-                self.params.value = self.manifold.random_point(key, *self.param_shape)
-
-            # Increment violation counter using mutable state
-            self.constraint_violations.value = self.constraint_violations.value + 1.0
-
-    def _compute_constraint_violation(self, param_value: Array) -> Array:
-        """Compute constraint violation measure for given parameter value.
-
-        Args:
-            param_value: Parameter array to check.
-
-        Returns:
-            Violation measure (0.0 if valid, positive value otherwise) as JAX scalar.
-        """
-        # Check validity first
-        is_valid = self.manifold.validate_point(param_value)
-        if is_valid:
-            return jnp.array(0.0)
-
-        # Compute violation as distance from projected point
-        # Use retraction with zero tangent vector to project onto manifold
-        try:
-            zero_tangent = jnp.zeros_like(param_value)
-            projected = self.manifold.retr(param_value, zero_tangent)
-            # Measure violation as Euclidean distance from projection
-            return jnp.linalg.norm(param_value - projected)
-        except (ValueError, RuntimeError):
-            # If projection fails, return constant penalty
-            return jnp.array(1.0)
-
-    def validate_constraints(self) -> Array:
-        """Validate that parameters satisfy manifold constraints.
-
-        Returns:
-            Constraint violation measure (0.0 if satisfied).
-        """
-        return self._compute_constraint_violation(self.params.value)
-
-    def get_constraint_penalty(self) -> Array:
-        """Compute penalty for constraint violations.
-
-        This can be added to the loss function to discourage
-        parameter drift from the manifold.
-
-        Returns:
-            Penalty value based on constraint violation measure as JAX scalar.
-        """
-        violation = self._compute_constraint_violation(self.params.value)
-        return jnp.square(violation)
+    def _get_param_shape(self) -> tuple[int, ...]:
+        """Get the parameter shape."""
+        return self.param_shape
 
 
-class ManifoldConstrainedLinear(nnx.Module):
+class ManifoldConstrainedLinear(_ConstraintHandlerMixin, nnx.Module):
     """Linear layer with manifold-constrained weight matrix.
 
     This layer implements a linear transformation y = Wx + b where
@@ -299,55 +329,18 @@ class ManifoldConstrainedLinear(nnx.Module):
 
         return output
 
-    def project_params(self) -> None:
-        """Project weight matrix back to manifold."""
-        is_valid = self.manifold.validate_point(self.weight.value)
+    # Implement mixin interface methods
+    def _get_constrained_param(self) -> Array:
+        """Get the constrained parameter value."""
+        return self.weight.value
 
-        if not is_valid:
-            # Use manifold's retraction with zero tangent vector to project
-            try:
-                zero_tangent = jnp.zeros_like(self.weight.value)
-                self.weight.value = self.manifold.retr(self.weight.value, zero_tangent)
-            except (ValueError, RuntimeError):
-                # Retraction failed, reinitialize on manifold with fresh RNG key
-                key = self._rngs()
-                self.weight.value = self.manifold.random_point(key)
+    def _set_constrained_param(self, value: Array) -> None:
+        """Set the constrained parameter value."""
+        self.weight.value = value
 
-            self.constraint_violations.value = self.constraint_violations.value + 1.0
-
-    def _compute_constraint_violation(self, param_value: Array) -> Array:
-        """Compute constraint violation measure for given parameter value.
-
-        Args:
-            param_value: Parameter array to check.
-
-        Returns:
-            Violation measure (0.0 if valid, positive value otherwise) as JAX scalar.
-        """
-        # Check validity first
-        is_valid = self.manifold.validate_point(param_value)
-        if is_valid:
-            return jnp.array(0.0)
-
-        # Compute violation as distance from projected point
-        # Use retraction with zero tangent vector to project onto manifold
-        try:
-            zero_tangent = jnp.zeros_like(param_value)
-            projected = self.manifold.retr(param_value, zero_tangent)
-            # Measure violation as Euclidean distance from projection
-            return jnp.linalg.norm(param_value - projected)
-        except (ValueError, RuntimeError):
-            # If projection fails, return constant penalty
-            return jnp.array(1.0)
-
-    def validate_constraints(self) -> Array:
-        """Validate weight matrix constraints."""
-        return self._compute_constraint_violation(self.weight.value)
-
-    def get_constraint_penalty(self) -> Array:
-        """Compute constraint violation penalty as JAX scalar."""
-        violation = self._compute_constraint_violation(self.weight.value)
-        return jnp.square(violation)
+    def _get_param_shape(self) -> tuple[int, ...]:
+        """Get the parameter shape."""
+        return (self.in_features, self.out_features)
 
 
 def create_manifold_linear(
