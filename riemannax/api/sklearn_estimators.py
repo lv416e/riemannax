@@ -403,12 +403,31 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
                 # Bias correction
                 m_hat = m / (1 - self.b1 ** (i + 1))
                 v_hat = v / (1 - self.b2 ** (i + 1))
-                tangent_step = -self.learning_rate * m_hat / (jnp.sqrt(v_hat) + self.eps)
+                # Improved numerical stability: add eps inside sqrt
+                tangent_step = -self.learning_rate * m_hat / jnp.sqrt(v_hat + self.eps)
             else:  # sgd
                 tangent_step = -self.learning_rate * riemannian_grad
 
+            # Ensure tangent step is in tangent space
+            tangent_step = self.manifold.proj(x, tangent_step)
+
             # Update using retraction
-            x = self.manifold.retr(x, tangent_step)
+            x_new = self.manifold.retr(x, tangent_step)
+
+            # Additional normalization for Sphere manifolds (numerical stability)
+            if hasattr(self.manifold, "__class__") and "Sphere" in self.manifold.__class__.__name__:
+                x_norm = jnp.linalg.norm(x_new)
+                x_new = jnp.where(x_norm > 1e-8, x_new / x_norm, x)
+
+            # Parallel transport momentum vectors for Adam (critical for correctness)
+            if method_lower == "adam":
+                m = self.manifold.transp(x, x_new, m)
+                v = self.manifold.transp(x, x_new, v)
+                # Ensure transported values are in tangent space
+                m = self.manifold.proj(x_new, m)
+                v = self.manifold.proj(x_new, v)
+
+            x = x_new
 
         self.result_ = x
         return self
