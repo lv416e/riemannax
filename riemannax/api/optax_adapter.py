@@ -137,21 +137,31 @@ class RiemannianOptaxAdapter:
             m_hat = m / (1 - self.b1 ** (step + 1))
             v_hat = v / (1 - self.b2 ** (step + 1))
 
-            # Compute the Riemannian tangent step
-            tangent_step = -lr * m_hat / (jnp.sqrt(v_hat) + self.eps)
-            new_state = RiemannianOptaxState(
-                step_count=step + 1,
-                adam_m=m,
-                adam_v=v,
-            )
+            # Compute the Riemannian tangent step (improved numerical stability)
+            tangent_step = -lr * m_hat / jnp.sqrt(v_hat + self.eps)
         else:  # sgd
             tangent_step = -lr * riemannian_grads
-            new_state = RiemannianOptaxState(step_count=step + 1)
 
         # Retract back onto the manifold and compute the ambient-space update
         # This ensures that when optax.apply_updates(params, updates) computes
         # params + updates, the result is exactly new_params on the manifold
         new_params = self.manifold.retr(params, tangent_step)
+
+        # Parallel transport momentum vectors for Adam (critical for correctness)
+        if self.method == "adam":
+            m_transported = self.manifold.transp(params, new_params, m)
+            v_transported = self.manifold.transp(params, new_params, v)
+            # Ensure transported values are in tangent space
+            m_transported = self.manifold.proj(new_params, m_transported)
+            v_transported = self.manifold.proj(new_params, v_transported)
+            new_state = RiemannianOptaxState(
+                step_count=step + 1,
+                adam_m=m_transported,
+                adam_v=v_transported,
+            )
+        else:  # sgd
+            new_state = RiemannianOptaxState(step_count=step + 1)
+
         updates = new_params - params
 
         return updates, new_state
