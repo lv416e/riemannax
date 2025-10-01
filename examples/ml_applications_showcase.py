@@ -40,8 +40,8 @@ class GeometricPCA:
     def __init__(self, n_components: int, max_iterations: int = 100):
         self.n_components = n_components
         self.max_iterations = max_iterations
-        self.components_ = None
-        self.explained_variance_ratio_ = None
+        self.components_: jnp.ndarray | None = None
+        self.explained_variance_ratio_: jnp.ndarray | float | None = None
 
     def fit(self, X: jnp.ndarray, optimizer: str = "radam") -> "GeometricPCA":
         """Fit geometric PCA using Grassmann manifold optimization."""
@@ -102,9 +102,9 @@ class RobustCovarianceAnomalyDetector:
     def __init__(self, contamination: float = 0.1, max_iterations: int = 100):
         self.contamination = contamination
         self.max_iterations = max_iterations
-        self.covariance_ = None
-        self.location_ = None
-        self.threshold_ = None
+        self.covariance_: jnp.ndarray | None = None
+        self.location_: jnp.ndarray | None = None
+        self.threshold_: float | None = None
 
     def fit(self, X: jnp.ndarray, optimizer: str = "radam") -> "RobustCovarianceAnomalyDetector":
         """Fit robust covariance estimator using SPD manifold optimization."""
@@ -158,13 +158,13 @@ class RobustCovarianceAnomalyDetector:
         # Set threshold based on contamination level
         cov_inv = jnp.linalg.inv(self.covariance_)
         mahalanobis_distances = jnp.sqrt(jnp.sum((X_centered @ cov_inv) * X_centered, axis=1))
-        self.threshold_ = jnp.percentile(mahalanobis_distances, (1 - self.contamination) * 100)
+        self.threshold_ = float(jnp.percentile(mahalanobis_distances, (1 - self.contamination) * 100))
 
         return self
 
     def decision_function(self, X: jnp.ndarray) -> jnp.ndarray:
         """Compute anomaly scores (negative Mahalanobis distances)."""
-        if self.covariance_ is None:
+        if self.covariance_ is None or self.location_ is None:
             raise ValueError("Must fit the model before computing decision function")
 
         X_centered = X - self.location_
@@ -174,6 +174,8 @@ class RobustCovarianceAnomalyDetector:
 
     def predict(self, X: jnp.ndarray) -> jnp.ndarray:
         """Predict if samples are anomalies."""
+        if self.threshold_ is None:
+            raise ValueError("Must fit the model before predicting")
         scores = self.decision_function(X)
         return (scores < -self.threshold_).astype(int)
 
@@ -184,8 +186,8 @@ class RotationInvariantFeatureLearner:
     def __init__(self, n_features: int = 10, max_iterations: int = 100):
         self.n_features = n_features
         self.max_iterations = max_iterations
-        self.rotation_matrices_ = None
-        self.feature_weights_ = None
+        self.rotation_matrices_: jnp.ndarray | None = None
+        self.feature_weights_: jnp.ndarray | None = None
 
     def fit(self, X: jnp.ndarray, y: jnp.ndarray, optimizer: str = "rmom"):
         """Learn rotation-invariant features for classification."""
