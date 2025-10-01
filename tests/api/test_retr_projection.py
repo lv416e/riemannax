@@ -65,7 +65,7 @@ class TestRetrAsProjector:
         assert jnp.allclose(gram, identity, atol=1e-5)
 
     def test_sphere_retr_with_zero_is_not_identity(self):
-        """Prove that retr(x, 0) ≠ x for off-manifold points (counter to CodeRabbit's claim)."""
+        """Verify that retr(x, 0) ≠ x for off-manifold points (correcting a previous review claim)."""
         # Arrange
         manifold = Sphere(n=2)
         off_manifold_point = jnp.array([2.0, 2.0, 2.0])  # norm = 2√3 ≠ 1
@@ -74,7 +74,7 @@ class TestRetrAsProjector:
         zero_tangent = jnp.zeros_like(off_manifold_point)
         result = manifold.retr(off_manifold_point, zero_tangent)
 
-        # Assert: retr(x, 0) ≠ x (CodeRabbit's assumption is WRONG)
+        # Assert: retr(x, 0) ≠ x (projection occurs for off-manifold points)
         assert not jnp.allclose(result, off_manifold_point), (
             "retr(x, 0) should NOT equal x for off-manifold points"
         )
@@ -86,7 +86,7 @@ class TestRetrAsProjector:
         )
 
     def test_stiefel_retr_with_zero_is_not_identity(self):
-        """Prove that retr(x, 0) ≠ x for off-manifold points (counter to CodeRabbit's claim)."""
+        """Verify that retr(x, 0) ≠ x for off-manifold points (correcting a previous review claim)."""
         # Arrange
         manifold = Stiefel(n=4, p=2)
         off_manifold_point = jnp.array([
@@ -100,7 +100,7 @@ class TestRetrAsProjector:
         zero_tangent = jnp.zeros_like(off_manifold_point)
         result = manifold.retr(off_manifold_point, zero_tangent)
 
-        # Assert: retr(x, 0) ≠ x (CodeRabbit's assumption is WRONG)
+        # Assert: retr(x, 0) ≠ x (QR projection occurs for off-manifold points)
         assert not jnp.allclose(result, off_manifold_point, atol=1e-3), (
             "retr(x, 0) should NOT equal x for off-manifold points"
         )
