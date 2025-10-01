@@ -5,6 +5,8 @@ manifold constraints on parameters during training. Uses NNX's explicit state
 management and mutable reference semantics for constraint tracking.
 """
 
+import warnings
+
 import jax.numpy as jnp
 from jaxtyping import Array
 
@@ -93,8 +95,14 @@ class _ConstraintHandlerMixin:
             projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
             # Measure violation as Euclidean distance from projection
             return jnp.linalg.norm(param_value - projected)
-        except (ValueError, RuntimeError):
+        except (ValueError, RuntimeError) as e:
             # If projection fails, return constant penalty
+            warnings.warn(
+                f"Failed to project parameter during constraint violation computation: {e}. "
+                f"Returning constant penalty of 1.0.",
+                RuntimeWarning,
+                stacklevel=3,
+            )
             return jnp.array(1.0)
 
     def project_params(self) -> None:
@@ -114,8 +122,14 @@ class _ConstraintHandlerMixin:
                 zero_tangent = jnp.zeros_like(param_value)
                 projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
                 self._set_constrained_param(projected)  # type: ignore[attr-defined]
-            except (ValueError, RuntimeError):
+            except (ValueError, RuntimeError) as e:
                 # Retraction failed, reinitialize on manifold with fresh RNG key
+                warnings.warn(
+                    f"Failed to project parameters back to manifold: {e}. "
+                    f"Re-initializing parameters with fresh random point.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
                 key = self._rngs()  # type: ignore[attr-defined]
                 new_value = self.manifold.random_point(key, *self._get_param_shape())  # type: ignore[attr-defined]
                 self._set_constrained_param(new_value)  # type: ignore[attr-defined]
