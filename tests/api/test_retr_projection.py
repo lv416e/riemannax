@@ -75,13 +75,15 @@ class TestRetrAsProjector:
         result = manifold.retr(off_manifold_point, zero_tangent)
 
         # Assert: retr(x, 0) ≠ x (CodeRabbit's assumption is WRONG)
-        assert not jnp.allclose(result, off_manifold_point), \
+        assert not jnp.allclose(result, off_manifold_point), (
             "retr(x, 0) should NOT equal x for off-manifold points"
+        )
 
         # Assert: result is normalized version of x
         expected = off_manifold_point / jnp.linalg.norm(off_manifold_point)
-        assert jnp.allclose(result, expected, atol=1e-6), \
+        assert jnp.allclose(result, expected, atol=1e-6), (
             "retr(x, 0) should return normalized x"
+        )
 
     def test_stiefel_retr_with_zero_is_not_identity(self):
         """Prove that retr(x, 0) ≠ x for off-manifold points (counter to CodeRabbit's claim)."""
@@ -99,13 +101,15 @@ class TestRetrAsProjector:
         result = manifold.retr(off_manifold_point, zero_tangent)
 
         # Assert: retr(x, 0) ≠ x (CodeRabbit's assumption is WRONG)
-        assert not jnp.allclose(result, off_manifold_point, atol=1e-3), \
+        assert not jnp.allclose(result, off_manifold_point, atol=1e-3), (
             "retr(x, 0) should NOT equal x for off-manifold points"
+        )
 
         # Assert: result is orthonormal (QR projection)
         gram = result.T @ result
-        assert jnp.allclose(gram, jnp.eye(2), atol=1e-5), \
+        assert jnp.allclose(gram, jnp.eye(2), atol=1e-5), (
             "retr(x, 0) should return QR-orthogonalized x"
+        )
 
     def test_constraint_violation_computation_works(self):
         """Test that _compute_constraint_violation correctly measures violations."""
