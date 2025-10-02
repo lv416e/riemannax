@@ -403,8 +403,8 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
                 # Bias correction
                 m_hat = m / (1 - self.b1 ** (i + 1))
                 v_hat = v / (1 - self.b2 ** (i + 1))
-                # Standard Adam formula for consistency with PyTorch/TensorFlow
-                tangent_step = -self.learning_rate * m_hat / (jnp.sqrt(v_hat) + self.eps)
+                # Improved numerical stability: add eps inside sqrt
+                tangent_step = -self.learning_rate * m_hat / jnp.sqrt(v_hat + self.eps)
             else:  # sgd
                 tangent_step = -self.learning_rate * riemannian_grad
 

@@ -126,9 +126,9 @@ def riemannian_adam(
         # Compute bias-corrected second raw moment estimate
         v_hat = v_new / (1 - beta2**step)
 
-        # Compute Adam direction in tangent space using standard Adam formula
-        # Following Kingma & Ba (2014) Algorithm 1: epsilon outside sqrt
-        direction = m_hat / (jnp.sqrt(v_hat) + eps)
+        # Compute Adam direction in tangent space with improved numerical stability
+        sqrt_v_hat = jnp.sqrt(v_hat + eps)  # Add eps inside sqrt for better stability
+        direction = m_hat / sqrt_v_hat
 
         # Scale by learning rate
         v = -learning_rate * direction

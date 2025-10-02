@@ -137,8 +137,8 @@ class RiemannianOptaxAdapter:
             m_hat = m / (1 - self.b1 ** (step + 1))
             v_hat = v / (1 - self.b2 ** (step + 1))
 
-            # Compute the Riemannian tangent step (standard Adam formula)
-            tangent_step = -lr * m_hat / (jnp.sqrt(v_hat) + self.eps)
+            # Compute the Riemannian tangent step (improved numerical stability)
+            tangent_step = -lr * m_hat / jnp.sqrt(v_hat + self.eps)
         else:  # sgd
             tangent_step = -lr * riemannian_grads
 
