@@ -234,6 +234,7 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
             return jnp.mean(logs, axis=0)
 
         converged = False
+        prev_grad_norm = float("inf")  # Initialize for adaptive learning rate
         for iteration in range(max_iter):
             # Compute mean of log maps (vectorized for performance)
             mean_tangent = compute_mean_tangent(mean)
@@ -255,12 +256,11 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
                 break
 
             # Adaptive learning rate: reduce if gradient norm increases
-            if iteration > 0:
-                prev_grad_norm = float(jnp.linalg.norm(compute_mean_tangent(prev_mean)))
-                if grad_norm > prev_grad_norm:
-                    lr = lr * 0.5  # Backtracking
+            if grad_norm > prev_grad_norm:
+                lr = lr * 0.5  # Backtracking
 
             prev_mean = mean
+            prev_grad_norm = grad_norm  # Cache for next iteration
 
         # Warn if not converged
         if not converged:
@@ -426,6 +426,8 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
                 # Ensure transported values are in tangent space
                 m = self.manifold.proj(x_new, m)
                 v = self.manifold.proj(x_new, v)
+                # Enforce non-negativity of second moment estimate for numerical stability
+                v = jnp.maximum(v, 0.0)
 
             x = x_new
 

@@ -154,6 +154,8 @@ class RiemannianOptaxAdapter:
             # Ensure transported values are in tangent space
             m_transported = self.manifold.proj(new_params, m_transported)
             v_transported = self.manifold.proj(new_params, v_transported)
+            # Enforce non-negativity of second moment estimate for numerical stability
+            v_transported = jnp.maximum(v_transported, 0.0)
             new_state = RiemannianOptaxState(
                 step_count=step + 1,
                 adam_m=m_transported,
