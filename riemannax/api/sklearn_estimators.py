@@ -398,6 +398,13 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
                 break
 
             # Compute tangent step
+            # NOTE: This Adam implementation is similar to RiemannianOptaxAdapter.update()
+            # in optax_adapter.py. While there is some code duplication, the implementations
+            # are kept separate because:
+            # 1. Different state management (loop-local vs NamedTuple)
+            # 2. Different API contexts (sklearn vs optax)
+            # 3. Optional dependencies (avoiding sklearn<->optax coupling)
+            # Future: Consider extracting to a shared internal module if more optimizers are added.
             if method_lower == "adam":
                 # Adam update
                 m = self.b1 * m + (1 - self.b1) * riemannian_grad
