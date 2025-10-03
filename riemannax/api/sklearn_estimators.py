@@ -408,9 +408,6 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
             else:  # sgd
                 tangent_step = -self.learning_rate * riemannian_grad
 
-            # Ensure tangent step is in tangent space
-            tangent_step = self.manifold.proj(x, tangent_step)
-
             # Update using retraction
             x_new = self.manifold.retr(x, tangent_step)
 
