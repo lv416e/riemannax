@@ -138,6 +138,9 @@ class RiemannianOptaxAdapter:
             v_hat = v / (1 - self.b2 ** (step + 1))
 
             # Compute the Riemannian tangent step (improved numerical stability)
+            # NOTE: We use sqrt(v_hat + eps) instead of sqrt(v_hat) + eps for better
+            # numerical stability when v_hat is very small, preventing division by zero.
+            # This differs from standard Adam but is justified for Riemannian optimization.
             tangent_step = -lr * m_hat / jnp.sqrt(v_hat + self.eps)
         else:  # sgd
             tangent_step = -lr * riemannian_grads
