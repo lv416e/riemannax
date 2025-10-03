@@ -411,11 +411,6 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
             # Update using retraction
             x_new = self.manifold.retr(x, tangent_step)
 
-            # Additional normalization for Sphere manifolds (numerical stability)
-            if hasattr(self.manifold, "__class__") and "Sphere" in self.manifold.__class__.__name__:
-                x_norm = jnp.linalg.norm(x_new)
-                x_new = jnp.where(x_norm > 1e-8, x_new / x_norm, x)
-
             # Parallel transport momentum vectors for Adam (critical for correctness)
             if method_lower == "adam":
                 m = self.manifold.transp(x, x_new, m)
