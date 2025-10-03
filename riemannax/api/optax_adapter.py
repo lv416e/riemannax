@@ -138,11 +138,8 @@ class RiemannianOptaxAdapter:
             m_hat = m / (1 - self.b1 ** (step + 1))
             v_hat = v / (1 - self.b2 ** (step + 1))
 
-            # Compute the Riemannian tangent step (improved numerical stability)
-            # NOTE: We use sqrt(v_hat + eps) instead of sqrt(v_hat) + eps for better
-            # numerical stability when v_hat is very small, preventing division by zero.
-            # This differs from standard Adam but is justified for Riemannian optimization.
-            tangent_step = -lr * m_hat / jnp.sqrt(v_hat + self.eps)
+            # Compute the Riemannian tangent step using standard Adam formula
+            tangent_step = -lr * m_hat / (jnp.sqrt(v_hat) + self.eps)
         else:  # sgd
             tangent_step = -lr * riemannian_grads
 
@@ -155,12 +152,6 @@ class RiemannianOptaxAdapter:
         if self.method == "adam":
             m_transported = self.manifold.transp(params, new_params, m)
             v_transported = self.manifold.transp(params, new_params, v)
-            # Defensive projection: While transp should return tangent vectors, we project
-            # to guard against numerical errors in manifold implementations (e.g., Sphere's
-            # normal case uses formulas without projection). This is critical for Adam since
-            # momentum accumulates over many iterations, amplifying small errors.
-            m_transported = self.manifold.proj(new_params, m_transported)
-            v_transported = self.manifold.proj(new_params, v_transported)
             # Enforce non-negativity of second moment estimate for numerical stability
             v_transported = jnp.maximum(v_transported, 0.0)
             new_state = RiemannianOptaxState(
@@ -228,7 +219,11 @@ def chain_with_optax(
     IMPORTANT: The Riemannian optimizer must be the LAST transformation in the chain.
     This ensures that Euclidean gradient transformations (clipping, weight decay, etc.)
     are applied before projection to the tangent space and retraction onto the manifold,
-    which is necessary because these transforms expect and modify Euclidean gradients.
+    which is necessary because:
+    1. These transforms expect and modify Euclidean gradients
+    2. The Riemannian adapter returns updates in ambient space (new_params - params),
+       not in the tangent space, so transforms after it would see incorrect geometry
+    3. Operations like gradient clipping must measure norms before manifold projection
 
     Args:
         riemannian_opt: Riemannian Optax adapter.
@@ -250,11 +245,14 @@ def chain_with_optax(
     return optax.chain(*optax_transforms, riemannian_opt)
 
 
-def validate_optax_compatibility(
+def _validate_optax_compatibility(
     manifold: Manifold,
     optax_transform: optax.GradientTransformation,
 ) -> tuple[bool, str | None]:
-    """Validate compatibility between Optax transformation and manifold constraints.
+    """[INTERNAL] Validate compatibility between Optax transformation and manifold constraints.
+
+    This is a placeholder for future validation logic and is currently kept private
+    until proper implementation is completed.
 
     Args:
         manifold: The Riemannian manifold.
@@ -269,6 +267,7 @@ def validate_optax_compatibility(
 
     TODO: Implement validation logic to detect transforms that directly modify
         parameters or apply operations incompatible with manifold constraints.
+        Once implemented, consider making this function public.
     """
     # Most Optax transformations are compatible when properly ordered
     # Transformations that might be incompatible would be those that directly

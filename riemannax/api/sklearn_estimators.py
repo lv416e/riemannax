@@ -403,11 +403,8 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
                 # Bias correction
                 m_hat = m / (1 - self.b1 ** (i + 1))
                 v_hat = v / (1 - self.b2 ** (i + 1))
-                # Improved numerical stability: add eps inside sqrt
-                # NOTE: We use sqrt(v_hat + eps) instead of sqrt(v_hat) + eps for better
-                # numerical stability when v_hat is very small, preventing division by zero.
-                # This differs from standard Adam but is justified for Riemannian optimization.
-                tangent_step = -self.learning_rate * m_hat / jnp.sqrt(v_hat + self.eps)
+                # Use standard Adam formula for consistency with JAX/Optax ecosystem
+                tangent_step = -self.learning_rate * m_hat / (jnp.sqrt(v_hat) + self.eps)
             else:  # sgd
                 tangent_step = -self.learning_rate * riemannian_grad
 
@@ -426,9 +423,6 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
             if method_lower == "adam":
                 m = self.manifold.transp(x, x_new, m)
                 v = self.manifold.transp(x, x_new, v)
-                # Ensure transported values are in tangent space
-                m = self.manifold.proj(x_new, m)
-                v = self.manifold.proj(x_new, v)
                 # Enforce non-negativity of second moment estimate for numerical stability
                 v = jnp.maximum(v, 0.0)
 
