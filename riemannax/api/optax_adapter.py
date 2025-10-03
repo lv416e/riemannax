@@ -20,7 +20,8 @@ class RiemannianOptaxState(NamedTuple):
 
     Attributes:
         step_count: Number of optimization steps taken.
-        manifold_state: Additional state for manifold-specific operations.
+        manifold_state: Reserved for future manifold-specific state extensions.
+            Currently unused but included for API stability.
         adam_m: First moment estimate (for Adam-like optimizers).
         adam_v: Second moment estimate (for Adam-like optimizers).
     """
@@ -154,7 +155,10 @@ class RiemannianOptaxAdapter:
         if self.method == "adam":
             m_transported = self.manifold.transp(params, new_params, m)
             v_transported = self.manifold.transp(params, new_params, v)
-            # Ensure transported values are in tangent space
+            # Defensive projection: While transp should return tangent vectors, we project
+            # to guard against numerical errors in manifold implementations (e.g., Sphere's
+            # normal case uses formulas without projection). This is critical for Adam since
+            # momentum accumulates over many iterations, amplifying small errors.
             m_transported = self.manifold.proj(new_params, m_transported)
             v_transported = self.manifold.proj(new_params, v_transported)
             # Enforce non-negativity of second moment estimate for numerical stability
@@ -223,7 +227,8 @@ def chain_with_optax(
 
     IMPORTANT: The Riemannian optimizer must be the LAST transformation in the chain.
     This ensures that Euclidean gradient transformations (clipping, weight decay, etc.)
-    are applied before projection to the tangent space and retraction onto the manifold.
+    are applied before projection to the tangent space and retraction onto the manifold,
+    which is necessary because these transforms expect and modify Euclidean gradients.
 
     Args:
         riemannian_opt: Riemannian Optax adapter.
@@ -261,6 +266,9 @@ def validate_optax_compatibility(
     Note:
         Most Optax transformations are compatible with manifold constraints as long
         as they operate on gradients/updates before the Riemannian projection.
+
+    TODO: Implement validation logic to detect transforms that directly modify
+        parameters or apply operations incompatible with manifold constraints.
     """
     # Most Optax transformations are compatible when properly ordered
     # Transformations that might be incompatible would be those that directly
