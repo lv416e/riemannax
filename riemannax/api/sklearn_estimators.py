@@ -101,12 +101,14 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
 
     Example:
         >>> import jax
+        >>> import jax.numpy as jnp
         >>> from riemannax.manifolds import Stiefel
         >>> manifold = Stiefel(n=10, p=5)
         >>> pca = RiemannianPCA(manifold=manifold, n_components=3)
         >>> # Generate sample data on the manifold
         >>> key = jax.random.PRNGKey(0)
-        >>> X = jax.numpy.stack([manifold.random_point(jax.random.fold_in(key, i)) for i in range(20)])
+        >>> keys = jax.random.split(key, 20)
+        >>> X = jnp.stack([manifold.random_point(k) for k in keys])
         >>> X_transformed = pca.fit_transform(X)
     """
 
@@ -295,9 +297,9 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
         ...     learning_rate=0.01,
         ...     max_iter=100
         ... )
-        >>> # Define objective function and initial point
         >>> target = jnp.array([1.0, 0.0, 0.0, 0.0])
-        >>> objective_fn = lambda x: manifold.dist(x, target) ** 2
+        >>> def objective_fn(x):
+        ...     return manifold.dist(x, target) ** 2
         >>> X = jnp.array([[0.0, 1.0, 0.0, 0.0]])
         >>> optimizer.fit(X, objective_fn)  # doctest: +ELLIPSIS
         RiemannianOptimizer(...)
@@ -455,6 +457,7 @@ def create_riemannian_pipeline(manifold: Manifold, n_components: int = 2, **opti
 
     Example:
         >>> import jax
+        >>> import jax.numpy as jnp
         >>> from riemannax.manifolds import Stiefel
         >>> manifold = Stiefel(n=10, p=5)
         >>> pipeline = create_riemannian_pipeline(
@@ -464,7 +467,8 @@ def create_riemannian_pipeline(manifold: Manifold, n_components: int = 2, **opti
         ... )
         >>> # Generate sample data on the manifold
         >>> key = jax.random.PRNGKey(0)
-        >>> X = jax.numpy.stack([manifold.random_point(jax.random.fold_in(key, i)) for i in range(20)])
+        >>> keys = jax.random.split(key, 20)
+        >>> X = jnp.stack([manifold.random_point(k) for k in keys])
         >>> pipeline.fit_transform(X)  # doctest: +ELLIPSIS
         Array...
     """
