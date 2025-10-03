@@ -85,8 +85,9 @@ class TestRiemannianOptaxAdapter:
 
         # Assert
         assert new_params.shape == params.shape
-        gradient_norm = jnp.linalg.norm(updates)
-        assert gradient_norm < 2.0  # Should be clipped
+        # Check that gradient clipping worked (update magnitude should be reasonable)
+        update_norm = float(jnp.linalg.norm(updates))
+        assert update_norm < 2.0  # Clipped gradients produce bounded updates
         assert manifold.validate_point(new_params, atol=1e-5)  # Must remain on manifold
 
     def test_adapter_with_learning_rate_schedule(self):
