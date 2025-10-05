@@ -485,33 +485,49 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
         return -float(y(self.result_))
 
 
-def create_riemannian_pipeline(manifold: Manifold, n_components: int = 2, **optimizer_kwargs: Any) -> Any:
-    """Create a scikit-learn pipeline with Riemannian components.
+def create_riemannian_pipeline(manifold: Manifold, n_components: int = 2) -> Any:
+    """Create a scikit-learn pipeline with a RiemannianPCA transformer.
+
+    This function creates a pipeline containing only the RiemannianPCA transformer,
+    which is useful for chaining with standard scikit-learn estimators that operate
+    on Euclidean data. The PCA step projects manifold-valued data to a lower-dimensional
+    Euclidean tangent space representation.
+
+    Note:
+        RiemannianPCA.transform() outputs Euclidean arrays of shape (n_samples, n_components),
+        which can be directly consumed by standard sklearn estimators like LogisticRegression,
+        SVC, etc. Do NOT chain with RiemannianOptimizer, as it expects manifold-valued inputs.
 
     Args:
-        manifold: The Riemannian manifold.
-        n_components: Number of PCA components.
-        **optimizer_kwargs: Additional arguments for RiemannianOptimizer.
+        manifold: The Riemannian manifold for the input data.
+        n_components: Number of principal components to retain.
 
     Returns:
-        scikit-learn Pipeline with Riemannian transformers/estimators.
+        scikit-learn Pipeline containing a RiemannianPCA transformer.
 
     Example:
         >>> import jax
         >>> import jax.numpy as jnp
+        >>> from sklearn.linear_model import LogisticRegression
         >>> from riemannax.manifolds import Stiefel
         >>> manifold = Stiefel(n=10, p=5)
-        >>> pipeline = create_riemannian_pipeline(
+        >>> # Create PCA pipeline
+        >>> pca_pipeline = create_riemannian_pipeline(
         ...     manifold=manifold,
-        ...     n_components=3,
-        ...     learning_rate=0.01
+        ...     n_components=3
         ... )
-        >>> # Generate sample data on the manifold
+        >>> # Chain with Euclidean estimator
+        >>> from sklearn.pipeline import Pipeline
+        >>> full_pipeline = Pipeline([
+        ...     ('riemannian_pca', pca_pipeline.named_steps['pca']),
+        ...     ('classifier', LogisticRegression())
+        ... ])
+        >>> # Generate sample manifold data
         >>> key = jax.random.PRNGKey(0)
-        >>> keys = jax.random.split(key, 20)
-        >>> X = jnp.stack([manifold.random_point(k) for k in keys])
-        >>> pipeline.fit_transform(X)  # doctest: +ELLIPSIS
-        Array...
+        >>> X = jnp.stack([manifold.random_point(jax.random.fold_in(key, i)) for i in range(20)])
+        >>> # Transform to Euclidean space
+        >>> pca_pipeline.fit_transform(X).shape
+        (20, 3)
     """
     if not SKLEARN_AVAILABLE:
         raise ImportError("scikit-learn is required for pipeline creation")
@@ -521,8 +537,5 @@ def create_riemannian_pipeline(manifold: Manifold, n_components: int = 2, **opti
     steps = [
         ("pca", RiemannianPCA(manifold=manifold, n_components=n_components)),
     ]
-
-    if optimizer_kwargs:
-        steps.append(("optimizer", RiemannianOptimizer(manifold=manifold, **optimizer_kwargs)))
 
     return Pipeline(steps)
