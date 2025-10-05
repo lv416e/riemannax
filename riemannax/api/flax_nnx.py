@@ -111,6 +111,21 @@ class _ConstraintHandlerMixin:
         This method enforces manifold constraints by projecting parameters
         and incrementing the violation counter. Uses direct state mutation
         as supported by NNX's reference semantics.
+
+        Important:
+            This method should be called **outside** of JIT-compiled functions.
+            It performs mutable state updates (parameter modification and violation
+            counter increment) which are not compatible with JAX's functional
+            transformations. Call this method in your training loop after gradient
+            updates, but before JIT-compiled forward/backward passes.
+
+        Example:
+            >>> # Correct usage: outside JIT
+            >>> for epoch in range(num_epochs):
+            ...     for batch in dataloader:
+            ...         loss, grads = jitted_train_step(module, batch)
+            ...         optimizer.update(grads)
+            ...         module.project_params()  # Outside JIT
         """
         param_value = self._get_constrained_param()  # type: ignore[attr-defined]
         is_valid = self.manifold.validate_point(param_value)  # type: ignore[attr-defined]
