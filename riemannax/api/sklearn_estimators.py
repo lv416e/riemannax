@@ -266,11 +266,12 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
 
             for _ in range(max_backtracks):
                 # Try step with current alpha
-                candidate_mean = self.manifold.exp(mean, -alpha * mean_tangent)
+                candidate_mean = self.manifold.exp(mean, alpha * mean_tangent)
                 _, candidate_cost = compute_mean_tangent_and_cost(candidate_mean)
 
-                # Armijo condition: f(x_new) ≤ f(x) - c1 * alpha * ||grad||^2
-                if candidate_cost <= current_cost - c1 * alpha * grad_norm**2:
+                # Armijo condition: f(x_new) ≤ f(x) - 2*c1*alpha*||mean_tangent||^2
+                # Factor of 2 comes from grad F(μ) = -2 * mean_tangent
+                if candidate_cost <= current_cost - 2.0 * c1 * alpha * grad_norm**2:
                     break  # Accept step
                 alpha *= beta  # Shrink step size
             else:
@@ -278,7 +279,7 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
                 alpha = max(alpha, 1e-10)
 
             # Update mean with accepted step size
-            scaled_tangent = jnp.asarray(-alpha * mean_tangent)
+            scaled_tangent = jnp.asarray(alpha * mean_tangent)
             mean = self.manifold.exp(mean, scaled_tangent)
 
             # Additional convergence checks
