@@ -231,38 +231,71 @@ class RiemannianPCA(TransformerMixin, RiemannianManifoldEstimator):
         lr = learning_rate
         prev_mean = mean
 
-        def compute_mean_tangent(current_mean: Array) -> Array:
+        def compute_mean_tangent_and_cost(current_mean: Array) -> tuple[Array, float]:
+            """Compute mean tangent vector and Fréchet variance (cost function).
+
+            Returns:
+                Tuple of (mean_tangent, frechet_variance).
+            """
             logs = jax.vmap(lambda x: self.manifold.log(current_mean, x))(X)
-            return jnp.mean(logs, axis=0)
+            mean_tangent = jnp.mean(logs, axis=0)
+            # Fréchet variance = mean of squared distances from mean
+            frechet_variance = float(jnp.mean(jnp.sum(logs**2, axis=-1)))
+            return mean_tangent, frechet_variance
 
         converged = False
-        prev_grad_norm = float("inf")  # Initialize for adaptive learning rate
+        prev_cost = float("inf")  # Initialize for backtracking line search
         for iteration in range(max_iter):
-            # Compute mean of log maps (vectorized for performance)
-            mean_tangent = compute_mean_tangent(mean)
-
-            # Update mean using exponential map
-            scaled_tangent = jnp.asarray(lr * mean_tangent)
-            mean = self.manifold.exp(mean, scaled_tangent)
+            # Compute mean tangent and Fréchet variance (cost function)
+            mean_tangent, current_cost = compute_mean_tangent_and_cost(mean)
 
             # Compute convergence metrics (convert to Python floats for control flow)
             grad_norm = float(jnp.linalg.norm(mean_tangent))
+
+            # Check convergence before taking a step
+            if grad_norm < tol:
+                converged = True
+                break
+
+            # Backtracking line search with Armijo condition
+            # Try to find a step size that decreases the cost function
+            alpha = lr
+            c1 = 1e-4  # Armijo parameter (sufficient decrease)
+            beta = 0.5  # Backtracking shrinkage factor
+            max_backtracks = 20
+
+            for _ in range(max_backtracks):
+                # Try step with current alpha
+                candidate_mean = self.manifold.exp(mean, -alpha * mean_tangent)
+                _, candidate_cost = compute_mean_tangent_and_cost(candidate_mean)
+
+                # Armijo condition: f(x_new) ≤ f(x) - c1 * alpha * ||grad||^2
+                if candidate_cost <= current_cost - c1 * alpha * grad_norm**2:
+                    break  # Accept step
+                alpha *= beta  # Shrink step size
+            else:
+                # If backtracking fails, use minimum step size
+                alpha = max(alpha, 1e-10)
+
+            # Update mean with accepted step size
+            scaled_tangent = jnp.asarray(-alpha * mean_tangent)
+            mean = self.manifold.exp(mean, scaled_tangent)
+
+            # Additional convergence checks
             step_norm = float(jnp.linalg.norm(scaled_tangent))
             mean_change = float(
                 jnp.linalg.norm(self.manifold.log(prev_mean, mean) if iteration > 0 else scaled_tangent)
             )
 
-            # Check convergence (any of three criteria)
-            if grad_norm < tol or step_norm < tol or mean_change < tol:
+            if step_norm < tol or mean_change < tol:
                 converged = True
                 break
 
-            # Adaptive learning rate: reduce if gradient norm increases
-            if grad_norm > prev_grad_norm:
-                lr = lr * 0.5  # Backtracking
+            # Update learning rate for next iteration (cautious adaptation)
+            lr = min(alpha * 1.2, learning_rate) if candidate_cost < prev_cost * 0.9 else alpha
 
             prev_mean = mean
-            prev_grad_norm = grad_norm  # Cache for next iteration
+            prev_cost = candidate_cost  # Use accepted cost
 
         # Warn if not converged
         if not converged:
