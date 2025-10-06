@@ -5,8 +5,8 @@ manifold constraints on parameters during training. Uses NNX's explicit state
 management and mutable reference semantics for constraint tracking.
 """
 
-import warnings
 
+import jax
 import jax.numpy as jnp
 from jaxtyping import Array
 
@@ -18,7 +18,7 @@ except ImportError:
     FLAX_AVAILABLE = False
 
     # Create mock classes for type checking when Flax is not installed
-    class nnx:  # type: ignore  # noqa: N801
+    class nnx:  # noqa: N801
         """Mock nnx module for type checking when Flax is not installed."""
 
         class Module:  # noqa: D106
@@ -76,34 +76,38 @@ class _ConstraintHandlerMixin:
     def _compute_constraint_violation(self, param_value: Array) -> Array:
         """Compute constraint violation measure for given parameter value.
 
+        This method is JIT-safe and can be used inside jax.jit-compiled functions,
+        making it suitable for use in loss functions via get_constraint_penalty().
+
         Args:
             param_value: Parameter array to check.
 
         Returns:
             Violation measure (0.0 if valid, positive value otherwise) as JAX scalar.
         """
-        # Check validity first
+        # Check validity using manifold's validation
         is_valid = self.manifold.validate_point(param_value)  # type: ignore[attr-defined]
-        if is_valid:
-            return jnp.array(0.0)
 
-        # Compute violation as distance from projected point
-        # Use retraction with zero tangent vector to project onto manifold
-        try:
-            zero_tangent = jnp.zeros_like(param_value)
-            projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
+        # JIT-safe conditional using jax.lax.cond to avoid TracerBoolConversionError
+        def _no_violation(v: Array) -> Array:
+            return jnp.zeros((), dtype=v.dtype)
+
+        def _compute_violation(v: Array) -> Array:
+            # Use retraction with zero tangent vector to project onto manifold
+            # Note: retr(x, 0) is NOT a no-op in RiemannAX:
+            #   - Sphere: retr(x, 0) = normalize(x) → projects to unit sphere
+            #   - Stiefel: retr(x, 0) = qr(x) → projects to orthogonal matrices
+            zero_tangent = jnp.zeros_like(v)
+            projected = self.manifold.retr(v, zero_tangent)  # type: ignore[attr-defined]
             # Measure violation as Euclidean distance from projection
-            return jnp.linalg.norm(param_value - projected)
-        except (ValueError, RuntimeError) as e:
-            # If projection fails, return penalty proportional to parameter norm
-            # This provides non-zero gradient to guide optimization away from invalid regions
-            warnings.warn(
-                f"Failed to project parameter during constraint violation computation: {e}. "
-                f"Returning gradient-based penalty proportional to parameter norm.",
-                RuntimeWarning,
-                stacklevel=3,
-            )
-            return 10.0 * jnp.sum(jnp.square(param_value))
+            return jnp.linalg.norm(v - projected)
+
+        return jax.lax.cond(
+            jnp.asarray(is_valid, dtype=bool),
+            _no_violation,
+            _compute_violation,
+            param_value,
+        )
 
     def project_params(self) -> None:
         """Project parameters back to the manifold using mutable state.
@@ -132,7 +136,10 @@ class _ConstraintHandlerMixin:
 
         if not is_valid:
             # Parameters violate constraints, project back using manifold's retraction
-            # Retraction with zero tangent vector projects onto the manifold
+            # Note: retr(x, 0) performs actual projection in RiemannAX (not a no-op):
+            #   - Sphere: retr(x, 0) = normalize(x) → projects to unit sphere
+            #   - Stiefel: retr(x, 0) = qr(x) → projects to orthogonal matrices
+            # This design choice is intentional and verified in the manifold implementations.
             try:
                 zero_tangent = jnp.zeros_like(param_value)
                 projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
