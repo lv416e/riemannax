@@ -13,6 +13,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array
 
+from riemannax.api._riemannian_adam import compute_adam_step, transport_adam_state
+
 try:
     from sklearn.base import BaseEstimator, TransformerMixin
 
@@ -432,22 +434,11 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
                 break
 
             # Compute tangent step
-            # NOTE: This Adam implementation is similar to RiemannianOptaxAdapter.update()
-            # in optax_adapter.py. While there is some code duplication, the implementations
-            # are kept separate because:
-            # 1. Different state management (loop-local vs NamedTuple)
-            # 2. Different API contexts (sklearn vs optax)
-            # 3. Optional dependencies (avoiding sklearn<->optax coupling)
-            # Future: Consider extracting to a shared internal module if more optimizers are added.
+            # Uses shared Adam implementation from _riemannian_adam module
             if method_lower == "adam":
-                # Adam update
-                m = self.b1 * m + (1 - self.b1) * riemannian_grad
-                v = self.b2 * v + (1 - self.b2) * jnp.square(riemannian_grad)
-                # Bias correction
-                m_hat = m / (1 - self.b1 ** (i + 1))
-                v_hat = v / (1 - self.b2 ** (i + 1))
-                # Use standard Adam formula for consistency with JAX/Optax ecosystem
-                tangent_step = -self.learning_rate * m_hat / (jnp.sqrt(v_hat) + self.eps)
+                tangent_step, m, v = compute_adam_step(
+                    riemannian_grad, m, v, i, self.learning_rate, self.b1, self.b2, self.eps
+                )
             else:  # sgd
                 tangent_step = -self.learning_rate * riemannian_grad
 
@@ -456,13 +447,7 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
 
             # Parallel transport momentum vectors for Adam (critical for correctness)
             if method_lower == "adam":
-                m = self.manifold.transp(x, x_new, m)
-                v = self.manifold.transp(x, x_new, v)
-                # Project first moment (velocity) to tangent space to correct numerical errors
-                m = self.manifold.proj(x_new, m)
-                # Second moment (element-wise variance) should remain non-negative
-                # Projection can introduce negative values, so clip instead
-                v = jnp.maximum(v, 0.0)
+                m, v = transport_adam_state(self.manifold, x, x_new, m, v)
 
             x = x_new
 

@@ -33,7 +33,7 @@ except ImportError:
             pass
 
 
-from riemannax.manifolds import create_stiefel
+from riemannax.manifolds import Stiefel, create_stiefel
 from riemannax.manifolds.base import Manifold
 
 
@@ -309,9 +309,8 @@ class ManifoldConstrainedLinear(_ConstraintHandlerMixin, nnx.Module):
         self._rngs = rngs  # Store for reinitialization
 
         # Validate manifold shape before initialization
-        # Check if manifold has explicit shape attributes
-        if hasattr(self.manifold, "n") and hasattr(self.manifold, "p"):
-            # Stiefel-like manifold: validate (n, p) matches (in_features, out_features)
+        if isinstance(self.manifold, Stiefel):
+            # Stiefel manifold: validate (n, p) matches (in_features, out_features)
             manifold_shape = (self.manifold.n, self.manifold.p)
             expected_shape = (in_features, out_features)
 

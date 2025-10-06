@@ -125,21 +125,18 @@ class RiemannianOptaxAdapter:
         lr = self.learning_rate(step) if callable(self.learning_rate) else self.learning_rate
 
         if self.method == "adam":
-            # Adam update with Riemannian gradients
+            # Adam update with Riemannian gradients using shared helpers
             if state.adam_m is None or state.adam_v is None:
                 raise ValueError(
                     "Adam state is not initialized correctly for method='adam'. "
                     "Please initialize the state using `adapter.init(params)` before the first update."
                 )
-            m = self.b1 * state.adam_m + (1 - self.b1) * riemannian_grads
-            v = self.b2 * state.adam_v + (1 - self.b2) * (riemannian_grads**2)
 
-            # Bias correction
-            m_hat = m / (1 - self.b1 ** (step + 1))
-            v_hat = v / (1 - self.b2 ** (step + 1))
+            from riemannax.api._riemannian_adam import compute_adam_step, transport_adam_state
 
-            # Compute the Riemannian tangent step using standard Adam formula
-            tangent_step = -lr * m_hat / (jnp.sqrt(v_hat) + self.eps)
+            tangent_step, m, v = compute_adam_step(
+                riemannian_grads, state.adam_m, state.adam_v, step, lr, self.b1, self.b2, self.eps
+            )
         else:  # sgd
             tangent_step = -lr * riemannian_grads
 
@@ -150,14 +147,9 @@ class RiemannianOptaxAdapter:
 
         # Parallel transport momentum vectors for Adam (critical for correctness)
         if self.method == "adam":
-            m_transported = self.manifold.transp(params, new_params, m)
-            v_transported = self.manifold.transp(params, new_params, v)
+            from riemannax.api._riemannian_adam import transport_adam_state
 
-            # Project first moment (velocity) to tangent space to correct numerical errors
-            m_transported = self.manifold.proj(new_params, m_transported)
-            # Second moment (element-wise variance) should remain non-negative
-            # Projection can introduce negative values, so clip instead
-            v_transported = jnp.maximum(v_transported, 0.0)
+            m_transported, v_transported = transport_adam_state(self.manifold, params, new_params, m, v)
 
             new_state = RiemannianOptaxState(
                 step_count=step + 1,
