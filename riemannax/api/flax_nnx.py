@@ -5,7 +5,6 @@ manifold constraints on parameters during training. Uses NNX's explicit state
 management and mutable reference semantics for constraint tracking.
 """
 
-
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array
