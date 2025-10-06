@@ -138,16 +138,14 @@ class _ConstraintHandlerMixin:
                 projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
                 self._set_constrained_param(projected)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
-                # Retraction failed, reinitialize on manifold with fresh RNG key
-                warnings.warn(
+                # Retraction/projection failed, which indicates a severe numerical issue.
+                # Re-initializing parameters is a destructive action that can silently
+                # corrupt the training process. It's better to fail loudly so the
+                # user can investigate the root cause (e.g., learning rate is too high).
+                raise RuntimeError(
                     f"Failed to project parameters back to manifold: {e}. "
-                    f"Re-initializing parameters with fresh random point.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                key = self._rngs()  # type: ignore[attr-defined]
-                new_value = self.manifold.random_point(key, *self._get_param_shape())  # type: ignore[attr-defined]
-                self._set_constrained_param(new_value)  # type: ignore[attr-defined]
+                    "This is a critical error, consider reducing the learning rate or checking model stability."
+                ) from e
 
             # Increment violation counter using mutable state
             self.constraint_violations.value = self.constraint_violations.value + 1.0  # type: ignore[attr-defined]
@@ -291,18 +289,11 @@ class ManifoldConstrainedLinear(_ConstraintHandlerMixin, nnx.Module):
             expected_shape = (in_features, out_features)
 
             if manifold_shape != expected_shape:
-                # Provide helpful error message with correct convention
-                if in_features >= out_features:
-                    suggestion = f"Stiefel(n={in_features}, p={out_features})"
-                else:
-                    suggestion = (
-                        f"Stiefel(n={out_features}, p={in_features}) and swap "
-                        f"in_features/out_features, or transpose the weight matrix"
-                    )
                 raise ValueError(
-                    f"Manifold shape {manifold_shape} does not match layer dimensions "
-                    f"{expected_shape}. For Stiefel manifolds, n >= p is required. "
-                    f"Use {suggestion}."
+                    f"Manifold shape {manifold_shape} (from {self.manifold.__class__.__name__}) does not match "
+                    f"layer weight dimensions (in_features={in_features}, out_features={out_features}). "
+                    f"Please ensure the manifold is initialized to match the layer dimensions, "
+                    f"e.g., Stiefel(n={in_features}, p={out_features})."
                 )
         elif hasattr(self.manifold, "shape"):
             # Manifold with explicit shape attribute

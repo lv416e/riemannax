@@ -152,8 +152,13 @@ class RiemannianOptaxAdapter:
         if self.method == "adam":
             m_transported = self.manifold.transp(params, new_params, m)
             v_transported = self.manifold.transp(params, new_params, v)
-            # Enforce non-negativity of second moment estimate for numerical stability
+
+            # Project first moment (velocity) to tangent space to correct numerical errors
+            m_transported = self.manifold.proj(new_params, m_transported)
+            # Second moment (element-wise variance) should remain non-negative
+            # Projection can introduce negative values, so clip instead
             v_transported = jnp.maximum(v_transported, 0.0)
+
             new_state = RiemannianOptaxState(
                 step_count=step + 1,
                 adam_m=m_transported,

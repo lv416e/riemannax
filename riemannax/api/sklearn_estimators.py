@@ -458,7 +458,10 @@ class RiemannianOptimizer(RiemannianManifoldEstimator):
             if method_lower == "adam":
                 m = self.manifold.transp(x, x_new, m)
                 v = self.manifold.transp(x, x_new, v)
-                # Enforce non-negativity of second moment estimate for numerical stability
+                # Project first moment (velocity) to tangent space to correct numerical errors
+                m = self.manifold.proj(x_new, m)
+                # Second moment (element-wise variance) should remain non-negative
+                # Projection can introduce negative values, so clip instead
                 v = jnp.maximum(v, 0.0)
 
             x = x_new
