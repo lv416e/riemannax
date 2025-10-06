@@ -68,7 +68,6 @@ class _ConstraintHandlerMixin:
     Required attributes in subclasses:
         - manifold: Manifold instance
         - constraint_violations: ConstraintViolation variable
-        - _rngs: RNG state for reinitialization
         - _get_constrained_param(): method returning the parameter to constrain
         - _set_constrained_param(value): method to set the constrained parameter
         - _get_param_shape(): method returning parameter shape tuple
@@ -96,14 +95,15 @@ class _ConstraintHandlerMixin:
             # Measure violation as Euclidean distance from projection
             return jnp.linalg.norm(param_value - projected)
         except (ValueError, RuntimeError) as e:
-            # If projection fails, return constant penalty
+            # If projection fails, return penalty proportional to parameter norm
+            # This provides non-zero gradient to guide optimization away from invalid regions
             warnings.warn(
                 f"Failed to project parameter during constraint violation computation: {e}. "
-                f"Returning constant penalty of 1.0.",
+                f"Returning gradient-based penalty proportional to parameter norm.",
                 RuntimeWarning,
                 stacklevel=3,
             )
-            return jnp.array(1.0)
+            return 10.0 * jnp.sum(jnp.square(param_value))
 
     def project_params(self) -> None:
         """Project parameters back to the manifold using mutable state.
