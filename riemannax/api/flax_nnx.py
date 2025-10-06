@@ -72,6 +72,36 @@ class _ConstraintHandlerMixin:
         - _get_param_shape(): method returning parameter shape tuple
     """
 
+    def _project_to_manifold(self, param_value: Array) -> Array:
+        """Project a point onto the manifold.
+
+        RiemannAX does not provide an explicit projection API, so this method
+        uses retraction with zero tangent vector as a workaround. This approach
+        has been empirically verified to work correctly for common manifolds:
+
+        - Sphere: retr(x, 0) = normalize(x) → Euclidean projection
+        - Stiefel: retr(x, 0) = qr(x) → QR-based orthogonalization
+
+        Mathematical properties verified experimentally:
+        - If x ∈ M: retr(x, 0) = x (idempotent for on-manifold points)
+        - If x ∉ M: retr(x, 0) projects x onto M (tested with off-manifold points)
+
+        Note:
+            This relies on implementation details of the manifold's retraction.
+            While retr() is documented as requiring x ∈ M, the actual implementations
+            gracefully handle off-manifold points by normalizing/orthogonalizing.
+            Future versions of RiemannAX may provide explicit projection methods,
+            at which point this implementation can be updated.
+
+        Args:
+            param_value: Point to project (may be off-manifold).
+
+        Returns:
+            Point on the manifold.
+        """
+        zero_tangent = jnp.zeros_like(param_value)
+        return self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
+
     def _compute_constraint_violation(self, param_value: Array) -> Array:
         """Compute constraint violation measure for given parameter value.
 
@@ -92,12 +122,8 @@ class _ConstraintHandlerMixin:
             return jnp.zeros((), dtype=v.dtype)
 
         def _compute_violation(v: Array) -> Array:
-            # Use retraction with zero tangent vector to project onto manifold
-            # Note: retr(x, 0) is NOT a no-op in RiemannAX:
-            #   - Sphere: retr(x, 0) = normalize(x) → projects to unit sphere
-            #   - Stiefel: retr(x, 0) = qr(x) → projects to orthogonal matrices
-            zero_tangent = jnp.zeros_like(v)
-            projected = self.manifold.retr(v, zero_tangent)  # type: ignore[attr-defined]
+            # Project to manifold and measure distance
+            projected = self._project_to_manifold(v)
             # Measure violation as Euclidean distance from projection
             return jnp.linalg.norm(v - projected)
 
@@ -134,17 +160,12 @@ class _ConstraintHandlerMixin:
         is_valid = self.manifold.validate_point(param_value)  # type: ignore[attr-defined]
 
         if not is_valid:
-            # Parameters violate constraints, project back using manifold's retraction
-            # Note: retr(x, 0) performs actual projection in RiemannAX (not a no-op):
-            #   - Sphere: retr(x, 0) = normalize(x) → projects to unit sphere
-            #   - Stiefel: retr(x, 0) = qr(x) → projects to orthogonal matrices
-            # This design choice is intentional and verified in the manifold implementations.
+            # Parameters violate constraints, project back onto the manifold
             try:
-                zero_tangent = jnp.zeros_like(param_value)
-                projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
+                projected = self._project_to_manifold(param_value)
                 self._set_constrained_param(projected)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
-                # Retraction/projection failed, which indicates a severe numerical issue.
+                # Projection failed, which indicates a severe numerical issue.
                 # Re-initializing parameters is a destructive action that can silently
                 # corrupt the training process. It's better to fail loudly so the
                 # user can investigate the root cause (e.g., learning rate is too high).
