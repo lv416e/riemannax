@@ -190,7 +190,8 @@ class _ConstraintHandlerMixin:
                 # Convert JAX array to Python bool using device_get (JAX best practice)
                 is_finite = bool(jax.device_get(jnp.all(jnp.isfinite(projected))))
                 if not is_finite:
-                    param_norm = jnp.linalg.norm(param_value)
+                    # Convert JAX array to Python float for f-string formatting
+                    param_norm = float(jax.device_get(jnp.linalg.norm(param_value)))
                     raise ValueError(
                         f"Projection produced non-finite values (NaN/Inf). "
                         f"This typically indicates degenerate parameters. "
