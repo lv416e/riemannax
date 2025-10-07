@@ -173,7 +173,7 @@ def analyze_convergence_profiles(problems_and_manifolds: list[tuple], max_iterat
         # Run detailed optimization with cost tracking
         optimizers: dict[str, tuple[str, dict[str, Any]]] = {
             "RSGD": ("rsgd", {"learning_rate": 0.01}),
-            "RAdaM": ("radam", {"learning_rate": 0.001, "beta1": 0.9, "beta2": 0.999}),
+            "RAdaM": ("radam", {"learning_rate": 0.001, "beta1": 0.9, "beta2": 0.999, "eps": 1e-8}),
             "RMomentum": ("rmom", {"learning_rate": 0.005, "momentum": 0.9}),
         }
 
@@ -185,9 +185,17 @@ def analyze_convergence_profiles(problems_and_manifolds: list[tuple], max_iterat
             if method == "rsgd":
                 init_fn, update_fn = rx.riemannian_gradient_descent(learning_rate=base_options["learning_rate"])
             elif method == "radam":
-                init_fn, update_fn = rx.riemannian_adam(learning_rate=base_options["learning_rate"], beta1=base_options.get("beta1", 0.9), beta2=base_options.get("beta2", 0.999))
+                init_fn, update_fn = rx.riemannian_adam(
+                    learning_rate=base_options["learning_rate"],
+                    beta1=base_options["beta1"],
+                    beta2=base_options["beta2"],
+                    eps=base_options["eps"],
+                )
             elif method == "rmom":
-                init_fn, update_fn = rx.riemannian_momentum(learning_rate=base_options["learning_rate"], momentum=base_options.get("momentum", 0.9))
+                init_fn, update_fn = rx.riemannian_momentum(
+                    learning_rate=base_options["learning_rate"],
+                    momentum=base_options["momentum"],
+                )
 
             state = init_fn(x0)
             costs = [float(problem.cost_fn(state.x))]

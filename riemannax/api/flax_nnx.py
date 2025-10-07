@@ -210,6 +210,13 @@ class ManifoldConstrainedModule(_ConstraintHandlerMixin, nnx.Module):
         rngs: NNX random number generator state.
         use_bias: Whether to include a bias term (unconstrained).
 
+    Note:
+        When use_bias=True, the bias shape is inferred as follows:
+        - For multi-dimensional param_shape: uses last dimension (output features)
+        - For 1D param_shape: uses the single dimension
+        This inference assumes the last dimension represents output/target space,
+        which is appropriate for most neural network layers.
+
     Example:
         >>> manifold = Sphere(n=3)
         >>> module = ManifoldConstrainedModule(
@@ -247,7 +254,18 @@ class ManifoldConstrainedModule(_ConstraintHandlerMixin, nnx.Module):
 
         # Optional bias (unconstrained)
         if use_bias:
-            self.bias = nnx.Param(jnp.zeros(param_shape[-1] if len(param_shape) > 1 else param_shape[0]))
+            # Infer bias shape: last dimension for multi-D tensors, first dimension for 1D
+            # This assumes last dimension = output/target space (standard for neural networks)
+            bias_size = param_shape[-1] if len(param_shape) > 1 else param_shape[0]
+
+            # Validate inference makes sense
+            if bias_size <= 0:
+                raise ValueError(
+                    f"Inferred bias size {bias_size} is invalid for param_shape={param_shape}. "
+                    "Cannot initialize bias with non-positive dimension."
+                )
+
+            self.bias = nnx.Param(jnp.zeros(bias_size))
 
     # Implement mixin interface methods
     def _get_constrained_param(self) -> Array:

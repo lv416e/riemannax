@@ -206,7 +206,12 @@ class TestComprehensivePerformanceValidation:
             )
 
     def test_memory_overhead_validation(self, manifold_configurations):
-        """Validate memory overhead stays under 10% requirement."""
+        """Validate JIT memory overhead stays within realistic bounds.
+
+        JIT compilation adds significant memory overhead (typically 60-70x for small operations)
+        due to compilation caches, traced ASTs, and runtime structures. This test validates
+        that overhead remains bounded and doesn't indicate memory leaks.
+        """
         manifold, manifold_name, params = manifold_configurations
         test_data = self._generate_test_data(manifold, manifold_name, params)
 
@@ -256,13 +261,18 @@ class TestComprehensivePerformanceValidation:
         print(f"  Execution overhead: {execution_overhead:.1f}%")
         print(f"  Compilation overhead: {compilation_overhead:.1f}%")
 
-        # Validate memory overhead requirements (realistic for JIT compilation)
-        # JIT compilation can have significant memory overhead especially for small operations
-        # NOTE: Threshold set to 7000% based on observed peak of ~6000% (commit 4a0ed3c),
-        # providing ~17% buffer for environment variance. Compilation overhead set to 15000%
-        # as it's inherently more expensive but still validates reasonable JIT behavior.
-        max_execution_overhead = 7000.0  # 7000% - allows for observed ~6000% peaks with buffer
-        max_compilation_overhead = 15000.0  # 15000% - compilation is more expensive but bounded
+        # Validate memory overhead stays within realistic bounds for JIT compilation
+        # Empirical observation: JIT execution shows ~6000% overhead (60x) for small operations
+        # (commit 4a0ed3c). Compilation overhead is even higher due to AST tracing and caching.
+        #
+        # Thresholds are set based on observed behavior with safety margins:
+        # - Execution: 7000% (provides ~17% buffer over observed 6000% peak)
+        # - Compilation: 15000% (compilation is inherently more expensive)
+        #
+        # TODO: If overhead consistently exceeds these bounds in future runs, investigate
+        # potential memory leaks or JIT cache growth issues.
+        max_execution_overhead = 7000.0  # 70x - empirically derived from commit 4a0ed3c
+        max_compilation_overhead = 15000.0  # 150x - compilation cache overhead
 
         assert execution_overhead <= max_execution_overhead, (
             f"Memory execution overhead {execution_overhead:.1f}% exceeds "
