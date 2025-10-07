@@ -74,39 +74,45 @@ def transport_adam_state(
     m: Array,
     v: Array,
 ) -> tuple[Array, Array]:
-    """Transport Adam moments after retraction onto the manifold.
+    """Transport Adam first moment after retraction onto the manifold.
 
-    After moving from x_old to x_new via retraction, the momentum vectors
-    (first and second moments) must be transported to the new tangent space.
-    This function performs parallel transport and applies necessary corrections.
+    After moving from x_old to x_new via retraction, the first moment (velocity)
+    is transported to the new tangent space. The second moment (variance) is NOT
+    transported as it represents coordinate-dependent element-wise variance.
+
+    This follows the approach of geoopt (the reference Riemannian optimization library):
+    - First moment m is a tangent vector and should be parallel transported
+    - Second moment v contains element-wise variances (coordinate-dependent) and
+      should remain in the local coordinate representation
 
     Args:
         manifold: The Riemannian manifold.
         x_old: Previous point on the manifold.
         x_new: New point on the manifold (after retraction).
-        m: First moment estimate at x_old.
-        v: Second moment estimate at x_old.
+        m: First moment estimate (velocity) at x_old.
+        v: Second moment estimate (element-wise variance) at x_old.
 
     Returns:
-        Tuple of (m_transported, v_transported) where:
+        Tuple of (m_transported, v) where:
         - m_transported: First moment in tangent space at x_new
-        - v_transported: Second moment corrected at x_new
+        - v: Second moment unchanged (coordinate-dependent state)
 
     Note:
-        The first moment (velocity) is projected to the tangent space to correct
-        numerical errors from parallel transport. The second moment (variance) is
-        clipped to remain non-negative, as projection can introduce negative values
-        due to orthogonalization.
-    """
-    # Parallel transport both moments
-    m_transported = manifold.transp(x_old, x_new, m)
-    v_transported = manifold.transp(x_old, x_new, v)
+        The first moment (velocity) is a tangent vector that should be parallel
+        transported and projected to correct numerical errors. The second moment
+        is NOT transported because it represents coordinate-dependent element-wise
+        variance computed via jnp.square(grad), not a geometric tangent vector.
 
-    # Project first moment (velocity) to tangent space to correct numerical errors
+    References:
+        - Bécigneul & Ganea (2019): "Riemannian Adaptive Optimization Methods"
+        - geoopt library: https://github.com/geoopt/geoopt
+    """
+    # Parallel transport first moment (velocity) - it's a tangent vector
+    m_transported = manifold.transp(x_old, x_new, m)
+
+    # Project first moment to tangent space to correct numerical errors
     m_transported = manifold.proj(x_new, m_transported)
 
-    # Second moment (element-wise variance) should remain non-negative
-    # Projection can introduce negative values, so clip instead
-    v_transported = jnp.maximum(v_transported, 0.0)
-
-    return m_transported, v_transported
+    # Second moment is coordinate-dependent variance, not transported
+    # It remains in the local coordinate representation
+    return m_transported, v
