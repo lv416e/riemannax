@@ -252,6 +252,27 @@ class TestNNXCheckpointing:
         assert jnp.allclose(module2.params.value, original_params)
 
 
+class TestManifoldShapeValidation:
+    """Test suite for param_shape validation in ManifoldConstrainedModule."""
+
+    def test_module_accepts_correct_stiefel_shape(self):
+        """Test that ManifoldConstrainedModule accepts correct Stiefel param_shape."""
+        # Arrange
+        key = jax.random.PRNGKey(0)
+        manifold = Stiefel(n=5, p=3)
+
+        # Act - Use manifold's intrinsic shape (fixes splatting bug from CodeRabbit review)
+        module = ManifoldConstrainedModule(
+            manifold=manifold,
+            param_shape=(5, 3),  # Matches Stiefel(n=5, p=3)
+            rngs=nnx.Rngs(key)
+        )
+
+        # Assert
+        assert module.params.value.shape == (5, 3)
+        assert manifold.validate_point(module.params.value)
+
+
 class TestFactoryFunctionEdgeCases:
     """Test suite for create_manifold_linear factory function edge cases."""
 

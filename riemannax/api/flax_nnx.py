@@ -246,7 +246,17 @@ class ManifoldConstrainedModule(_ConstraintHandlerMixin, nnx.Module):
 
         # Initialize parameters on the manifold
         key = self._rngs()
-        initial_params = self.manifold.random_point(key, *param_shape)
+        initial_params = self.manifold.random_point(key)
+
+        # Validate param_shape matches manifold's intrinsic shape
+        if initial_params.shape != param_shape:
+            raise ValueError(
+                f"param_shape={param_shape} does not match manifold's intrinsic shape "
+                f"{initial_params.shape}. The manifold generates parameters with shape "
+                f"{initial_params.shape}. Please use this shape for param_shape, or omit "
+                f"param_shape entirely to use the manifold's natural dimensionality."
+            )
+
         self.params = ManifoldParam(initial_params)
 
         # Initialize constraint violation counter
