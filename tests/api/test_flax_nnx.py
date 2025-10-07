@@ -14,6 +14,7 @@ from riemannax.api.flax_nnx import (
     ConstraintViolation,
     ManifoldConstrainedLinear,
     ManifoldConstrainedModule,
+    create_manifold_linear,
 )
 from riemannax.manifolds import Sphere, Stiefel
 
@@ -261,8 +262,6 @@ class TestFactoryFunctionEdgeCases:
 
         # Act & Assert - Stiefel requires n >= p
         with pytest.raises(ValueError, match="Stiefel requires in_features >= out_features"):
-            from riemannax.api.flax_nnx import create_manifold_linear
-
             create_manifold_linear(
                 in_features=2, out_features=3, manifold_type="stiefel", rngs=nnx.Rngs(key)
             )
@@ -274,8 +273,6 @@ class TestFactoryFunctionEdgeCases:
 
         # Act & Assert - Sphere produces 1D vectors, not 2D matrices
         with pytest.raises(NotImplementedError, match="ManifoldConstrainedLinear requires a matrix-shaped manifold"):
-            from riemannax.api.flax_nnx import create_manifold_linear
-
             create_manifold_linear(
                 in_features=4, out_features=2, manifold_type="sphere", rngs=nnx.Rngs(key)
             )
@@ -287,8 +284,6 @@ class TestFactoryFunctionEdgeCases:
 
         # Act & Assert
         with pytest.raises(ValueError, match="Unsupported manifold type"):
-            from riemannax.api.flax_nnx import create_manifold_linear
-
             create_manifold_linear(
                 in_features=4, out_features=2, manifold_type="unsupported", rngs=nnx.Rngs(key)
             )

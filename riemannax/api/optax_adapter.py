@@ -12,6 +12,7 @@ import jax.numpy as jnp
 import optax
 from jaxtyping import Array
 
+from riemannax.api._riemannian_adam import compute_adam_step, transport_adam_state
 from riemannax.manifolds.base import Manifold
 
 
@@ -132,8 +133,6 @@ class RiemannianOptaxAdapter:
                     "Please initialize the state using `adapter.init(params)` before the first update."
                 )
 
-            from riemannax.api._riemannian_adam import compute_adam_step, transport_adam_state
-
             tangent_step, m, v = compute_adam_step(
                 riemannian_grads, state.adam_m, state.adam_v, step, lr, self.b1, self.b2, self.eps
             )
@@ -147,8 +146,6 @@ class RiemannianOptaxAdapter:
 
         # Parallel transport momentum vectors for Adam (critical for correctness)
         if self.method == "adam":
-            from riemannax.api._riemannian_adam import transport_adam_state
-
             m_transported, v_transported = transport_adam_state(self.manifold, params, new_params, m, v)
 
             new_state = RiemannianOptaxState(
