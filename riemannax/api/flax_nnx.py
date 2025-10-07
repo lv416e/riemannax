@@ -93,14 +93,34 @@ class _ConstraintHandlerMixin:
             Future versions of RiemannAX may provide explicit projection methods,
             at which point this implementation can be updated.
 
+        Warning:
+            Zero-norm inputs (e.g., all-zero parameters) will cause NaN values
+            in the projection result for manifolds like Sphere. This is detected
+            and raised as a ValueError to prevent silent model corruption.
+
         Args:
             param_value: Point to project (may be off-manifold).
 
         Returns:
             Point on the manifold.
+
+        Raises:
+            ValueError: If projection produces non-finite values (NaN/Inf),
+                       indicating degenerate parameters (e.g., zero-norm).
         """
         zero_tangent = jnp.zeros_like(param_value)
-        return self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
+        projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
+
+        # Check for NaN/Inf resulting from degenerate inputs (e.g., zero-norm)
+        if not jnp.all(jnp.isfinite(projected)):
+            raise ValueError(
+                f"Projection failed: retr(x, 0) produced non-finite values. "
+                f"This typically indicates degenerate parameters (e.g., zero-norm vectors for Sphere). "
+                f"Parameter norm: {jnp.linalg.norm(param_value):.2e}. "
+                f"Consider reducing learning rate or checking for numerical instability in gradients."
+            )
+
+        return projected
 
     def _compute_constraint_violation(self, param_value: Array) -> Array:
         """Compute constraint violation measure for given parameter value.

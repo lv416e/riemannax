@@ -272,6 +272,40 @@ class TestManifoldShapeValidation:
         assert module.params.value.shape == (5, 3)
         assert manifold.validate_point(module.params.value)
 
+    def test_projection_raises_on_zero_norm_input(self):
+        """Test that _project_to_manifold raises ValueError for zero-norm inputs."""
+        # Arrange
+        key = jax.random.PRNGKey(0)
+        manifold = Sphere(n=2)
+        module = ManifoldConstrainedModule(
+            manifold=manifold,
+            param_shape=(3,),
+            rngs=nnx.Rngs(key)
+        )
+
+        # Act & Assert - Zero-norm parameter should raise ValueError
+        zero_param = jnp.array([0.0, 0.0, 0.0])
+        with pytest.raises(ValueError, match="Projection failed.*non-finite values"):
+            module._project_to_manifold(zero_param)
+
+    def test_project_params_raises_on_degenerate_parameters(self):
+        """Test that project_params raises descriptive error for degenerate parameters."""
+        # Arrange
+        key = jax.random.PRNGKey(0)
+        manifold = Sphere(n=2)
+        module = ManifoldConstrainedModule(
+            manifold=manifold,
+            param_shape=(3,),
+            rngs=nnx.Rngs(key)
+        )
+
+        # Act - Set parameters to zero vector (degenerate case)
+        module.params.value = jnp.array([0.0, 0.0, 0.0])
+
+        # Assert - project_params should fail with clear error message
+        with pytest.raises(RuntimeError, match="Failed to project parameters back to manifold"):
+            module.project_params()
+
 
 class TestFactoryFunctionEdgeCases:
     """Test suite for create_manifold_linear factory function edge cases."""
