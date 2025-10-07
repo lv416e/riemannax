@@ -182,7 +182,9 @@ class _ConstraintHandlerMixin:
 
                 # Check for NaN/Inf in projection result (only in eager execution, not JIT)
                 # This catches degenerate cases like zero-norm parameters
-                if not jnp.all(jnp.isfinite(projected)):
+                # Convert JAX array to Python bool explicitly to avoid truthiness ambiguity
+                is_finite = jnp.all(jnp.isfinite(projected)).item()
+                if not is_finite:
                     param_norm = jnp.linalg.norm(param_value)
                     raise ValueError(
                         f"Projection produced non-finite values (NaN/Inf). "
