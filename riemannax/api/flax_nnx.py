@@ -173,7 +173,11 @@ class _ConstraintHandlerMixin:
             ...         module.project_params()  # Outside JIT
         """
         param_value = self._get_constrained_param()  # type: ignore[attr-defined]
-        is_valid = self.manifold.validate_point(param_value)  # type: ignore[attr-defined]
+        is_valid_result = self.manifold.validate_point(param_value)  # type: ignore[attr-defined]
+
+        # Convert to Python bool explicitly to handle both eager and JIT contexts consistently.
+        # validate_point() returns bool in eager mode, but JAX array in JIT-traced contexts.
+        is_valid = bool(jnp.asarray(is_valid_result).item())
 
         if not is_valid:
             # Parameters violate constraints, project back onto the manifold
@@ -248,10 +252,10 @@ class ManifoldConstrainedModule(_ConstraintHandlerMixin, nnx.Module):
         which is appropriate for most neural network layers.
 
     Example:
-        >>> manifold = Sphere(n=3)
+        >>> manifold = Sphere(n=2)  # 2-sphere (surface of a ball in 3D)
         >>> module = ManifoldConstrainedModule(
         ...     manifold=manifold,
-        ...     param_shape=(4,),
+        ...     param_shape=(3,),  # Sphere(n=2) produces shape (3,)
         ...     rngs=nnx.Rngs(0)
         ... )
         >>> module.project_params()  # Enforces constraints
