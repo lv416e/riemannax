@@ -272,8 +272,8 @@ class TestManifoldShapeValidation:
         assert module.params.value.shape == (5, 3)
         assert manifold.validate_point(module.params.value)
 
-    def test_projection_raises_on_zero_norm_input(self):
-        """Test that _project_to_manifold raises ValueError for zero-norm inputs."""
+    def test_projection_returns_nan_for_zero_norm_input(self):
+        """Test that _project_to_manifold returns NaN for zero-norm inputs (JIT-safe behavior)."""
         # Arrange
         key = jax.random.PRNGKey(0)
         manifold = Sphere(n=2)
@@ -283,10 +283,12 @@ class TestManifoldShapeValidation:
             rngs=nnx.Rngs(key)
         )
 
-        # Act & Assert - Zero-norm parameter should raise ValueError
+        # Act - Zero-norm parameter projection (JIT-safe, returns NaN)
         zero_param = jnp.array([0.0, 0.0, 0.0])
-        with pytest.raises(ValueError, match="Projection failed.*non-finite values"):
-            module._project_to_manifold(zero_param)
+        result = module._project_to_manifold(zero_param)
+
+        # Assert - Should return NaN (not raise), error handling deferred to project_params()
+        assert jnp.any(jnp.isnan(result)), "Expected NaN result for zero-norm projection"
 
     def test_project_params_raises_on_degenerate_parameters(self):
         """Test that project_params raises descriptive error for degenerate parameters."""

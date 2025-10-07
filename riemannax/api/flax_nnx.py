@@ -111,14 +111,10 @@ class _ConstraintHandlerMixin:
         zero_tangent = jnp.zeros_like(param_value)
         projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
 
-        # Check for NaN/Inf resulting from degenerate inputs (e.g., zero-norm)
-        if not jnp.all(jnp.isfinite(projected)):
-            raise ValueError(
-                f"Projection failed: retr(x, 0) produced non-finite values. "
-                f"This typically indicates degenerate parameters (e.g., zero-norm vectors for Sphere). "
-                f"Parameter norm: {jnp.linalg.norm(param_value):.2e}. "
-                f"Consider reducing learning rate or checking for numerical instability in gradients."
-            )
+        # Note: NaN/Inf detection is JIT-safe but error raising is not.
+        # The actual error handling happens in project_params() which runs outside JIT.
+        # Here we simply return the projected value (which may contain NaN/Inf).
+        # The constraint validation system will detect and handle these cases.
 
         return projected
 
@@ -183,6 +179,18 @@ class _ConstraintHandlerMixin:
             # Parameters violate constraints, project back onto the manifold
             try:
                 projected = self._project_to_manifold(param_value)
+
+                # Check for NaN/Inf in projection result (only in eager execution, not JIT)
+                # This catches degenerate cases like zero-norm parameters
+                if not jnp.all(jnp.isfinite(projected)):
+                    param_norm = jnp.linalg.norm(param_value)
+                    raise ValueError(
+                        f"Projection produced non-finite values (NaN/Inf). "
+                        f"This typically indicates degenerate parameters. "
+                        f"Parameter norm: {param_norm:.2e}. "
+                        f"Consider reducing learning rate or checking for numerical instability."
+                    )
+
                 self._set_constrained_param(projected)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
                 # Projection failed, which indicates a severe numerical issue.
