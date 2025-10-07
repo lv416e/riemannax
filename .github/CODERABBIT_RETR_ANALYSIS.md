@@ -36,21 +36,26 @@ def retr(self, x: Array, v: Array) -> Array:
 #### Stiefel Implementation
 ```python
 def retr(self, x: Array, v: Array) -> Array:
-    """QR-based retraction."""
+    """QR-based retraction with sign correction."""
     y = x + v
     q, r = jnp.linalg.qr(y, mode="reduced")
-    # ... ensure positive diagonal ...
+
+    # Ensure positive diagonal (sign correction for orientation preservation)
+    # This guarantees retr(x, 0) = x when x is already on Stiefel
+    d = jnp.diag(jnp.sign(jnp.diag(r)))
     return q @ d
 ```
 
 **Key insight:** When `v = 0`, this becomes `QR(x)`, which **orthogonalizes x**.
 - If x is off-manifold (x^T x ≠ I), this **projects it onto Stiefel**
 - `retr(x, 0) ≠ x` for off-manifold x
+- If x is on-manifold (x^T x = I), the sign correction ensures `retr(x, 0) = x` (fixed-point property)
 
 ## Empirical Proof
 
 See `tests/api/test_retr_projection.py`:
 
+### Test 1: Off-Manifold Projection
 ```python
 def test_sphere_retr_with_zero_is_not_identity(self):
     """Prove that retr(x, 0) ≠ x for off-manifold points."""
@@ -67,10 +72,28 @@ def test_sphere_retr_with_zero_is_not_identity(self):
     assert jnp.allclose(jnp.linalg.norm(result), 1.0)
 ```
 
-**All 5 tests pass**, proving:
-1. `retr(x, 0)` **does project** off-manifold points
-2. `retr(x, 0) ≠ x` for off-manifold x (CodeRabbit's assumption is false)
-3. Our `_compute_constraint_violation` implementation is correct
+### Test 2: On-Manifold Identity
+```python
+def test_sphere_retr_with_zero_is_identity_on_manifold(self):
+    """Prove that retr(x, 0) = x for on-manifold points."""
+    manifold = Sphere(n=2)
+    on_manifold_point = jnp.array([1.0, 0.0, 0.0])  # norm = 1, on manifold
+
+    zero_tangent = jnp.zeros_like(on_manifold_point)
+    result = manifold.retr(on_manifold_point, zero_tangent)
+
+    # PASSES: retr(x, 0) = x for on-manifold points
+    assert jnp.allclose(result, on_manifold_point, atol=1e-6)
+
+    # PASSES: still on manifold
+    assert manifold.validate_point(result)
+```
+
+**All 6 tests pass**, proving:
+1. `retr(x, 0)` **does project** off-manifold points → manifold
+2. `retr(x, 0) = x` for on-manifold points (fixed-point property)
+3. `retr(x, 0) ≠ x` for off-manifold x (CodeRabbit's assumption is false)
+4. Our `_compute_constraint_violation` implementation is correct
 
 ## Why This Design is Intentional
 

@@ -111,12 +111,63 @@ class TestRetrAsProjector:
             "retr(x, 0) should return QR-orthogonalized x"
         )
 
+    def test_sphere_retr_with_zero_is_identity_on_manifold(self):
+        """Verify that retr(x, 0) = x for on-manifold points (fixed-point property)."""
+        # Arrange
+        manifold = Sphere(n=2)
+        on_manifold_point = jnp.array([1.0, 0.0, 0.0])  # Unit norm, on manifold
+
+        # Verify initial point is on manifold
+        assert manifold.validate_point(on_manifold_point), "Initial point should be on manifold"
+
+        # Act
+        zero_tangent = jnp.zeros_like(on_manifold_point)
+        result = manifold.retr(on_manifold_point, zero_tangent)
+
+        # Assert: retr(x, 0) = x for on-manifold points (identity/fixed-point)
+        assert jnp.allclose(result, on_manifold_point, atol=1e-6), (
+            "retr(x, 0) should equal x for on-manifold points"
+        )
+
+        # Assert: result remains on manifold
+        assert manifold.validate_point(result), "Result should still be on manifold"
+
+    def test_stiefel_retr_with_zero_is_identity_on_manifold(self):
+        """Verify that retr(x, 0) = x for on-manifold points (fixed-point property)."""
+        # Arrange
+        manifold = Stiefel(n=4, p=2)
+
+        # Create an orthonormal on-manifold point using QR
+        random_point = jnp.array([
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+        ])  # Already orthonormal
+
+        # Verify initial point is on manifold
+        assert manifold.validate_point(random_point), "Initial point should be on manifold"
+
+        # Act
+        zero_tangent = jnp.zeros_like(random_point)
+        result = manifold.retr(random_point, zero_tangent)
+
+        # Assert: retr(x, 0) = x for on-manifold points (identity/fixed-point)
+        assert jnp.allclose(result, random_point, atol=1e-6), (
+            "retr(x, 0) should equal x for on-manifold points"
+        )
+
+        # Assert: result remains orthonormal
+        gram = result.T @ result
+        assert jnp.allclose(gram, jnp.eye(2), atol=1e-6), "Result should still be orthonormal"
+
     def test_constraint_violation_computation_works(self):
         """Test that _compute_constraint_violation correctly measures violations."""
         # This test validates our use of retr(x, 0) in flax_nnx.py
         pytest.importorskip("flax", reason="flax not installed")
-        from riemannax.api.flax_nnx import ManifoldConstrainedModule
         from flax import nnx
+
+        from riemannax.api.flax_nnx import ManifoldConstrainedModule
 
         # Arrange
         manifold = Sphere(n=2)
