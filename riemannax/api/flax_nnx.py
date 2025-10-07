@@ -95,18 +95,18 @@ class _ConstraintHandlerMixin:
 
         Warning:
             Zero-norm inputs (e.g., all-zero parameters) will cause NaN values
-            in the projection result for manifolds like Sphere. This is detected
-            and raised as a ValueError to prevent silent model corruption.
+            in the projection result for manifolds like Sphere. The caller
+            (project_params) is responsible for detecting and handling these cases.
 
         Args:
             param_value: Point to project (may be off-manifold).
 
         Returns:
-            Point on the manifold.
+            Point on the manifold (may contain NaN/Inf if input is degenerate).
 
-        Raises:
-            ValueError: If projection produces non-finite values (NaN/Inf),
-                       indicating degenerate parameters (e.g., zero-norm).
+        Note:
+            This method is JIT-safe and does not raise exceptions. Non-finite
+            projections are detected and handled by project_params().
         """
         zero_tangent = jnp.zeros_like(param_value)
         projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
@@ -175,9 +175,10 @@ class _ConstraintHandlerMixin:
         param_value = self._get_constrained_param()  # type: ignore[attr-defined]
         is_valid_result = self.manifold.validate_point(param_value)  # type: ignore[attr-defined]
 
-        # Convert to Python bool explicitly to handle both eager and JIT contexts consistently.
+        # Convert to Python bool explicitly using device_get (JAX best practice).
         # validate_point() returns bool in eager mode, but JAX array in JIT-traced contexts.
-        is_valid = bool(jnp.asarray(is_valid_result).item())
+        # device_get ensures safe host transfer and works in both contexts.
+        is_valid = bool(jax.device_get(jnp.asarray(is_valid_result, dtype=bool)))
 
         if not is_valid:
             # Parameters violate constraints, project back onto the manifold
@@ -186,8 +187,8 @@ class _ConstraintHandlerMixin:
 
                 # Check for NaN/Inf in projection result (only in eager execution, not JIT)
                 # This catches degenerate cases like zero-norm parameters
-                # Convert JAX array to Python bool explicitly to avoid truthiness ambiguity
-                is_finite = jnp.all(jnp.isfinite(projected)).item()
+                # Convert JAX array to Python bool using device_get (JAX best practice)
+                is_finite = bool(jax.device_get(jnp.all(jnp.isfinite(projected))))
                 if not is_finite:
                     param_norm = jnp.linalg.norm(param_value)
                     raise ValueError(
@@ -287,8 +288,8 @@ class ManifoldConstrainedModule(_ConstraintHandlerMixin, nnx.Module):
             raise ValueError(
                 f"param_shape={param_shape} does not match manifold's intrinsic shape "
                 f"{initial_params.shape}. The manifold generates parameters with shape "
-                f"{initial_params.shape}. Please use this shape for param_shape, or omit "
-                f"param_shape entirely to use the manifold's natural dimensionality."
+                f"{initial_params.shape}. Please use this exact shape for param_shape "
+                f"to match the manifold's natural dimensionality."
             )
 
         self.params = ManifoldParam(initial_params)
