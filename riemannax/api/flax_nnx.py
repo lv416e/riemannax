@@ -245,13 +245,15 @@ class ManifoldConstrainedModule(_ConstraintHandlerMixin, nnx.Module):
         param_shape: Shape of the parameter array.
         rngs: NNX random number generator state.
         use_bias: Whether to include a bias term (unconstrained).
+        bias_shape: Optional explicit bias shape. If provided, this shape will be used
+            directly for bias initialization. If None and use_bias=True, the bias shape
+            is inferred from param_shape (last dimension for multi-D, first for 1D).
 
     Note:
-        When use_bias=True, the bias shape is inferred as follows:
-        - For multi-dimensional param_shape: uses last dimension (output features)
-        - For 1D param_shape: uses the single dimension
-        This inference assumes the last dimension represents output/target space,
-        which is appropriate for most neural network layers.
+        For unambiguous bias layout, especially with general manifold tensors, it is
+        recommended to provide an explicit bias_shape rather than relying on inference.
+        The fallback inference assumes the last dimension represents output/target space,
+        which may not be appropriate for all manifold configurations.
 
     Example:
         >>> manifold = Sphere(n=2)  # 2-sphere (surface of a ball in 3D)
@@ -269,6 +271,7 @@ class ManifoldConstrainedModule(_ConstraintHandlerMixin, nnx.Module):
         param_shape: tuple[int, ...],
         rngs: nnx.Rngs,
         use_bias: bool = False,
+        bias_shape: tuple[int, ...] | None = None,
     ):
         """Initialize manifold-constrained module."""
         if not FLAX_AVAILABLE:
@@ -300,18 +303,30 @@ class ManifoldConstrainedModule(_ConstraintHandlerMixin, nnx.Module):
 
         # Optional bias (unconstrained)
         if use_bias:
-            # Infer bias shape: last dimension for multi-D tensors, first dimension for 1D
-            # This assumes last dimension = output/target space (standard for neural networks)
-            bias_size = param_shape[-1] if len(param_shape) > 1 else param_shape[0]
+            if bias_shape is not None:
+                # Use explicit bias shape - validate it's a valid shape
+                if not all(dim > 0 for dim in bias_shape):
+                    raise ValueError(
+                        f"bias_shape={bias_shape} contains non-positive dimensions. "
+                        "All dimensions must be positive integers."
+                    )
+                final_bias_shape = bias_shape
+            else:
+                # Fallback: infer bias shape from param_shape
+                # This assumes last dimension = output/target space (standard for neural networks)
+                inferred_size = param_shape[-1] if len(param_shape) > 1 else param_shape[0]
 
-            # Validate inference makes sense
-            if bias_size <= 0:
-                raise ValueError(
-                    f"Inferred bias size {bias_size} is invalid for param_shape={param_shape}. "
-                    "Cannot initialize bias with non-positive dimension."
-                )
+                # Validate inference makes sense
+                if inferred_size <= 0:
+                    raise ValueError(
+                        f"Inferred bias size {inferred_size} is invalid for param_shape={param_shape}. "
+                        "Cannot initialize bias with non-positive dimension. "
+                        "Consider providing an explicit bias_shape parameter."
+                    )
 
-            self.bias = nnx.Param(jnp.zeros(bias_size))
+                final_bias_shape = (inferred_size,)
+
+            self.bias = nnx.Param(jnp.zeros(final_bias_shape))
 
     # Implement mixin interface methods
     def _get_constrained_param(self) -> Array:
