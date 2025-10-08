@@ -41,15 +41,21 @@ def retr(self, x: Array, v: Array) -> Array:
     q, r = jnp.linalg.qr(y, mode="reduced")
 
     # Ensure positive diagonal (sign correction for orientation preservation)
-    # This guarantees retr(x, 0) = x when x is already on Stiefel
-    d = jnp.diag(jnp.sign(jnp.diag(r)))
-    return q @ d
+    # Handle zeros explicitly: if diagonal element is 0, use +1
+    s = jnp.where(jnp.diag(r) == 0, 1, jnp.sign(jnp.diag(r)))
+    d = jnp.diag(s)
+    q_corrected = q @ d
+
+    return q_corrected
 ```
 
 **Key insight:** When `v = 0`, this becomes `QR(x)`, which **orthogonalizes x**.
 - If x is off-manifold (x^T x ≠ I), this **projects it onto Stiefel**
 - `retr(x, 0) ≠ x` for off-manifold x
-- If x is on-manifold (x^T x = I), the sign correction ensures `retr(x, 0) = x` (fixed-point property)
+- **Fixed-point property:** If x is on-manifold (x^T x = I), the sign correction ensures `retr(x, 0) = x`
+  - For orthonormal x, QR decomposition yields x = Q·R with positive diagonal R
+  - Sign correction preserves this, returning x unchanged
+  - This manifold fixed-point property is fundamental: retr(x, 0) == x for all x on Stiefel
 
 ## Empirical Proof
 
