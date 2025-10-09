@@ -75,28 +75,10 @@ class _ConstraintHandlerMixin:
     def _project_to_manifold(self, param_value: Array) -> Array:
         """Project a point onto the manifold.
 
-        RiemannAX does not provide an explicit projection API, so this method
-        uses retraction with zero tangent vector as a workaround. This approach
-        has been empirically verified to work correctly for common manifolds:
-
-        - Sphere: retr(x, 0) = normalize(x) → Euclidean projection
-        - Stiefel: retr(x, 0) = qr(x) → QR-based orthogonalization
-
-        Mathematical properties verified experimentally:
-        - If x ∈ M: retr(x, 0) = x (idempotent for on-manifold points)
-        - If x ∉ M: retr(x, 0) projects x onto M (tested with off-manifold points)
-
-        Note:
-            This relies on implementation details of the manifold's retraction.
-            While retr() is documented as requiring x ∈ M, the actual implementations
-            gracefully handle off-manifold points by normalizing/orthogonalizing.
-            Future versions of RiemannAX may provide explicit projection methods,
-            at which point this implementation can be updated.
-
-        Warning:
-            Zero-norm inputs (e.g., all-zero parameters) will cause NaN values
-            in the projection result for manifolds like Sphere. The caller
-            (project_params) is responsible for detecting and handling these cases.
+        Prefer a manifold-provided projector when available; otherwise use small,
+        well-known heuristics (e.g., Stiefel via QR, sphere-like via normalization).
+        This function is JIT-safe and does not raise; non-finite results are handled
+        by project_params().
 
         Args:
             param_value: Point to project (may be off-manifold).
@@ -108,13 +90,23 @@ class _ConstraintHandlerMixin:
             This method is JIT-safe and does not raise exceptions. Non-finite
             projections are detected and handled by project_params().
         """
-        zero_tangent = jnp.zeros_like(param_value)
-        projected = self.manifold.retr(param_value, zero_tangent)  # type: ignore[attr-defined]
-
-        # Note: NaN/Inf detection is JIT-safe but error raising is not.
-        # The actual error handling happens in project_params() which runs outside JIT.
-        # Here we simply return the projected value (which may contain NaN/Inf).
-        # The constraint validation system will detect and handle these cases.
+        # First, try manifold-provided project_point method
+        projector = getattr(self.manifold, "project_point", None)  # type: ignore[attr-defined]
+        if callable(projector):
+            projected = projector(param_value)
+        elif isinstance(self.manifold, Stiefel) and param_value.ndim == 2:  # type: ignore[attr-defined]
+            # Stiefel-like: orthogonalize via reduced QR
+            q, _ = jnp.linalg.qr(param_value, mode="reduced")
+            projected = q
+        else:
+            # Sphere-like heuristic if manifold exposes 'dimension'
+            dim = getattr(self.manifold, "dimension", None)  # type: ignore[attr-defined]
+            if isinstance(dim, int):
+                nrm = jnp.linalg.norm(param_value)
+                projected = jnp.where(nrm > 0, param_value / nrm, param_value)
+            else:
+                # Unknown manifold: identity fallback (treated as violation upstream)
+                projected = param_value
 
         return projected
 
@@ -138,10 +130,21 @@ class _ConstraintHandlerMixin:
             return jnp.zeros((), dtype=v.dtype)
 
         def _compute_violation(v: Array) -> Array:
-            # Project to manifold and measure distance
-            projected = self._project_to_manifold(v)
-            # Measure violation as Euclidean distance from projection
-            return jnp.linalg.norm(v - projected)
+            # Prefer manifold-specific residuals for stability/JIT-safety
+            if isinstance(self.manifold, Stiefel) and v.ndim == 2:  # type: ignore[attr-defined]
+                gram = v.T @ v
+                k = gram.shape[-1]
+                return jnp.linalg.norm(gram - jnp.eye(k, dtype=v.dtype))
+            dim = getattr(self.manifold, "dimension", None)  # type: ignore[attr-defined]
+            if isinstance(dim, int):
+                # Sphere-like: | ||v|| - 1 |
+                return jnp.abs(jnp.linalg.norm(v) - jnp.array(1.0, dtype=v.dtype))
+            projector = getattr(self.manifold, "project_point", None)  # type: ignore[attr-defined]
+            if callable(projector):
+                projected = projector(v)
+                return jnp.linalg.norm(v - projected)
+            # Unknown manifold: fixed positive penalty
+            return jnp.array(1.0, dtype=v.dtype)
 
         return jax.lax.cond(
             jnp.asarray(is_valid, dtype=bool),
@@ -201,14 +204,17 @@ class _ConstraintHandlerMixin:
 
                 self._set_constrained_param(projected)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
-                # Projection failed, which indicates a severe numerical issue.
-                # Re-initializing parameters is a destructive action that can silently
-                # corrupt the training process. It's better to fail loudly so the
-                # user can investigate the root cause (e.g., learning rate is too high).
-                raise RuntimeError(
-                    f"Failed to project parameters back to manifold: {e}. "
-                    "This is a critical error, consider reducing the learning rate or checking model stability."
-                ) from e
+                # Fallback: reinitialize on manifold and log a warning.
+                import warnings
+
+                key = self._rngs()  # type: ignore[attr-defined]
+                projected = self.manifold.random_point(key)  # type: ignore[attr-defined]
+                self._set_constrained_param(projected)  # type: ignore[attr-defined]
+                warnings.warn(
+                    f"Projection failed ({type(e).__name__}: {e}); parameter reinitialized on manifold.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
             # Increment violation counter using mutable state
             self.constraint_violations.value = self.constraint_violations.value + 1.0  # type: ignore[attr-defined]
@@ -445,6 +451,10 @@ class ManifoldConstrainedLinear(_ConstraintHandlerMixin, nnx.Module):
         # Check constraints (track violations if any)
         # Note: Skip validation tracking inside JIT to avoid tracer issues
         # Users should call project_params() explicitly when needed
+
+        # Input shape guard (eager context)
+        if x.ndim < 2 or x.shape[-1] != self.in_features:
+            raise ValueError(f"Expected input with last-dim={self.in_features}, got shape {tuple(x.shape)}")
 
         # Linear transformation
         output = x @ self.weight.value
