@@ -290,8 +290,8 @@ class TestManifoldShapeValidation:
         # Assert - Should return zero vector (not NaN), degenerate cases handled by project_params()
         assert jnp.allclose(result, zero_param, atol=1e-6), "Expected zero vector for zero-norm projection"
 
-    def test_project_params_handles_degenerate_parameters(self):
-        """Test that project_params handles degenerate parameters (zero-norm edge case)."""
+    def test_project_params_reinitializes_zero_norm_parameters(self):
+        """Test that project_params reinitializes zero-norm parameters (degenerate case)."""
         # Arrange
         key = jax.random.PRNGKey(0)
         manifold = Sphere(n=2)
@@ -301,18 +301,20 @@ class TestManifoldShapeValidation:
             rngs=nnx.Rngs(key)
         )
 
-        # Store initial valid parameters
-        initial_params = module.params.value.copy()
-
-        # Act - Set parameters to zero vector (degenerate case)
+        # Act - Set parameters to zero vector (degenerate case that triggers reinitialization)
         module.params.value = jnp.array([0.0, 0.0, 0.0])
-        module.project_params()
 
-        # Assert - Projection returns zero vector (edge case: cannot project zero to unit sphere)
+        # project_params should detect zero-norm projection and reinitialize
+        with pytest.warns(RuntimeWarning, match="Projection failed.*parameter reinitialized on manifold"):
+            module.project_params()
+
+        # Assert - Parameters should be reinitialized to a valid point on manifold
         # The violation counter should be incremented
         assert float(module.constraint_violations.value) > 0.0
-        # Parameters remain as projected (zero vector - an edge case)
-        assert jnp.allclose(module.params.value, jnp.zeros(3), atol=1e-6)
+        # Parameters should be a valid point on the manifold (not zero vector)
+        assert manifold.validate_point(module.params.value)
+        # Should have unit norm for Sphere
+        assert jnp.allclose(jnp.linalg.norm(module.params.value), 1.0, atol=1e-5)
 
 
 class TestFactoryFunctionEdgeCases:

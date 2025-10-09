@@ -192,13 +192,18 @@ class _ConstraintHandlerMixin:
                 # This catches degenerate cases like zero-norm parameters
                 # Convert JAX array to Python bool using device_get (JAX best practice)
                 is_finite = bool(jax.device_get(jnp.all(jnp.isfinite(projected))))
-                if not is_finite:
+                projected_norm = float(jax.device_get(jnp.linalg.norm(projected)))
+                is_zero_norm = projected_norm < 1e-8  # Threshold for numerical zero
+
+                if not is_finite or is_zero_norm:
                     # Convert JAX array to Python float for f-string formatting
                     param_norm = float(jax.device_get(jnp.linalg.norm(param_value)))
+                    error_type = "non-finite values (NaN/Inf)" if not is_finite else "near-zero norm vector"
                     raise ValueError(
-                        f"Projection produced non-finite values (NaN/Inf). "
+                        f"Projection produced {error_type}. "
                         f"This typically indicates degenerate parameters. "
-                        f"Parameter norm: {param_norm:.2e}. "
+                        f"Original parameter norm: {param_norm:.2e}, "
+                        f"projected norm: {projected_norm:.2e}. "
                         f"Consider reducing learning rate or checking for numerical instability."
                     )
 
