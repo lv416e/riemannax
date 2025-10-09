@@ -33,7 +33,7 @@ except ImportError:
             pass
 
 
-from riemannax.manifolds import Stiefel, create_stiefel
+from riemannax.manifolds import Sphere, Stiefel, create_stiefel
 from riemannax.manifolds.base import Manifold
 
 
@@ -98,15 +98,17 @@ class _ConstraintHandlerMixin:
             # Stiefel-like: orthogonalize via reduced QR
             q, _ = jnp.linalg.qr(param_value, mode="reduced")
             projected = q
+        elif isinstance(self.manifold, Sphere):  # type: ignore[attr-defined]
+            # Sphere: normalize to unit norm
+            nrm = jnp.linalg.norm(param_value)
+            projected = jnp.where(nrm > 0, param_value / nrm, param_value)
         else:
-            # Sphere-like heuristic if manifold exposes 'dimension'
-            dim = getattr(self.manifold, "dimension", None)  # type: ignore[attr-defined]
-            if isinstance(dim, int):
-                nrm = jnp.linalg.norm(param_value)
-                projected = jnp.where(nrm > 0, param_value / nrm, param_value)
-            else:
-                # Unknown manifold: identity fallback (treated as violation upstream)
-                projected = param_value
+            # Unknown manifold: fail fast to trigger reinitialization
+            # This prevents silent corruption of unsupported manifold geometries
+            raise ValueError(
+                f"No projection heuristic available for manifold {self.manifold.__class__.__name__}. "  # type: ignore[attr-defined]
+                "Please implement project_point() method or add a dedicated projection fallback."
+            )
 
         return projected
 
@@ -131,20 +133,26 @@ class _ConstraintHandlerMixin:
 
         def _compute_violation(v: Array) -> Array:
             # Prefer manifold-specific residuals for stability/JIT-safety
+            # First check for Stiefel-specific residual
             if isinstance(self.manifold, Stiefel) and v.ndim == 2:  # type: ignore[attr-defined]
                 gram = v.T @ v
                 k = gram.shape[-1]
                 return jnp.linalg.norm(gram - jnp.eye(k, dtype=v.dtype))
-            dim = getattr(self.manifold, "dimension", None)  # type: ignore[attr-defined]
-            if isinstance(dim, int):
-                # Sphere-like: | ||v|| - 1 |
-                return jnp.abs(jnp.linalg.norm(v) - jnp.array(1.0, dtype=v.dtype))
+
+            # Then check for manifold-provided projector
             projector = getattr(self.manifold, "project_point", None)  # type: ignore[attr-defined]
             if callable(projector):
                 projected = projector(v)
                 return jnp.linalg.norm(v - projected)
-            # Unknown manifold: fixed positive penalty
-            return jnp.array(1.0, dtype=v.dtype)
+
+            # Sphere-specific residual (only for actual Sphere instances)
+            if isinstance(self.manifold, Sphere):  # type: ignore[attr-defined]
+                # Sphere: | ||v|| - 1 |
+                return jnp.abs(jnp.linalg.norm(v) - jnp.array(1.0, dtype=v.dtype))
+
+            # Unknown manifold: return safe non-zero penalty
+            # This prevents incorrect "0 violation" reports for unsupported manifolds
+            return jnp.maximum(jnp.linalg.norm(v), jnp.array(1e-3, dtype=v.dtype))
 
         return jax.lax.cond(
             jnp.asarray(is_valid, dtype=bool),
