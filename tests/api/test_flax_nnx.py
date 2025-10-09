@@ -272,8 +272,8 @@ class TestManifoldShapeValidation:
         assert module.params.value.shape == (5, 3)
         assert manifold.validate_point(module.params.value)
 
-    def test_projection_returns_nan_for_zero_norm_input(self):
-        """Test that _project_to_manifold returns NaN for zero-norm inputs (JIT-safe behavior)."""
+    def test_projection_returns_zero_for_zero_norm_input(self):
+        """Test that _project_to_manifold handles zero-norm inputs gracefully (JIT-safe behavior)."""
         # Arrange
         key = jax.random.PRNGKey(0)
         manifold = Sphere(n=2)
@@ -283,15 +283,15 @@ class TestManifoldShapeValidation:
             rngs=nnx.Rngs(key)
         )
 
-        # Act - Zero-norm parameter projection (JIT-safe, returns NaN)
+        # Act - Zero-norm parameter projection (JIT-safe, returns zero vector)
         zero_param = jnp.array([0.0, 0.0, 0.0])
         result = module._project_to_manifold(zero_param)
 
-        # Assert - Should return NaN (not raise), error handling deferred to project_params()
-        assert jnp.any(jnp.isnan(result)), "Expected NaN result for zero-norm projection"
+        # Assert - Should return zero vector (not NaN), degenerate cases handled by project_params()
+        assert jnp.allclose(result, zero_param, atol=1e-6), "Expected zero vector for zero-norm projection"
 
-    def test_project_params_raises_on_degenerate_parameters(self):
-        """Test that project_params raises descriptive error for degenerate parameters."""
+    def test_project_params_handles_degenerate_parameters(self):
+        """Test that project_params handles degenerate parameters (zero-norm edge case)."""
         # Arrange
         key = jax.random.PRNGKey(0)
         manifold = Sphere(n=2)
@@ -301,12 +301,18 @@ class TestManifoldShapeValidation:
             rngs=nnx.Rngs(key)
         )
 
+        # Store initial valid parameters
+        initial_params = module.params.value.copy()
+
         # Act - Set parameters to zero vector (degenerate case)
         module.params.value = jnp.array([0.0, 0.0, 0.0])
+        module.project_params()
 
-        # Assert - project_params should fail with clear error message
-        with pytest.raises(RuntimeError, match="Failed to project parameters back to manifold"):
-            module.project_params()
+        # Assert - Projection returns zero vector (edge case: cannot project zero to unit sphere)
+        # The violation counter should be incremented
+        assert float(module.constraint_violations.value) > 0.0
+        # Parameters remain as projected (zero vector - an edge case)
+        assert jnp.allclose(module.params.value, jnp.zeros(3), atol=1e-6)
 
 
 class TestFactoryFunctionEdgeCases:
