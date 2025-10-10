@@ -90,14 +90,15 @@ class _ConstraintHandlerMixin:
             This method is JIT-safe and does not raise exceptions. Non-finite
             projections are detected and handled by project_params().
         """
-        # First, try manifold-provided project_point method
-        projector = getattr(self.manifold, "project_point", None)  # type: ignore[attr-defined]
-        if callable(projector):
-            projected = projector(param_value)
-        elif isinstance(self.manifold, Stiefel) and param_value.ndim == 2:  # type: ignore[attr-defined]
-            # Stiefel-like: orthogonalize via reduced QR
+        # Prioritize efficient built-in methods, then generic projector, then specific fallbacks
+        # This order matches _compute_constraint_violation for consistency
+        if isinstance(self.manifold, Stiefel) and param_value.ndim == 2:  # type: ignore[attr-defined]
+            # Stiefel: orthogonalize via efficient reduced QR
             q, _ = jnp.linalg.qr(param_value, mode="reduced")
             projected = q
+        elif callable(projector := getattr(self.manifold, "project_point", None)):  # type: ignore[attr-defined]
+            # Use manifold-provided projector if available
+            projected = projector(param_value)
         elif isinstance(self.manifold, Sphere):  # type: ignore[attr-defined]
             # Sphere: normalize to unit norm
             nrm = jnp.linalg.norm(param_value)
