@@ -67,6 +67,7 @@ class _ConstraintHandlerMixin:
     Required attributes in subclasses:
         - manifold: Manifold instance
         - constraint_violations: ConstraintViolation variable
+        - _rngs: nnx.Rngs instance for reinitialization
         - _get_constrained_param(): method returning the parameter to constrain
         - _set_constrained_param(value): method to set the constrained parameter
         - _get_param_shape(): method returning parameter shape tuple
@@ -77,8 +78,8 @@ class _ConstraintHandlerMixin:
 
         Prefer a manifold-provided projector when available; otherwise use small,
         well-known heuristics (e.g., Stiefel via QR, sphere-like via normalization).
-        This function is JIT-safe and does not raise; non-finite results are handled
-        by project_params().
+        For supported manifolds, this function is JIT-safe. For unsupported manifolds,
+        it raises ValueError to trigger reinitialization in project_params().
 
         Args:
             param_value: Point to project (may be off-manifold).
@@ -86,9 +87,14 @@ class _ConstraintHandlerMixin:
         Returns:
             Point on the manifold (may contain NaN/Inf if input is degenerate).
 
+        Raises:
+            ValueError: If manifold type is unsupported and no projection heuristic
+                is available (e.g., custom manifolds without project_point method).
+
         Note:
-            This method is JIT-safe and does not raise exceptions. Non-finite
-            projections are detected and handled by project_params().
+            For supported manifolds (Stiefel, Sphere, or manifolds with project_point),
+            this method is JIT-safe. Non-finite projections are detected and handled
+            by project_params() which reinitializes parameters when necessary.
         """
         # Prioritize efficient built-in methods, then generic projector, then specific fallbacks
         # This order matches _compute_constraint_violation for consistency
