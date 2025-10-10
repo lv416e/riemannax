@@ -30,10 +30,14 @@ def retr(self, x: Array, v: Array) -> Array:
     """QR-based retraction (cheaper than exponential map)."""
     y = x + v
     q, r = jnp.linalg.qr(y, mode="reduced")
-    # ... sign correction ...
+
+    # Ensure positive diagonal for canonical representation
+    # Handle zeros explicitly: if diagonal element is 0, use +1
+    s = jnp.where(jnp.diag(r) == 0, 1, jnp.sign(jnp.diag(r)))
+    d = jnp.diag(s)
     return q @ d
 ```
-**No validation check.** Simply applies QR decomposition.
+**No validation check.** Simply applies QR decomposition with sign correction.
 
 ### 2. Test Suite Verification
 
