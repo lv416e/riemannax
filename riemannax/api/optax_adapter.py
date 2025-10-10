@@ -146,12 +146,14 @@ class RiemannianOptaxAdapter:
 
         # Parallel transport momentum vectors for Adam (critical for correctness)
         if self.method == "adam":
-            m_transported, v_transported = transport_adam_state(self.manifold, params, new_params, m, v)
+            # Note: Only first moment m is transported; second moment v is coordinate-dependent
+            # and remains unchanged (see transport_adam_state docstring for rationale)
+            m_transported, v_next = transport_adam_state(self.manifold, params, new_params, m, v)
 
             new_state = RiemannianOptaxState(
                 step_count=step + 1,
                 adam_m=m_transported,
-                adam_v=v_transported,
+                adam_v=v_next,
             )
         else:  # sgd
             new_state = RiemannianOptaxState(step_count=step + 1)
