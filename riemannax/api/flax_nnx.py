@@ -5,6 +5,8 @@ manifold constraints on parameters during training. Uses NNX's explicit state
 management and mutable reference semantics for constraint tracking.
 """
 
+import warnings
+
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array
@@ -225,8 +227,6 @@ class _ConstraintHandlerMixin:
                 self._set_constrained_param(projected)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
                 # Fallback: reinitialize on manifold and log a warning.
-                import warnings
-
                 key = self._rngs()  # type: ignore[attr-defined]
                 projected = self.manifold.random_point(key)  # type: ignore[attr-defined]
                 self._set_constrained_param(projected)  # type: ignore[attr-defined]
