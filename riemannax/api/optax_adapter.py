@@ -261,9 +261,10 @@ def _validate_optax_compatibility(
         Most Optax transformations are compatible with manifold constraints as long
         as they operate on gradients/updates before the Riemannian projection.
 
-    TODO: Implement validation logic to detect transforms that directly modify
+    TODO(#32): Implement validation logic to detect transforms that directly modify
         parameters or apply operations incompatible with manifold constraints.
         Once implemented, consider making this function public.
+        See: https://github.com/lv416e/riemannax/issues/32
     """
     # Most Optax transformations are compatible when properly ordered
     # Transformations that might be incompatible would be those that directly
