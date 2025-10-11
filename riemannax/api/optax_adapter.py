@@ -99,15 +99,15 @@ class RiemannianOptaxAdapter:
 
     def update(
         self,
-        grads: Array,
+        updates: Array,
         state: RiemannianOptaxState,
         params: Array | None = None,
         **extra_args: Any,
     ) -> tuple[Array, RiemannianOptaxState]:
-        """Compute Riemannian gradient updates.
+        """Compute Riemannian updates.
 
         Args:
-            grads: Euclidean gradients.
+            updates: Euclidean gradients/updates from previous transformation.
             state: Current optimizer state.
             params: Current parameters on the manifold.
             **extra_args: Additional arguments (e.g., 'value' for some transformations).
@@ -119,7 +119,7 @@ class RiemannianOptaxAdapter:
             raise ValueError("params must be provided for Riemannian updates")
 
         # Project gradients to tangent space
-        riemannian_grads = self.manifold.proj(params, grads)
+        riemannian_grads = self.manifold.proj(params, updates)
 
         # Get learning rate (handle schedules)
         step = state.step_count
@@ -163,10 +163,10 @@ class RiemannianOptaxAdapter:
         return updates, new_state
 
     def __call__(
-        self, grads: Array, state: RiemannianOptaxState, params: Array | None = None
+        self, updates: Array, state: RiemannianOptaxState, params: Array | None = None
     ) -> tuple[Array, RiemannianOptaxState]:
         """Convenience method to call update."""
-        return self.update(grads, state, params)
+        return self.update(updates, state, params)
 
 
 def create_riemannian_optimizer(
