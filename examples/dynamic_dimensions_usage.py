@@ -13,6 +13,8 @@ Examples include:
 """
 
 
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 import jax.random as jr
@@ -222,9 +224,10 @@ def benchmark_dimension_scaling() -> None:
     # Test sphere performance across dimensions
     print("Sphere Performance Scaling:")
     dimensions = [10, 50, 100, 200]
+
     key = jr.PRNGKey(42)
 
-    results = {}
+    results: dict[int, dict[str, float]] = {}
 
     for n in dimensions:
         sphere = create_sphere(n)
@@ -233,11 +236,11 @@ def benchmark_dimension_scaling() -> None:
 
         # Benchmark exponential map
         try:
-            perf_results = benchmark.compare_jit_performance(sphere.exp, args=(point, tangent), num_runs=10)
+            perf_results: dict[str, Any] = benchmark.compare_jit_performance(sphere.exp, args=(point, tangent), num_runs=10)
 
-            jit_speedup = perf_results.get("jit_speedup", 0)
-            compilation_time = perf_results.get("compilation_time", 0)
-            jit_time = perf_results.get("jit_time", 0)
+            jit_speedup = float(perf_results.get("jit_speedup", 0))
+            compilation_time = float(perf_results.get("compilation_time", 0))
+            jit_time = float(perf_results.get("jit_time", 0))
 
             results[n] = {"jit_speedup": jit_speedup, "compilation_time": compilation_time, "jit_time": jit_time}
 
@@ -256,7 +259,7 @@ def benchmark_dimension_scaling() -> None:
     print("\nPerformance Analysis:")
     if len(results) >= 2:
         dims = sorted(results.keys())
-        speedups = [results[d]["jit_speedup"] for d in dims]
+        speedups: list[float] = [results[d]["jit_speedup"] for d in dims]
 
         print(f"  - JIT speedup range: {min(speedups):.2f}x - {max(speedups):.2f}x")
 

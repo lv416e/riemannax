@@ -22,6 +22,7 @@ Author: RiemannAX Development Team
 
 import time
 from pathlib import Path
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -86,7 +87,7 @@ def create_spd_covariance_problem(data: jnp.ndarray):
 
 def run_optimizer_comparison(problem, manifold, x0, problem_name: str, max_iterations: int = 100):
     """Run all optimizers on the same problem and collect detailed results."""
-    optimizers = {
+    optimizers: dict[str, dict[str, Any]] = {
         "RSGD": {"method": "rsgd", "options": {"learning_rate": 0.01, "max_iterations": max_iterations}},
         "RAdaM": {
             "method": "radam",
@@ -104,7 +105,7 @@ def run_optimizer_comparison(problem, manifold, x0, problem_name: str, max_itera
         },
     }
 
-    results = {}
+    results: dict[str, Any] = {}
 
     print(f"\n{problem_name} Optimization Results:")
     print("=" * 60)
@@ -170,23 +171,31 @@ def analyze_convergence_profiles(problems_and_manifolds: list[tuple], max_iterat
         print(f"\nAnalyzing Problem {i + 1}: {problem_name}")
 
         # Run detailed optimization with cost tracking
-        optimizers = {
+        optimizers: dict[str, tuple[str, dict[str, Any]]] = {
             "RSGD": ("rsgd", {"learning_rate": 0.01}),
-            "RAdaM": ("radam", {"learning_rate": 0.001, "beta1": 0.9, "beta2": 0.999}),
+            "RAdaM": ("radam", {"learning_rate": 0.001, "beta1": 0.9, "beta2": 0.999, "eps": 1e-8}),
             "RMomentum": ("rmom", {"learning_rate": 0.005, "momentum": 0.9}),
         }
 
-        problem_results = {}
+        problem_results: dict[str, Any] = {}
 
         for opt_name, (method, base_options) in optimizers.items():
 
             # Manual optimization loop to track costs
             if method == "rsgd":
-                init_fn, update_fn = rx.riemannian_gradient_descent(**base_options)
+                init_fn, update_fn = rx.riemannian_gradient_descent(learning_rate=base_options["learning_rate"])
             elif method == "radam":
-                init_fn, update_fn = rx.riemannian_adam(**base_options)
+                init_fn, update_fn = rx.riemannian_adam(
+                    learning_rate=base_options["learning_rate"],
+                    beta1=base_options["beta1"],
+                    beta2=base_options["beta2"],
+                    eps=base_options["eps"],
+                )
             elif method == "rmom":
-                init_fn, update_fn = rx.riemannian_momentum(**base_options)
+                init_fn, update_fn = rx.riemannian_momentum(
+                    learning_rate=base_options["learning_rate"],
+                    momentum=base_options["momentum"],
+                )
 
             state = init_fn(x0)
             costs = [float(problem.cost_fn(state.x))]
