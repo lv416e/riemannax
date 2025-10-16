@@ -559,7 +559,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             Completed matrix.
         """
         self.fit(X, mask, y)
-        return self.transform(X)
+        return self.transform(X, mask)
 
     def reconstruction_error(self, X: Array, mask: Array) -> float:
         """Compute reconstruction error on observed entries.
