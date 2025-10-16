@@ -1902,17 +1902,17 @@ class ManifoldConstrainedParameter:
         if hasattr(self.manifold, "egrad2rgrad"):
             return self.manifold.egrad2rgrad(point, euclidean_grad)
 
-        # Use proj() to project onto tangent space
+        # Special case for SPD manifolds with affine-invariant metric
+        # The `proj` method on the SPD manifold class symmetrizes the Euclidean gradient,
+        # which corresponds to the Riemannian gradient under the Log-Euclidean metric.
+        # However, the affine-invariant metric (default) requires `X @ sym(G_e) @ X`.
+        if isinstance(self.manifold, SymmetricPositiveDefinite) and self.metric == "affine_invariant":
+            # Affine-invariant Riemannian gradient: X @ sym(G_e) @ X
+            sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
+            return point @ sym_grad @ point
+
+        # Use proj() to project onto tangent space for other cases (including SPD with log_euclidean)
         if hasattr(self.manifold, "proj"):
-            # Special case for SPD manifolds: handle different metrics
-            # The `proj` method on the SPD manifold class symmetrizes the Euclidean gradient,
-            # which corresponds to the Riemannian gradient under the Log-Euclidean metric.
-            # However, the affine-invariant metric (default) requires `X @ sym(G_e) @ X`.
-            if isinstance(self.manifold, SymmetricPositiveDefinite) and self.metric == "affine_invariant":
-                # Affine-invariant Riemannian gradient: X @ sym(G_e) @ X
-                sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
-                return point @ sym_grad @ point
-            # For "log_euclidean" or other metrics, use default proj()
             return self.manifold.proj(point, euclidean_grad)
 
         # No Riemannian gradient conversion available
