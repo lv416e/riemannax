@@ -1873,6 +1873,12 @@ class ManifoldConstrainedParameter:
 
         # Use proj() to project onto tangent space
         if hasattr(self.manifold, "proj"):
+            # Special case: SPD manifolds with affine-invariant metric
+            # proj() alone only symmetrizes (Log-Euclidean metric), but
+            # affine-invariant metric requires X @ sym(G_e) @ X
+            if isinstance(self.manifold, SymmetricPositiveDefinite):
+                sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
+                return point @ sym_grad @ point
             return self.manifold.proj(point, euclidean_grad)
 
         # No Riemannian gradient conversion available
