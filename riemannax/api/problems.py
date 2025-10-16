@@ -1832,7 +1832,7 @@ class ManifoldConstrainedParameter:
            matrix learning." In AAAI conference on artificial intelligence.
     """
 
-    def __init__(self, manifold: Manifold, initial_value: Array):
+    def __init__(self, manifold: Manifold, initial_value: Array, metric: str = "affine_invariant"):
         """Initialize manifold-constrained parameter.
 
         Parameters
@@ -1841,8 +1841,24 @@ class ManifoldConstrainedParameter:
             Riemannian manifold for this parameter.
         initial_value : array-like
             Initial value (will be projected onto manifold).
+        metric : str, default="affine_invariant"
+            Riemannian metric to use for SPD manifolds. Options:
+            - "affine_invariant": Affine-invariant metric (default)
+            - "log_euclidean": Log-Euclidean metric
+            This parameter is only used for SPD manifolds.
         """
         self.manifold = manifold
+        self.metric = metric
+
+        # Validate metric parameter for SPD manifolds
+        if isinstance(self.manifold, SymmetricPositiveDefinite) and self.metric not in [
+            "affine_invariant",
+            "log_euclidean",
+        ]:
+            raise ValueError(
+                f"Unsupported metric '{self.metric}' for SPD manifold. Must be 'affine_invariant' or 'log_euclidean'."
+            )
+
         self._value = self.project(initial_value)
 
     @property
@@ -1909,14 +1925,11 @@ class ManifoldConstrainedParameter:
             # The `proj` method on the SPD manifold class symmetrizes the Euclidean gradient,
             # which corresponds to the Riemannian gradient under the Log-Euclidean metric.
             # However, the affine-invariant metric (default) requires `X @ sym(G_e) @ X`.
-            if isinstance(self.manifold, SymmetricPositiveDefinite):
-                # Check if manifold has a metric attribute (for future compatibility)
-                metric = getattr(self.manifold, "metric", "affine_invariant")
-                if metric == "affine_invariant":
-                    # Affine-invariant Riemannian gradient: X @ sym(G_e) @ X
-                    sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
-                    return point @ sym_grad @ point
-                # For "log_euclidean" or other metrics, use default proj()
+            if isinstance(self.manifold, SymmetricPositiveDefinite) and self.metric == "affine_invariant":
+                # Affine-invariant Riemannian gradient: X @ sym(G_e) @ X
+                sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
+                return point @ sym_grad @ point
+            # For "log_euclidean" or other metrics, use default proj()
             return self.manifold.proj(point, euclidean_grad)
 
         # No Riemannian gradient conversion available
