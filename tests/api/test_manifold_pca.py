@@ -250,11 +250,11 @@ class TestManifoldPCAFitTransform:
 
         # Method 1: fit_transform
         manifold = Sphere(n=dim - 1)
-        pca1 = ManifoldPCA(manifold=manifold, n_components=n_components, max_iter=50, random_state=42)
+        pca1 = ManifoldPCA(manifold=manifold, n_components=n_components, max_iter=50)
         X_transformed_1 = pca1.fit_transform(X)
 
         # Method 2: fit then transform
-        pca2 = ManifoldPCA(manifold=manifold, n_components=n_components, max_iter=50, random_state=42)
+        pca2 = ManifoldPCA(manifold=manifold, n_components=n_components, max_iter=50)
         pca2.fit(X)
         X_transformed_2 = pca2.transform(X)
 

@@ -197,15 +197,15 @@ class TestMatrixCompletionFitTransform:
         X_incomplete = X_complete * mask
 
         # Method 1: fit_transform
-        mc1 = MatrixCompletion(rank=true_rank, max_iter=50, random_state=42)
+        mc1 = MatrixCompletion(rank=true_rank, max_iter=50)
         X_completed_1 = mc1.fit_transform(X_incomplete, mask)
 
         # Method 2: fit then transform
-        mc2 = MatrixCompletion(rank=true_rank, max_iter=50, random_state=42)
+        mc2 = MatrixCompletion(rank=true_rank, max_iter=50)
         mc2.fit(X_incomplete, mask)
         X_completed_2 = mc2.transform(X_incomplete, mask)
 
-        # Results should be identical (same random state)
+        # Results should be identical (algorithm is deterministic)
         assert jnp.allclose(X_completed_1, X_completed_2, atol=1e-6)
 
 

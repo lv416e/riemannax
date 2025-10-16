@@ -212,15 +212,15 @@ class TestRobustCovarianceFitTransform:
         X = manifold.random_point(key, n_samples)
 
         # Method 1: fit_transform
-        rce1 = RobustCovarianceEstimation(max_iter=50, random_state=42)
+        rce1 = RobustCovarianceEstimation(max_iter=50)
         X_transformed_1 = rce1.fit_transform(X)
 
         # Method 2: fit then transform
-        rce2 = RobustCovarianceEstimation(max_iter=50, random_state=42)
+        rce2 = RobustCovarianceEstimation(max_iter=50)
         rce2.fit(X)
         X_transformed_2 = rce2.transform(X)
 
-        # Results should be identical (same random state)
+        # Results should be identical (algorithm is deterministic)
         assert jnp.allclose(X_transformed_1, X_transformed_2, atol=1e-6)
 
 
