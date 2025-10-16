@@ -12,6 +12,12 @@ from .errors import (
     RiemannAXAPIError,
 )
 from .estimators import RiemannianAdam, RiemannianEstimator, RiemannianSGD
+from .problems import (
+    ManifoldConstrainedParameter,
+    ManifoldPCA,
+    MatrixCompletion,
+    RobustCovarianceEstimation,
+)
 from .results import ConvergenceStatus, OptimizationResult
 from .validation import (
     ValidationResult,
@@ -23,16 +29,20 @@ from .validation import (
 __all__ = [
     "ConstraintViolationError",
     "ConvergenceStatus",
+    "ManifoldConstrainedParameter",
     "ManifoldDetectionError",
     "ManifoldDetectionResult",
     "ManifoldDetector",
+    "ManifoldPCA",
     "ManifoldType",
+    "MatrixCompletion",
     "OptimizationResult",
     "ParameterValidationError",
     "RiemannAXAPIError",
     "RiemannianAdam",
     "RiemannianEstimator",
     "RiemannianSGD",
+    "RobustCovarianceEstimation",
     "ValidationResult",
     "validate_orthogonal_constraint",
     "validate_spd_constraint",
