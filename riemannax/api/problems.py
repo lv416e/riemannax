@@ -1964,9 +1964,18 @@ class ManifoldConstrainedParameter:
                 updated = self.manifold.retr(self._value, tangent_step)
 
         if updated is None and hasattr(self.manifold, "exp"):
+            # Select the correct exponential map based on the metric for SPD manifolds
+            exp_fn = self.manifold.exp
+            if (
+                isinstance(self.manifold, SymmetricPositiveDefinite)
+                and self.metric == "log_euclidean"
+                and hasattr(self.manifold, "log_euclidean_exp")
+            ):
+                exp_fn = self.manifold.log_euclidean_exp
+
             # Try exponential map, with fallback if not implemented
             with contextlib.suppress(NotImplementedError):
-                updated = self.manifold.exp(self._value, tangent_step)
+                updated = exp_fn(self._value, tangent_step)
 
         if updated is None:
             updated = self.project(self._value + tangent_step)
