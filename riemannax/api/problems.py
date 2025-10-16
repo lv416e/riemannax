@@ -79,7 +79,7 @@ def _project_onto_manifold(manifold: Manifold, point: Array) -> Array:
         symmetric = (point + point.T) / 2.0
         eigenvalues, eigenvectors = jnp.linalg.eigh(symmetric)
         eigenvalues = jnp.maximum(eigenvalues, NumericalConstants.MEDIUM_PRECISION_EPSILON)  # Ensure positive
-        return eigenvectors @ jnp.diag(eigenvalues) @ eigenvectors.T
+        return (eigenvectors * eigenvalues) @ eigenvectors.T
 
     elif isinstance(manifold, Sphere):
         # For Sphere: normalize to unit norm with zero-norm safeguard
@@ -348,8 +348,8 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
         # Compute truncated SVD for initialization
         U_init, s_init, Vt_init = jnp.linalg.svd(X_filled, full_matrices=False)
-        U_init = U_init[:, : self.rank] @ jnp.diag(jnp.sqrt(s_init[: self.rank]))
-        V_init = Vt_init[: self.rank, :].T @ jnp.diag(jnp.sqrt(s_init[: self.rank]))
+        U_init = U_init[:, : self.rank] * jnp.sqrt(s_init[: self.rank])
+        V_init = Vt_init[: self.rank, :].T * jnp.sqrt(s_init[: self.rank])
 
         # Optimize using Euclidean gradient descent on the factor space
         U, V, n_iter, final_error = self._optimize(X, mask, U_init, V_init)
@@ -1474,7 +1474,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         elif X.ndim != 3:
             raise ValueError(f"Expected 2D (flattened) or 3D (stacked) data tensor, got {X.ndim}D array")
 
-        _n_samples, dim1, dim2 = X.shape
+        _, dim1, dim2 = X.shape
 
         if dim1 != dim2:
             raise ValueError(f"Expected square matrices, got shape ({dim1}, {dim2})")
