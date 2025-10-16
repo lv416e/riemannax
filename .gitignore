@@ -1,8 +1,8 @@
-.claude/commands/kiro/**
-.claude/commands/project/**
-.kiro/specs/**
-.kiro/steering/**
-.mcp.json
+# .claude/commands/kiro/**
+# .claude/commands/project/**
+# .kiro/specs/**
+# .kiro/steering/**
+# .mcp.json
 
 # Serena MCP
 .serena/**
@@ -192,3 +192,4 @@ cython_debug/
 .vscode/
 
 compatibility_results/
+.git-rewrite/
