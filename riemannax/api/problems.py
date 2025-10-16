@@ -890,11 +890,9 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         # Vectorized check for common manifolds for performance
         if isinstance(self.manifold, Sphere):
             norms = jnp.linalg.norm(X_reshaped, axis=1)
-            # Extract a Python bool from the JAX boolean array
-            if not bool(jax.device_get(jnp.allclose(norms, 1.0, atol=NumericalConstants.VALIDATION_TOLERANCE))):
-                fail_mask = jnp.abs(norms - 1.0) > NumericalConstants.VALIDATION_TOLERANCE
-                # Extract a Python int from the JAX scalar
-                failed_index = int(jax.device_get(jnp.argmax(fail_mask)))
+            is_unit_norm = jnp.isclose(norms, 1.0, atol=NumericalConstants.VALIDATION_TOLERANCE)
+            if not bool(jax.device_get(jnp.all(is_unit_norm))):
+                failed_index = int(jax.device_get(jnp.argmin(is_unit_norm)))
                 raise ValueError(
                     f"Data points for Sphere manifold must have unit norm. Point {failed_index} fails validation. "
                     "Ensure data is properly projected."
