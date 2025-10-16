@@ -1665,8 +1665,9 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, matrix_dim, matrix_dim)
-            SPD matrices to transform.
+        X : array-like of shape (n_samples, matrix_dim, matrix_dim) or (n_samples, matrix_dim * matrix_dim)
+            SPD matrices to transform. Can be provided as 3D stacked matrices
+            or 2D flattened matrices.
 
         Returns:
         -------
@@ -1681,12 +1682,25 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         if self.geometric_median_ is None or self.manifold_ is None:
             raise ValueError("RobustCovarianceEstimation is not fitted yet. Call fit() first.")
 
+        matrix_dim = self.geometric_median_.shape[0]
+        X_reshaped = X
+        if X.ndim == 2:
+            n_samples, ambient_dim = X.shape
+            if ambient_dim != matrix_dim * matrix_dim:
+                raise ValueError(f"For flattened SPD matrices, ambient_dim must be a perfect square, got {ambient_dim}")
+            X_reshaped = X.reshape(n_samples, matrix_dim, matrix_dim)
+        elif X.ndim != 3:
+            raise ValueError(f"Expected 2D (flattened) or 3D (stacked) data tensor, got {X.ndim}D array")
+
         # Validate dimensions
-        if X.shape[1] != self.geometric_median_.shape[0] or X.shape[2] != self.geometric_median_.shape[1]:
+        if (
+            X_reshaped.shape[1] != self.geometric_median_.shape[0]
+            or X_reshaped.shape[2] != self.geometric_median_.shape[1]
+        ):
             raise ValueError(
                 f"Dimension mismatch: expected ({self.geometric_median_.shape[0]}, "
                 f"{self.geometric_median_.shape[1]}) based on fitted dimensions, "
-                f"got ({X.shape[1]}, {X.shape[2]})"
+                f"got ({X_reshaped.shape[1]}, {X_reshaped.shape[2]})"
             )
 
         # Map to tangent space at geometric median (vectorized)
@@ -1697,7 +1711,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         _, log_fn, _ = self._get_metric_ops()
         median = self.geometric_median_
 
-        tangent_vectors = jax.vmap(log_fn, in_axes=(None, 0))(median, X)
+        tangent_vectors = jax.vmap(log_fn, in_axes=(None, 0))(median, X_reshaped)
 
         return tangent_vectors
 
@@ -1706,8 +1720,9 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X_tangent : array-like of shape (n_samples, matrix_dim, matrix_dim)
-            Tangent vectors at the geometric median.
+        X_tangent : array-like of shape (n_samples, matrix_dim, matrix_dim) or (n_samples, matrix_dim * matrix_dim)
+            Tangent vectors at the geometric median. Can be provided as 3D stacked matrices
+            or 2D flattened matrices.
 
         Returns:
         -------
@@ -1717,10 +1732,29 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         Raises:
         ------
         ValueError
-            If estimator has not been fitted.
+            If estimator has not been fitted or input dimension is inconsistent.
         """
         if self.geometric_median_ is None or self.manifold_ is None:
             raise ValueError("RobustCovarianceEstimation is not fitted yet. Call fit() first.")
+
+        matrix_dim = self.geometric_median_.shape[0]
+        X_reshaped = X_tangent
+        if X_tangent.ndim == 2:
+            n_samples, ambient_dim = X_tangent.shape
+            if ambient_dim != matrix_dim * matrix_dim:
+                raise ValueError(
+                    f"For flattened tangent vectors, ambient_dim must be a perfect square, got {ambient_dim}"
+                )
+            X_reshaped = X_tangent.reshape(n_samples, matrix_dim, matrix_dim)
+        elif X_tangent.ndim != 3:
+            raise ValueError(f"Expected 2D (flattened) or 3D (stacked) tangent vectors, got {X_tangent.ndim}D array")
+
+        # Validate dimensions
+        if X_reshaped.shape[1] != matrix_dim or X_reshaped.shape[2] != matrix_dim:
+            raise ValueError(
+                f"Dimension mismatch: expected ({matrix_dim}, {matrix_dim}), "
+                f"got ({X_reshaped.shape[1]}, {X_reshaped.shape[2]})"
+            )
 
         # Map back to manifold using exponential map (vectorized)
         assert self.manifold_ is not None  # For mypy
@@ -1730,7 +1764,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         _, _, exp_fn = self._get_metric_ops()
         median = self.geometric_median_
 
-        X_spd = jax.vmap(exp_fn, in_axes=(None, 0))(median, X_tangent)
+        X_spd = jax.vmap(exp_fn, in_axes=(None, 0))(median, X_reshaped)
 
         return X_spd
 
