@@ -1969,8 +1969,6 @@ class ManifoldConstrainedParameter:
                 updated = self.manifold.exp(self._value, tangent_step)
 
         if updated is None:
-            # Final fallback: Euclidean step + projection
-            updated = self._value + tangent_step
-            updated = self.project(updated)
+            updated = self.project(self._value + tangent_step)
 
         return updated
