@@ -1012,12 +1012,16 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         # Use manifold's validate_point method if available
         if hasattr(self.manifold, "validate_point"):
-            result = self.manifold.validate_point(point, atol=atol)
-            if isinstance(result, bool):
-                return result
-            # Collapse batched results and bring to host
-            result_all = jnp.all(result)
-            return bool(jax.device_get(result_all))
+            try:
+                result = self.manifold.validate_point(point, atol=atol)
+                if isinstance(result, bool):
+                    return result
+                # Collapse batched results and bring to host
+                result_all = jnp.all(result)
+                return bool(jax.device_get(result_all))
+            except NotImplementedError:
+                # Method exists on base class but is not implemented by subclass
+                pass
 
         # Fallback: warn the user that validation is skipped
         warnings.warn(
@@ -1235,7 +1239,18 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         # Project back onto manifold to ensure constraint satisfaction
         # This is necessary for lossy reconstruction (n_components < ambient_dim)
         # Use centralized projection function with vmap for batch operations
-        X_reconstructed_tensor = jax.vmap(lambda point: _project_onto_manifold(manifold, point))(X_reconstructed_tensor)
+        try:
+            X_reconstructed_tensor = jax.vmap(lambda point: _project_onto_manifold(manifold, point))(
+                X_reconstructed_tensor
+            )
+        except NotImplementedError:
+            # Projection not implemented for this manifold
+            warnings.warn(
+                f"Manifold {manifold.__class__.__name__} does not support projection. "
+                "Reconstructed points may not satisfy manifold constraints exactly.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         # Flatten back to (n_samples, ambient_dim) for API consistency
         X_reconstructed = X_reconstructed_tensor.reshape(n_samples, ambient_dim)
@@ -1910,12 +1925,14 @@ class ManifoldConstrainedParameter:
             with contextlib.suppress(NotImplementedError):
                 updated = self.manifold.retr(self._value, tangent_step)
 
-        if updated is None:
-            if hasattr(self.manifold, "exp"):
+        if updated is None and hasattr(self.manifold, "exp"):
+            # Try exponential map, with fallback if not implemented
+            with contextlib.suppress(NotImplementedError):
                 updated = self.manifold.exp(self._value, tangent_step)
-            else:
-                # Fallback: Euclidean step + projection
-                updated = self._value + tangent_step
-                updated = self.project(updated)
+
+        if updated is None:
+            # Final fallback: Euclidean step + projection
+            updated = self._value + tangent_step
+            updated = self.project(updated)
 
         return updated
