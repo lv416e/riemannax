@@ -192,3 +192,4 @@ cython_debug/
 .vscode/
 
 compatibility_results/
+.git-rewrite/
