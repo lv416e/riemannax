@@ -674,7 +674,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
     >>> X_raw = jax.random.normal(key, (100, 3))
     >>> X = X_raw / jnp.linalg.norm(X_raw, axis=1, keepdims=True)
     >>> # Fit manifold PCA
-    >>> manifold = Sphere()
+    >>> manifold = Sphere(n=2)
     >>> pca = ManifoldPCA(manifold=manifold, n_components=2)
     >>> X_reduced = pca.fit_transform(X)
     >>> X_reduced.shape
@@ -1081,7 +1081,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         def body_fun(state: _ManifoldPCAMeanState) -> _ManifoldPCAMeanState:
             # Compute tangent vectors from current mean to all points (vectorized)
             # manifold.log expects points in their natural tensor shape
-            tangent_vectors = jax.vmap(lambda x, m=state.mean: manifold.log(m, x))(X)
+            tangent_vectors = jax.vmap(manifold.log, in_axes=(None, 0))(state.mean, X)
 
             # Compute mean tangent vector (preserves point_shape)
             mean_tangent = jnp.mean(tangent_vectors, axis=0)
@@ -1568,7 +1568,9 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         try:
             # Compute Log-Euclidean mean: expm(mean(logm(X_i)))
             manifold = self.manifold_  # Local variable for mypy
-            log_matrices = jax.vmap(lambda p: manifold.log_euclidean_log(jnp.eye(p.shape[0]), p))(X)
+            # All matrices have the same shape, so use first matrix's identity as base point
+            base_point = jnp.eye(X.shape[1])
+            log_matrices = jax.vmap(manifold.log_euclidean_log, in_axes=(None, 0))(base_point, X)
             log_mean = jnp.mean(log_matrices, axis=0)
             median_init = manifold.log_euclidean_exp(jnp.eye(log_mean.shape[0]), log_mean)
         except (RuntimeError, ValueError):
@@ -1587,7 +1589,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         def body_fun(state: _RobustCovarianceMedianState) -> _RobustCovarianceMedianState:
             # Compute distances from current median to all points (vectorized)
-            distances = jax.vmap(lambda x, med=state.median: dist_fn(med, x))(X)
+            distances = jax.vmap(dist_fn, in_axes=(None, 0))(state.median, X)
 
             # Check if any distance is (near) zero (exact match found)
             min_idx = jnp.argmin(distances)
@@ -1602,7 +1604,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
             weights = weights / jnp.sum(weights)
 
             # Compute weighted sum of log maps (tangent vectors) (vectorized)
-            tangent_vectors = jax.vmap(lambda x, med=state.median: log_fn(med, x))(X)
+            tangent_vectors = jax.vmap(log_fn, in_axes=(None, 0))(state.median, X)
 
             # Weighted average in tangent space
             mean_tangent = jnp.sum(tangent_vectors * weights[:, None, None], axis=0)
