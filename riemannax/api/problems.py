@@ -1018,7 +1018,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
                 result = self.manifold.validate_point(point, atol=atol)
                 if isinstance(result, bool):
                     return result
-                # Collapse batched results and bring to host
+                # Handle JAX scalar array result and bring to host
                 result_all = jnp.all(result)
                 return bool(jax.device_get(result_all))
             except NotImplementedError:
