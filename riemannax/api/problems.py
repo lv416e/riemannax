@@ -1902,16 +1902,20 @@ class ManifoldConstrainedParameter:
         if hasattr(self.manifold, "egrad2rgrad"):
             return self.manifold.egrad2rgrad(point, euclidean_grad)
 
-        # Special case for SPD manifolds with affine-invariant metric
-        # The `proj` method on the SPD manifold class symmetrizes the Euclidean gradient,
-        # which corresponds to the Riemannian gradient under the Log-Euclidean metric.
-        # However, the affine-invariant metric (default) requires `X @ sym(G_e) @ X`.
-        if isinstance(self.manifold, SymmetricPositiveDefinite) and self.metric == "affine_invariant":
-            # Affine-invariant Riemannian gradient: X @ sym(G_e) @ X
-            sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
-            return point @ sym_grad @ point
+        # Special cases for SPD manifolds
+        if isinstance(self.manifold, SymmetricPositiveDefinite):
+            if self.metric == "affine_invariant":
+                # Affine-invariant Riemannian gradient: X @ sym(G_e) @ X
+                sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
+                return point @ sym_grad @ point
+            elif self.metric == "log_euclidean":
+                # Log-Euclidean Riemannian gradient: X @ sym(X^-1 @ G_e)
+                # Using solve for numerical stability instead of matrix inversion.
+                x_inv_grad = jax.linalg.solve(point, euclidean_grad, assume_a="pos")
+                sym_part = (x_inv_grad + x_inv_grad.T) / 2.0
+                return point @ sym_part
 
-        # Use proj() to project onto tangent space for other cases (including SPD with log_euclidean)
+        # Use proj() to project onto tangent space for other cases
         if hasattr(self.manifold, "proj"):
             return self.manifold.proj(point, euclidean_grad)
 
