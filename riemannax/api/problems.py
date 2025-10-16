@@ -154,8 +154,6 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
     max_grad_norm : float or None, default=100.0
         Maximum gradient norm for clipping. If None, no clipping is performed.
         Helps prevent gradient explosion during optimization.
-    random_state : int or None, default=None
-        Random seed for reproducibility. Currently unused but reserved for future extensions.
 
     Attributes:
     ----------
@@ -203,7 +201,6 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
         tolerance: float = 1e-6,
         learning_rate: float = 0.1,
         max_grad_norm: float | None = 100.0,
-        random_state: int | None = None,
     ):
         """Initialize MatrixCompletion estimator."""
         self.rank = rank
@@ -211,7 +208,6 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
         self.tolerance = tolerance
         self.learning_rate = learning_rate
         self.max_grad_norm = max_grad_norm
-        self.random_state = random_state
 
         # Validate parameters
         self._validate_parameters()
@@ -241,7 +237,6 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             "tolerance": self.tolerance,
             "learning_rate": self.learning_rate,
             "max_grad_norm": self.max_grad_norm,
-            "random_state": self.random_state,
         }
 
     def _validate_parameters(self) -> None:
@@ -647,9 +642,6 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
     mean_step_size : float, default=0.5
         Step size for Riemannian mean updates. Helps avoid overshooting on
         highly curved manifolds. Should be in (0, 1].
-    random_state : int or None, default=None
-        Random seed for reproducibility. Currently unused but reserved for
-        future extensions.
 
     Attributes:
     ----------
@@ -697,7 +689,6 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         max_iter: int = 100,
         tolerance: float = 1e-6,
         mean_step_size: float = 0.5,
-        random_state: int | None = None,
     ):
         """Initialize ManifoldPCA estimator."""
         self.manifold = manifold
@@ -705,7 +696,6 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         self.max_iter = max_iter
         self.tolerance = tolerance
         self.mean_step_size = mean_step_size
-        self.random_state = random_state
 
         # Validate parameters
         self._validate_parameters()
@@ -735,7 +725,6 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
             "max_iter": self.max_iter,
             "tolerance": self.tolerance,
             "mean_step_size": self.mean_step_size,
-            "random_state": self.random_state,
         }
 
     def _validate_parameters(self) -> None:
@@ -1318,9 +1307,6 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         Maximum number of iterations for Weiszfeld algorithm.
     tolerance : float, default=1e-6
         Convergence tolerance for geometric median computation.
-    random_state : int or None, default=None
-        Random seed for reproducibility. Currently unused but reserved for
-        future extensions.
 
     Attributes:
     ----------
@@ -1361,13 +1347,11 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         metric: str = "affine_invariant",
         max_iter: int = 100,
         tolerance: float = 1e-6,
-        random_state: int | None = None,
     ):
         """Initialize RobustCovarianceEstimation estimator."""
         self.metric = metric
         self.max_iter = max_iter
         self.tolerance = tolerance
-        self.random_state = random_state
 
         # Validate parameters
         self._validate_parameters()
@@ -1394,7 +1378,6 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
             "metric": self.metric,
             "max_iter": self.max_iter,
             "tolerance": self.tolerance,
-            "random_state": self.random_state,
         }
 
     def _validate_parameters(self) -> None:
