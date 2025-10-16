@@ -71,7 +71,8 @@ def _project_onto_manifold(manifold: Manifold, point: Array) -> Array:
         # Ensure positive diagonal elements for uniqueness
         signs = jnp.sign(jnp.diag(R))
         signs = jnp.where(signs == 0, 1, signs)
-        return Q @ jnp.diag(signs)
+        # Scale columns directly; avoids forming diag and matmul
+        return Q * signs
 
     elif isinstance(manifold, SymmetricPositiveDefinite):
         # For SPD: symmetrize and correct eigenvalues
@@ -81,10 +82,10 @@ def _project_onto_manifold(manifold: Manifold, point: Array) -> Array:
         return eigenvectors @ jnp.diag(eigenvalues) @ eigenvectors.T
 
     elif isinstance(manifold, Sphere):
-        # For Sphere: normalize to unit norm (guard against zero norm)
+        # For Sphere: normalize to unit norm with zero-norm safeguard
         norm = jnp.linalg.norm(point)
-        norm = jnp.maximum(norm, NumericalConstants.EPSILON)  # Prevent division by zero
-        return point / norm
+        canonical = jnp.zeros_like(point).at[0].set(1.0)
+        return jnp.where(norm > NumericalConstants.EPSILON, point / norm, canonical)
 
     # No projection method available
     raise NotImplementedError(
@@ -329,7 +330,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             raise ValueError(f"rank (={self.rank}) cannot exceed min(m, n) (={min_dim})")
 
         # Check sufficient observations
-        n_observed = int(jnp.sum(mask))
+        n_observed = int(jax.device_get(jnp.sum(mask)))
         if n_observed == 0:
             raise ValueError("mask has zero observed entries; cannot fit MatrixCompletion.")
         min_observations = (m + n - self.rank) * self.rank  # Degrees of freedom
@@ -350,7 +351,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
         U_init = U_init[:, : self.rank] @ jnp.diag(jnp.sqrt(s_init[: self.rank]))
         V_init = Vt_init[: self.rank, :].T @ jnp.diag(jnp.sqrt(s_init[: self.rank]))
 
-        # Optimize using Riemannian gradient descent on product manifold
+        # Optimize using Euclidean gradient descent on the factor space
         U, V, n_iter, final_error = self._optimize(X, mask, U_init, V_init)
 
         # Store fitted attributes
@@ -652,8 +653,9 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
     Attributes:
     ----------
-    mean_ : ndarray of shape (ambient_dim,)
-        The intrinsic mean on the manifold after fitting.
+    mean_ : ndarray of shape point_shape
+        The intrinsic mean on the manifold after fitting (vector for Sphere;
+        matrix for Stiefel/SPD, e.g., (n, p) or (n, n)).
     components_ : ndarray of shape (n_components, ambient_dim)
         Principal geodesic directions in the tangent space at the mean.
     explained_variance_ : ndarray of shape (n_components,)
@@ -956,7 +958,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         # Step 2: Map data to tangent space at mean (vectorized)
         # Local variable for type narrowing
         manifold = self.manifold
-        tangent_vectors = jax.vmap(lambda x: manifold.log(mean, x))(X_reshaped)
+        tangent_vectors = jax.vmap(manifold.log, in_axes=(None, 0))(mean, X_reshaped)
 
         # Flatten tangent vectors for covariance computation
         # For Sphere: tangent_vectors is already (n_samples, ambient_dim)
@@ -1181,7 +1183,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         assert self.mean_ is not None, "Mean must be set after fit()"
         manifold = self.manifold
         mean = self.mean_
-        tangent_vectors = jax.vmap(lambda x: manifold.log(mean, x))(X_reshaped)
+        tangent_vectors = jax.vmap(manifold.log, in_axes=(None, 0))(mean, X_reshaped)
 
         # Flatten tangent vectors for projection
         tangent_vectors_flat = tangent_vectors.reshape(n_samples, ambient_dim)
@@ -1234,7 +1236,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         assert self.mean_ is not None, "Mean must be set after fit()"
         manifold = self.manifold
         mean = self.mean_
-        X_reconstructed_tensor = jax.vmap(lambda v: manifold.exp(mean, v))(tangent_reconstructed)
+        X_reconstructed_tensor = jax.vmap(manifold.exp, in_axes=(None, 0))(mean, tangent_reconstructed)
 
         # Project back onto manifold to ensure constraint satisfaction
         # This is necessary for lossy reconstruction (n_components < ambient_dim)
@@ -1693,10 +1695,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         _, log_fn, _ = self._get_metric_ops()
         median = self.geometric_median_
 
-        def compute_log(x, med=median):
-            return log_fn(med, x)
-
-        tangent_vectors = jax.vmap(compute_log)(X)
+        tangent_vectors = jax.vmap(log_fn, in_axes=(None, 0))(median, X)
 
         return tangent_vectors
 
@@ -1729,10 +1728,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         _, _, exp_fn = self._get_metric_ops()
         median = self.geometric_median_
 
-        def compute_exp(v, med=median):
-            return exp_fn(med, v)
-
-        X_spd = jax.vmap(compute_exp)(X_tangent)
+        X_spd = jax.vmap(exp_fn, in_axes=(None, 0))(median, X_tangent)
 
         return X_spd
 
