@@ -95,6 +95,40 @@ def _project_onto_manifold(manifold: Manifold, point: Array) -> Array:
     )
 
 
+def _validate_spd_batch(X: Array) -> None:
+    """Validate a batch of SPD matrices.
+
+    Checks that all matrices in the batch are symmetric and positive definite.
+
+    Parameters
+    ----------
+    X : Array of shape (n_samples, n, n)
+        Batch of matrices to validate.
+
+    Raises:
+    ------
+    ValueError
+        If any matrix is not symmetric or not positive definite, with the index
+        of the first failing matrix.
+    """
+    # Check symmetry (vectorized)
+    is_symmetric_per_matrix = jnp.all(
+        jnp.isclose(X, jnp.transpose(X, (0, 2, 1)), atol=NumericalConstants.SYMMETRY_TOLERANCE),
+        axis=(-2, -1),
+    )
+    if not bool(jax.device_get(jnp.all(is_symmetric_per_matrix))):
+        failed_index = int(jax.device_get(jnp.argmin(is_symmetric_per_matrix)))
+        raise ValueError(f"All matrices must be symmetric. Matrix {failed_index} is not symmetric.")
+
+    # Check positive definiteness (vectorized)
+    all_eigenvalues = jnp.linalg.eigvalsh(X)
+    eps = NumericalConstants.MEDIUM_PRECISION_EPSILON
+    is_positive_definite_per_matrix = jnp.all(all_eigenvalues > eps, axis=1)
+    if not bool(jax.device_get(jnp.all(is_positive_definite_per_matrix))):
+        failed_index = int(jax.device_get(jnp.argmin(is_positive_definite_per_matrix)))
+        raise ValueError(f"All matrices must be SPD. Matrix {failed_index} has non-positive eigenvalues.")
+
+
 class _MatrixCompletionOptState(NamedTuple):
     """Optimization state for MatrixCompletion._optimize().
 
@@ -800,8 +834,6 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         elif isinstance(self.manifold, Stiefel):
             # Stiefel(n, p) has points as (n, p) matrices
-            if not hasattr(self.manifold, "n") or not hasattr(self.manifold, "p"):
-                raise TypeError("Stiefel manifold missing 'n' or 'p' attributes")
             n, p = self.manifold.n, self.manifold.p
             if ambient_dim != n * p:
                 raise ValueError(f"For Stiefel({n}, {p}), expected ambient_dim={n * p}, got {ambient_dim}")
@@ -906,28 +938,8 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         elif isinstance(self.manifold, SymmetricPositiveDefinite):
             # For SPD(n), X_reshaped already has shape (n_samples, n, n)
-            # Check symmetry (vectorized)
-            is_symmetric_per_matrix = jnp.all(
-                jnp.isclose(
-                    X_reshaped, jnp.transpose(X_reshaped, (0, 2, 1)), atol=NumericalConstants.SYMMETRY_TOLERANCE
-                ),
-                axis=(-2, -1),
-            )
-            if not bool(jax.device_get(jnp.all(is_symmetric_per_matrix))):
-                failed_index = int(jax.device_get(jnp.argmin(is_symmetric_per_matrix)))
-                raise ValueError(
-                    f"Data points for SPD manifold must be symmetric. Point {failed_index} fails validation."
-                )
-
-            # Check positive definiteness (vectorized)
-            all_eigenvalues = jnp.linalg.eigvalsh(X_reshaped)
-            eps = NumericalConstants.MEDIUM_PRECISION_EPSILON
-            is_positive_definite_per_matrix = jnp.all(all_eigenvalues > eps, axis=1)
-            if not bool(jax.device_get(jnp.all(is_positive_definite_per_matrix))):
-                failed_index = int(jax.device_get(jnp.argmin(is_positive_definite_per_matrix)))
-                raise ValueError(
-                    f"Data points for SPD manifold must be positive definite. Point {failed_index} fails validation."
-                )
+            # Validate SPD matrices using helper function
+            _validate_spd_batch(X_reshaped)
 
         else:
             # Try vectorized validation first for better performance with custom JIT-compatible manifolds
@@ -1487,24 +1499,8 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         matrix_dim = dim1
 
-        # Validate SPD matrices (vectorized for performance)
-        # Check symmetry: X should equal X.transpose(0, 2, 1)
-        is_symmetric_per_matrix = jnp.all(
-            jnp.isclose(X, jnp.transpose(X, (0, 2, 1)), atol=NumericalConstants.SYMMETRY_TOLERANCE),
-            axis=(-2, -1),
-        )
-        if not bool(jax.device_get(jnp.all(is_symmetric_per_matrix))):
-            failed_index = int(jax.device_get(jnp.argmin(is_symmetric_per_matrix)))
-            raise ValueError(f"All matrices must be symmetric. Matrix {failed_index} is not symmetric.")
-
-        # Check positive definiteness: all eigenvalues must be positive
-        # jnp.linalg.eigvalsh operates on last two axes, so computes eigenvalues for all matrices
-        all_eigenvalues = jnp.linalg.eigvalsh(X)  # Shape: (n_samples, matrix_dim)
-        eps = NumericalConstants.MEDIUM_PRECISION_EPSILON  # Small tolerance for numerical noise
-        is_positive_definite_per_matrix = jnp.all(all_eigenvalues > eps, axis=1)
-        if not bool(jax.device_get(jnp.all(is_positive_definite_per_matrix))):
-            failed_index = int(jax.device_get(jnp.argmin(is_positive_definite_per_matrix)))
-            raise ValueError(f"All matrices must be SPD. Matrix {failed_index} has non-positive eigenvalues.")
+        # Validate SPD matrices using helper function
+        _validate_spd_batch(X)
 
         # Create SPD manifold
         self.manifold_ = SymmetricPositiveDefinite(n=matrix_dim)
