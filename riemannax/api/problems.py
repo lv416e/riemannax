@@ -1461,6 +1461,59 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         return self
 
+    def _reshape_and_validate_input(
+        self, X: Array, expected_matrix_dim: int | None = None, input_name: str = "X"
+    ) -> Array:
+        """Reshape and validate input arrays for SPD matrices.
+
+        Handles both 2D flattened and 3D stacked input formats, validates dimensions,
+        and returns a consistently shaped 3D array.
+
+        Parameters
+        ----------
+        X : Array
+            Input array, either 2D (n_samples, matrix_dim * matrix_dim) flattened
+            or 3D (n_samples, matrix_dim, matrix_dim) stacked.
+        expected_matrix_dim : int or None, default=None
+            Expected matrix dimension. If provided, validates that input dimensions
+            match. If None, infers from input shape.
+        input_name : str, default="X"
+            Name of the input array for error messages.
+
+        Returns:
+        -------
+        X_reshaped : Array of shape (n_samples, matrix_dim, matrix_dim)
+            Reshaped and validated array in 3D stacked format.
+
+        Raises:
+        ------
+        ValueError
+            If input dimensions are invalid or don't match expected_matrix_dim.
+        """
+        # Handle flattened 2D input
+        if X.ndim == 2:
+            n_samples, ambient_dim = X.shape
+            matrix_dim = math.isqrt(int(ambient_dim))
+            if matrix_dim * matrix_dim != ambient_dim:
+                raise ValueError(f"For flattened SPD matrices, ambient_dim must be a perfect square, got {ambient_dim}")
+            X_reshaped = X.reshape(n_samples, matrix_dim, matrix_dim)
+        elif X.ndim == 3:
+            X_reshaped = X
+            matrix_dim = X_reshaped.shape[1]
+        else:
+            raise ValueError(f"Expected 2D (flattened) or 3D (stacked) {input_name}, got {X.ndim}D array")
+
+        # Validate dimensions match expected
+        if expected_matrix_dim is not None and (
+            X_reshaped.shape[1] != expected_matrix_dim or X_reshaped.shape[2] != expected_matrix_dim
+        ):
+            raise ValueError(
+                f"Dimension mismatch: expected ({expected_matrix_dim}, {expected_matrix_dim}) "
+                f"based on fitted dimensions, got ({X_reshaped.shape[1]}, {X_reshaped.shape[2]})"
+            )
+
+        return X_reshaped
+
     def fit(self, X: Array, y: Any = None) -> "RobustCovarianceEstimation":
         """Fit the robust covariance estimation model.
 
@@ -1482,15 +1535,8 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         ValueError
             If X is not 2D or 3D, matrices are not square, symmetric, or positive definite.
         """
-        # Validate input shape and handle flattened inputs for API consistency
-        if X.ndim == 2:
-            n_samples, ambient_dim = X.shape
-            matrix_dim = math.isqrt(int(ambient_dim))
-            if matrix_dim * matrix_dim != ambient_dim:
-                raise ValueError(f"For flattened SPD matrices, ambient_dim must be a perfect square, got {ambient_dim}")
-            X = X.reshape(n_samples, matrix_dim, matrix_dim)
-        elif X.ndim != 3:
-            raise ValueError(f"Expected 2D (flattened) or 3D (stacked) data tensor, got {X.ndim}D array")
+        # Reshape and validate input
+        X = self._reshape_and_validate_input(X)
 
         _, dim1, dim2 = X.shape
 
@@ -1685,25 +1731,9 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
             raise ValueError("RobustCovarianceEstimation is not fitted yet. Call fit() first.")
 
         matrix_dim = self.geometric_median_.shape[0]
-        X_reshaped = X
-        if X.ndim == 2:
-            n_samples, ambient_dim = X.shape
-            if ambient_dim != matrix_dim * matrix_dim:
-                raise ValueError(f"For flattened SPD matrices, ambient_dim must be a perfect square, got {ambient_dim}")
-            X_reshaped = X.reshape(n_samples, matrix_dim, matrix_dim)
-        elif X.ndim != 3:
-            raise ValueError(f"Expected 2D (flattened) or 3D (stacked) data tensor, got {X.ndim}D array")
 
-        # Validate dimensions
-        if (
-            X_reshaped.shape[1] != self.geometric_median_.shape[0]
-            or X_reshaped.shape[2] != self.geometric_median_.shape[1]
-        ):
-            raise ValueError(
-                f"Dimension mismatch: expected ({self.geometric_median_.shape[0]}, "
-                f"{self.geometric_median_.shape[1]}) based on fitted dimensions, "
-                f"got ({X_reshaped.shape[1]}, {X_reshaped.shape[2]})"
-            )
+        # Reshape and validate input
+        X_reshaped = self._reshape_and_validate_input(X, expected_matrix_dim=matrix_dim, input_name="X")
 
         # Map to tangent space at geometric median (vectorized)
         assert self.manifold_ is not None  # For mypy
@@ -1740,23 +1770,11 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
             raise ValueError("RobustCovarianceEstimation is not fitted yet. Call fit() first.")
 
         matrix_dim = self.geometric_median_.shape[0]
-        X_reshaped = X_tangent
-        if X_tangent.ndim == 2:
-            n_samples, ambient_dim = X_tangent.shape
-            if ambient_dim != matrix_dim * matrix_dim:
-                raise ValueError(
-                    f"For flattened tangent vectors, ambient_dim must be a perfect square, got {ambient_dim}"
-                )
-            X_reshaped = X_tangent.reshape(n_samples, matrix_dim, matrix_dim)
-        elif X_tangent.ndim != 3:
-            raise ValueError(f"Expected 2D (flattened) or 3D (stacked) tangent vectors, got {X_tangent.ndim}D array")
 
-        # Validate dimensions
-        if X_reshaped.shape[1] != matrix_dim or X_reshaped.shape[2] != matrix_dim:
-            raise ValueError(
-                f"Dimension mismatch: expected ({matrix_dim}, {matrix_dim}), "
-                f"got ({X_reshaped.shape[1]}, {X_reshaped.shape[2]})"
-            )
+        # Reshape and validate input
+        X_reshaped = self._reshape_and_validate_input(
+            X_tangent, expected_matrix_dim=matrix_dim, input_name="tangent vectors"
+        )
 
         # Map back to manifold using exponential map (vectorized)
         assert self.manifold_ is not None  # For mypy
