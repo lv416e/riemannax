@@ -200,6 +200,13 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
     reconstruction_error_ : float
         Final reconstruction error on observed entries.
 
+    Warnings:
+    --------
+    The `transform()` method does not transform the input but returns the
+    fitted reconstruction `U_ @ V_.T`. This differs from typical sklearn
+    transformers where transform operates on new data. The input is only
+    used for shape validation.
+
     Examples:
     --------
     >>> import jax
@@ -445,21 +452,22 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             Final reconstruction error.
         """
 
-        def compute_residual_and_error(U_current: Array, V_current: Array) -> tuple[Array, Array]:
-            """Compute residual and reconstruction error on observed entries."""
+        def _compute_residual(U_current: Array, V_current: Array) -> Array:
+            """Compute residual on observed entries."""
             reconstruction = U_current @ V_current.T
-            residual = (reconstruction - X) * mask
-            # Mean over observed entries only
+            return (reconstruction - X) * mask
+
+        def _compute_error_from_residual(residual: Array) -> Array:
+            """Compute reconstruction error from a residual."""
             n_observed = jnp.maximum(jnp.sum(mask), 1)
-            error = jnp.sum(residual**2) / n_observed
-            return residual, error
+            return jnp.sum(residual**2) / n_observed
 
         def cond_fun(state: _MatrixCompletionOptState) -> Array:
             return (state.iteration < self.max_iter) & ~state.converged
 
         def body_fun(state: _MatrixCompletionOptState) -> _MatrixCompletionOptState:
             # Compute residual for gradient calculation
-            residual, _ = compute_residual_and_error(state.U, state.V)
+            residual = _compute_residual(state.U, state.V)
 
             # Compute Euclidean gradients
             grad_U = 2.0 * (residual @ state.V)  # Shape: (m, rank)
@@ -482,7 +490,8 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             V_new = state.V - self.learning_rate * grad_V
 
             # Compute error of the new state
-            _, error_new = compute_residual_and_error(U_new, V_new)
+            new_residual = _compute_residual(U_new, V_new)
+            error_new = _compute_error_from_residual(new_residual)
             has_numerical_issue = ~jnp.isfinite(error_new)
 
             # Stop if converged or if a numerical issue is found
@@ -500,7 +509,8 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             )
 
         # Initial state: compute initial error
-        _, initial_error = compute_residual_and_error(U_init, V_init)
+        initial_residual = _compute_residual(U_init, V_init)
+        initial_error = _compute_error_from_residual(initial_residual)
         initial_state = _MatrixCompletionOptState(
             U=U_init,
             V=V_init,
@@ -1271,8 +1281,8 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         # This is necessary for lossy reconstruction (n_components < ambient_dim)
         # Use centralized projection function with vmap for batch operations
         try:
-            X_reconstructed_tensor = jax.vmap(lambda point: _project_onto_manifold(manifold, point))(
-                X_reconstructed_tensor
+            X_reconstructed_tensor = jax.vmap(_project_onto_manifold, in_axes=(None, 0))(
+                manifold, X_reconstructed_tensor
             )
         except NotImplementedError:
             # Projection not implemented for this manifold
@@ -1953,10 +1963,43 @@ class ManifoldConstrainedParameter:
                 sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
                 return point @ sym_grad @ point
             elif self.metric == "log_euclidean":
-                # For the Log-Euclidean metric, the optimization step is performed in the log-domain.
-                # The gradient of the cost function w.r.t. L=logm(X) is required.
-                # A common first-order approximation is to use the symmetric part of the Euclidean gradient.
-                return (euclidean_grad + euclidean_grad.T) / 2.0
+                # For the Log-Euclidean metric, we need to use the Fr\u00e9chet derivative of exp.
+                # The correct Riemannian gradient is: grad_P f = Dexp_S[G_S]
+                # where S = log(P), G_S is the gradient in log-domain.
+                #
+                # Implementation: Dexp_S[Z] = \u222b_0^1 P^{1-t} Z P^{t} dt
+                # For practical purposes, we approximate using a few quadrature points.
+                # Reference: Arsigny et al. (2006), "Log-Euclidean metrics"
+
+                # First symmetrize the Euclidean gradient (it's in the tangent space of SPD)
+                sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
+
+                # Compute the push-forward using numerical quadrature
+                # Use Gauss-Legendre quadrature with 3 points for balance between accuracy and efficiency
+                # Quadrature points and weights for [0,1]
+                quad_points = jnp.array([0.1127016653792583, 0.5, 0.8872983346207417])
+                quad_weights = jnp.array([0.2777777777777778, 0.4444444444444444, 0.2777777777777778])
+
+                # Compute P^t for each quadrature point
+                # We use eigendecomposition: P = Q \u039b Q^T, then P^t = Q \u039b^t Q^T
+                eigenvals, eigenvecs = jnp.linalg.eigh(point)
+                eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
+
+                # Numerical integration of P^{1-t} G_S P^{t}
+                result = jnp.zeros_like(sym_grad)
+                for t, weight in zip(quad_points, quad_weights, strict=False):
+                    # Compute P^{1-t}
+                    pow_1_minus_t = jnp.power(eigenvals, 1.0 - t)
+                    P_1_minus_t = eigenvecs @ jnp.diag(pow_1_minus_t) @ eigenvecs.T
+
+                    # Compute P^{t}
+                    pow_t = jnp.power(eigenvals, t)
+                    P_t = eigenvecs @ jnp.diag(pow_t) @ eigenvecs.T
+
+                    # Add weighted contribution
+                    result += weight * (P_1_minus_t @ sym_grad @ P_t)
+
+                return result
 
         # Use proj() to project onto tangent space for other cases
         if hasattr(self.manifold, "proj"):
