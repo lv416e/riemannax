@@ -1986,8 +1986,9 @@ class ManifoldConstrainedParameter:
                 eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
 
                 # Numerical integration of P^{1-t} G_S P^{t}
-                result = jnp.zeros_like(sym_grad)
-                for t, weight in zip(quad_points, quad_weights, strict=False):
+                # Vectorize computation over quadrature points for JIT efficiency
+                def _compute_contribution(t: Array) -> Array:
+                    """Compute P^{1-t} G_S P^{t} for a single quadrature point."""
                     # Compute P^{1-t}
                     pow_1_minus_t = jnp.power(eigenvals, 1.0 - t)
                     P_1_minus_t = eigenvecs @ jnp.diag(pow_1_minus_t) @ eigenvecs.T
@@ -1996,8 +1997,13 @@ class ManifoldConstrainedParameter:
                     pow_t = jnp.power(eigenvals, t)
                     P_t = eigenvecs @ jnp.diag(pow_t) @ eigenvecs.T
 
-                    # Add weighted contribution
-                    result += weight * (P_1_minus_t @ sym_grad @ P_t)
+                    return P_1_minus_t @ sym_grad @ P_t
+
+                # Vectorize over quadrature points
+                contributions = jax.vmap(_compute_contribution)(quad_points)
+
+                # Compute weighted sum
+                result = jnp.sum(contributions * quad_weights[:, None, None], axis=0)
 
                 return result
 
