@@ -33,7 +33,7 @@ class NumericalConstants:
     SYMMETRY_TOLERANCE: float = 1e-5
     """Tolerance for checking matrix symmetry."""
 
-    VALIDATION_TOLERANCE: float = 1e-4
+    VALIDATION_TOLERANCE: float = 1e-6
     """Tolerance for validating points on manifolds."""
 
 
