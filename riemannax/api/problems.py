@@ -51,12 +51,12 @@ def _project_onto_manifold(manifold: Manifold, point: Array) -> Array:
     ----------
     manifold : Manifold
         The Riemannian manifold to project onto.
-    point : array-like
+    point : Array
         Point to project (may be off-manifold).
 
     Returns:
     -------
-    projected : array-like
+    projected : Array
         Projected point on the manifold.
 
     Raises:
@@ -293,10 +293,10 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (m, n)
+        X : Array of shape (m, n)
             Incomplete matrix with missing entries (can be zero or any value at
             unobserved positions).
-        mask : array-like of shape (m, n), dtype=bool
+        mask : Array of shape (m, n), dtype=bool
             Boolean mask indicating observed entries (True = observed).
         y : Ignored
             Not used, present for sklearn API consistency.
@@ -362,14 +362,14 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (m, n)
+        X : Array of shape (m, n)
             Incomplete matrix.
-        mask : array-like of shape (m, n)
+        mask : Array of shape (m, n)
             Boolean mask of observed entries.
 
         Returns:
         -------
-        X_filled : array-like of shape (m, n)
+        X_filled : Array of shape (m, n)
             Matrix with missing values imputed.
         """
         # Compute column means from observed values
@@ -390,20 +390,20 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (m, n)
+        X : Array of shape (m, n)
             Target matrix with observed entries.
-        mask : array-like of shape (m, n)
+        mask : Array of shape (m, n)
             Boolean mask of observed entries.
-        U_init : array-like of shape (m, rank)
+        U_init : Array of shape (m, rank)
             Initial left factor.
-        V_init : array-like of shape (n, rank)
+        V_init : Array of shape (n, rank)
             Initial right factor.
 
         Returns:
         -------
-        U : array-like of shape (m, rank)
+        U : Array of shape (m, rank)
             Optimized left factor.
-        V : array-like of shape (n, rank)
+        V : Array of shape (n, rank)
             Optimized right factor.
         n_iter : int
             Number of iterations performed.
@@ -512,15 +512,15 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (m, n)
+        X : Array of shape (m, n)
             An array with the expected shape of the completed matrix. The content
             of this array is ignored; only its shape is used for validation.
-        mask : array-like of shape (m, n) or None
+        mask : Array of shape (m, n) or None
             Ignored. Present for API consistency.
 
         Returns:
         -------
-        X_completed : array-like of shape (m, n)
+        X_completed : Array of shape (m, n)
             The completed matrix reconstruction (U_ @ V_.T) from the fitted factors.
 
         Raises:
@@ -546,16 +546,16 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (m, n)
+        X : Array of shape (m, n)
             Incomplete matrix.
-        mask : array-like of shape (m, n)
+        mask : Array of shape (m, n)
             Boolean mask of observed entries.
         y : Ignored
             Not used, present for sklearn API consistency.
 
         Returns:
         -------
-        X_completed : array-like of shape (m, n)
+        X_completed : Array of shape (m, n)
             Completed matrix.
         """
         self.fit(X, mask, y)
@@ -566,9 +566,9 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (m, n)
+        X : Array of shape (m, n)
             True matrix values.
-        mask : array-like of shape (m, n)
+        mask : Array of shape (m, n)
             Boolean mask of observed entries.
 
         Returns:
@@ -825,7 +825,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, ambient_dim)
+        X : Array of shape (n_samples, ambient_dim)
             Training data lying on the manifold. Each row is a point on the manifold.
             For matrix manifolds (Stiefel, SPD), data should be flattened; this method
             will automatically reshape it to the correct tensor format.
@@ -930,13 +930,38 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
                 )
 
         else:
-            # Fallback to iterative check for other manifolds
-            for i, point in enumerate(X_reshaped):
-                if not self._check_on_manifold(point):
-                    raise ValueError(
-                        f"Data points must lie on the manifold. Point {i} fails validation. "
-                        f"Ensure data is properly projected onto the manifold."
-                    )
+            # Try vectorized validation first for better performance with custom JIT-compatible manifolds
+            vectorized_validation_succeeded = False
+            if hasattr(self.manifold, "validate_point"):
+                try:
+                    # Attempt vectorized validation using vmap
+                    def validate_fn(point):
+                        return self.manifold.validate_point(point, atol=NumericalConstants.VALIDATION_TOLERANCE)
+
+                    validation_results = jax.vmap(validate_fn)(X_reshaped)
+
+                    # Check if all points pass validation
+                    all_valid = jnp.all(validation_results)
+                    if not bool(jax.device_get(all_valid)):
+                        # Find first failing point for error message
+                        failed_index = int(jax.device_get(jnp.argmin(validation_results)))
+                        raise ValueError(
+                            f"Data points must lie on the manifold. Point {failed_index} fails validation. "
+                            f"Ensure data is properly projected onto the manifold."
+                        )
+                    vectorized_validation_succeeded = True
+                except (TypeError, AttributeError, NotImplementedError):
+                    # Vectorized validation not supported, fall back to iterative check
+                    pass
+
+            # Fallback to iterative check if vectorized validation didn't work
+            if not vectorized_validation_succeeded:
+                for i, point in enumerate(X_reshaped):
+                    if not self._check_on_manifold(point):
+                        raise ValueError(
+                            f"Data points must lie on the manifold. Point {i} fails validation. "
+                            f"Ensure data is properly projected onto the manifold."
+                        )
 
         # Step 1: Compute intrinsic mean on the manifold (using tensor-shaped data)
         mean = self._compute_riemannian_mean(X_reshaped)
@@ -987,7 +1012,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        point : array-like
+        point : Array
             Point to check.
         atol : float, default=NumericalConstants.VALIDATION_TOLERANCE
             Absolute tolerance for validation.
@@ -1031,14 +1056,14 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, *point_shape)
+        X : Array of shape (n_samples, *point_shape)
             Data points on the manifold. For vector manifolds like Sphere,
             point_shape is (ambient_dim,). For matrix manifolds like Stiefel(n, p)
             or SPD(n), point_shape is (n, p) or (n, n) respectively.
 
         Returns:
         -------
-        mean : array-like of shape point_shape
+        mean : Array of shape point_shape
             The Riemannian mean on the manifold, in the same tensor format as
             individual data points.
         """
@@ -1129,14 +1154,14 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, ambient_dim)
+        X : Array of shape (n_samples, ambient_dim)
             Data points on the manifold to transform. For matrix manifolds,
             data should be flattened; this method will automatically reshape
             it to the correct tensor format.
 
         Returns:
         -------
-        X_transformed : array-like of shape (n_samples, n_components)
+        X_transformed : Array of shape (n_samples, n_components)
             Projected coordinates in the principal component subspace.
 
         Raises:
@@ -1185,12 +1210,12 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X_transformed : array-like of shape (n_samples, n_components)
+        X_transformed : Array of shape (n_samples, n_components)
             Coordinates in the principal component subspace.
 
         Returns:
         -------
-        X_reconstructed : array-like of shape (n_samples, ambient_dim)
+        X_reconstructed : Array of shape (n_samples, ambient_dim)
             Reconstructed points on the manifold, returned in flattened format
             for consistency with the input format expected by fit and transform.
 
@@ -1251,14 +1276,14 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, ambient_dim)
+        X : Array of shape (n_samples, ambient_dim)
             Training data on the manifold.
         y : Ignored
             Not used, present for sklearn API consistency.
 
         Returns:
         -------
-        X_transformed : array-like of shape (n_samples, n_components)
+        X_transformed : Array of shape (n_samples, n_components)
             Projected coordinates.
         """
         self.fit(X, y)
@@ -1429,7 +1454,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, matrix_dim, matrix_dim) or (n_samples, matrix_dim * matrix_dim)
+        X : Array of shape (n_samples, matrix_dim, matrix_dim) or (n_samples, matrix_dim * matrix_dim)
             SPD matrices. Each X[i] is a symmetric positive definite matrix.
             Can be provided as 3D stacked matrices or 2D flattened matrices.
         y : Ignored
@@ -1529,12 +1554,12 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, matrix_dim, matrix_dim)
+        X : Array of shape (n_samples, matrix_dim, matrix_dim)
             SPD matrices.
 
         Returns:
         -------
-        median : array-like of shape (matrix_dim, matrix_dim)
+        median : Array of shape (matrix_dim, matrix_dim)
             The geometric median on SPD manifold.
         n_iter : int
             Number of iterations performed.
@@ -1646,13 +1671,13 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, matrix_dim, matrix_dim) or (n_samples, matrix_dim * matrix_dim)
+        X : Array of shape (n_samples, matrix_dim, matrix_dim) or (n_samples, matrix_dim * matrix_dim)
             SPD matrices to transform. Can be provided as 3D stacked matrices
             or 2D flattened matrices.
 
         Returns:
         -------
-        X_transformed : array-like of shape (n_samples, matrix_dim, matrix_dim)
+        X_transformed : Array of shape (n_samples, matrix_dim, matrix_dim)
             Tangent vectors at the geometric median.
 
         Raises:
@@ -1701,13 +1726,13 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X_tangent : array-like of shape (n_samples, matrix_dim, matrix_dim) or (n_samples, matrix_dim * matrix_dim)
+        X_tangent : Array of shape (n_samples, matrix_dim, matrix_dim) or (n_samples, matrix_dim * matrix_dim)
             Tangent vectors at the geometric median. Can be provided as 3D stacked matrices
             or 2D flattened matrices.
 
         Returns:
         -------
-        X_spd : array-like of shape (n_samples, matrix_dim, matrix_dim)
+        X_spd : Array of shape (n_samples, matrix_dim, matrix_dim)
             SPD matrices on the manifold.
 
         Raises:
@@ -1754,14 +1779,14 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, matrix_dim, matrix_dim)
+        X : Array of shape (n_samples, matrix_dim, matrix_dim)
             Training SPD matrices.
         y : Ignored
             Not used, present for sklearn API consistency.
 
         Returns:
         -------
-        X_transformed : array-like of shape (n_samples, matrix_dim, matrix_dim)
+        X_transformed : Array of shape (n_samples, matrix_dim, matrix_dim)
             Tangent vectors at the geometric median.
         """
         self.fit(X, y)
@@ -1784,7 +1809,7 @@ class ManifoldConstrainedParameter:
     ----------
     manifold : Manifold
         The Riemannian manifold constraint for this parameter.
-    initial_value : array-like
+    initial_value : Array
         Initial parameter value. Should lie on the manifold or will be projected.
 
     Attributes:
@@ -1822,7 +1847,7 @@ class ManifoldConstrainedParameter:
         ----------
         manifold : Manifold
             Riemannian manifold for this parameter.
-        initial_value : array-like
+        initial_value : Array
             Initial value (will be projected onto manifold).
         metric : str, default="affine_invariant"
             Riemannian metric to use for SPD manifolds. Options:
@@ -1850,7 +1875,7 @@ class ManifoldConstrainedParameter:
 
         Returns:
         -------
-        value : array-like
+        value : Array
             Current value on the manifold.
         """
         return self._value
@@ -1861,7 +1886,7 @@ class ManifoldConstrainedParameter:
 
         Parameters
         ----------
-        new_value : array-like
+        new_value : Array
             New value (will be projected onto manifold).
         """
         self._value = self.project(new_value)
@@ -1871,12 +1896,12 @@ class ManifoldConstrainedParameter:
 
         Parameters
         ----------
-        point : array-like
+        point : Array
             Point to project (may be off-manifold).
 
         Returns:
         -------
-        projected : array-like
+        projected : Array
             Projected point on the manifold.
         """
         return _project_onto_manifold(self.manifold, point)
@@ -1888,14 +1913,14 @@ class ManifoldConstrainedParameter:
 
         Parameters
         ----------
-        point : array-like
+        point : Array
             Point on the manifold.
-        euclidean_grad : array-like
+        euclidean_grad : Array
             Euclidean gradient.
 
         Returns:
         -------
-        riemannian_grad : array-like
+        riemannian_grad : Array
             Riemannian gradient (tangent vector).
         """
         # Check if manifold has egrad2rgrad method
@@ -1911,7 +1936,7 @@ class ManifoldConstrainedParameter:
             elif self.metric == "log_euclidean":
                 # Log-Euclidean Riemannian gradient: X @ sym(X^-1 @ G_e)
                 # Using solve for numerical stability instead of matrix inversion.
-                x_inv_grad = jax.linalg.solve(point, euclidean_grad, assume_a="pos")
+                x_inv_grad = jax.scipy.linalg.solve(point, euclidean_grad, assume_a="pos")
                 sym_part = (x_inv_grad + x_inv_grad.T) / 2.0
                 return point @ sym_part
 
@@ -1934,14 +1959,14 @@ class ManifoldConstrainedParameter:
 
         Parameters
         ----------
-        gradient : array-like
+        gradient : Array
             Euclidean gradient from backpropagation.
         learning_rate : float
             Step size for the update.
 
         Returns:
         -------
-        updated_value : array-like
+        updated_value : Array
             Updated parameter value on the manifold.
 
         Raises:
