@@ -962,6 +962,13 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
                     vectorized_validation_succeeded = True
                 except (TypeError, AttributeError, NotImplementedError):
                     # Vectorized validation not supported, fall back to iterative check
+                    warnings.warn(
+                        f"Vectorized validation for manifold {self.manifold.__class__.__name__} failed. "
+                        "Falling back to a slower iterative validation. For better performance, "
+                        "ensure the manifold's `validate_point` method is compatible with `jax.vmap`.",
+                        UserWarning,
+                        stacklevel=3,
+                    )
                     pass
 
             # Fallback to iterative check if vectorized validation didn't work
