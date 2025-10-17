@@ -1948,11 +1948,10 @@ class ManifoldConstrainedParameter:
                 sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
                 return point @ sym_grad @ point
             elif self.metric == "log_euclidean":
-                # Log-Euclidean Riemannian gradient: X @ sym(X^-1 @ G_e)
-                # Using solve for numerical stability instead of matrix inversion.
-                x_inv_grad = jax.scipy.linalg.solve(point, euclidean_grad, assume_a="pos")
-                sym_part = (x_inv_grad + x_inv_grad.T) / 2.0
-                return point @ sym_part
+                # For the Log-Euclidean metric, the optimization step is performed in the log-domain.
+                # The gradient of the cost function w.r.t. L=logm(X) is required.
+                # A common first-order approximation is to use the symmetric part of the Euclidean gradient.
+                return (euclidean_grad + euclidean_grad.T) / 2.0
 
         # Use proj() to project onto tangent space for other cases
         if hasattr(self.manifold, "proj"):
