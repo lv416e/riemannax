@@ -146,7 +146,7 @@ class TestMatrixCompletionTransform:
         # Fit and transform
         mc = MatrixCompletion(rank=true_rank, max_iter=200, learning_rate=0.1)
         mc.fit(X_incomplete, mask)
-        X_completed = mc.transform(X_incomplete, mask)
+        X_completed = mc.transform(X_incomplete)
 
         assert X_completed.shape == X_incomplete.shape
         # Completed matrix should be close to ground truth on observed entries
@@ -161,7 +161,7 @@ class TestMatrixCompletionTransform:
         mc = MatrixCompletion(rank=1)
 
         with pytest.raises(ValueError, match="not fitted"):
-            mc.transform(X, mask)
+            mc.transform(X)
 
     def test_transform_validates_shape_consistency(self):
         """Test transform validates input shapes match fitted dimensions."""
@@ -174,10 +174,9 @@ class TestMatrixCompletionTransform:
 
         # Try to transform different size
         X_transform = jnp.ones((6, 4))  # Different m
-        mask_transform = jnp.ones((6, 4), dtype=bool)
 
         with pytest.raises(ValueError, match="Shape mismatch"):
-            mc.transform(X_transform, mask_transform)
+            mc.transform(X_transform)
 
 
 class TestMatrixCompletionFitTransform:
@@ -203,7 +202,7 @@ class TestMatrixCompletionFitTransform:
         # Method 2: fit then transform
         mc2 = MatrixCompletion(rank=true_rank, max_iter=50)
         mc2.fit(X_incomplete, mask)
-        X_completed_2 = mc2.transform(X_incomplete, mask)
+        X_completed_2 = mc2.transform(X_incomplete)
 
         # Results should be identical (algorithm is deterministic)
         assert jnp.allclose(X_completed_1, X_completed_2, atol=1e-6)
@@ -263,7 +262,7 @@ class TestMatrixCompletionConvergence:
 
         mc = MatrixCompletion(rank=true_rank, max_iter=300, tolerance=1e-6, learning_rate=0.1)
         mc.fit(X_incomplete, mask)
-        X_completed = mc.transform(X_incomplete, mask)
+        X_completed = mc.transform(X_incomplete)
 
         # Should recover ground truth on observed entries accurately
         observed_error = jnp.sqrt(jnp.mean((X_completed[mask] - X_complete[mask]) ** 2))
@@ -287,7 +286,7 @@ class TestMatrixCompletionConvergence:
 
         mc = MatrixCompletion(rank=true_rank, max_iter=100)
         mc.fit(X_incomplete, mask)
-        X_completed = mc.transform(X_incomplete, mask)
+        X_completed = mc.transform(X_incomplete)
 
         # Should still provide reasonable reconstruction
         assert X_completed.shape == (m, n)
