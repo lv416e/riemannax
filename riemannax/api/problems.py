@@ -532,7 +532,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
         # Return final state if no issues
         return final_state.U, final_state.V, n_iter_int, float(jax.device_get(final_state.error))
 
-    def transform(self, X: Array, mask: Array | None = None) -> Array:
+    def transform(self, X: Array) -> Array:
         """Return the completed matrix from the fitted low-rank factors.
 
         Note: This method does not transform the input `X`. It returns the
@@ -549,8 +549,6 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
         X : Array of shape (m, n)
             An array with the expected shape of the completed matrix. The content
             of this array is ignored; only its shape is used for validation.
-        mask : Array of shape (m, n) or None
-            Ignored. Present for API consistency.
 
         Returns:
         -------
@@ -593,7 +591,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             Completed matrix.
         """
         self.fit(X, mask, y)
-        return self.transform(X, mask)
+        return self.transform(X)
 
     def reconstruction_error(self, X: Array, mask: Array) -> float:
         """Compute reconstruction error on observed entries.
