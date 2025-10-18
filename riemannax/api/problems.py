@@ -79,7 +79,9 @@ def _project_onto_manifold(manifold: Manifold, point: Array) -> Array:
         symmetric = (point + point.T) / 2.0
         eigenvalues, eigenvectors = jnp.linalg.eigh(symmetric)
         eigenvalues = jnp.maximum(eigenvalues, NumericalConstants.MEDIUM_PRECISION_EPSILON)  # Ensure positive
-        return (eigenvectors * eigenvalues) @ eigenvectors.T
+        proj = (eigenvectors * eigenvalues) @ eigenvectors.T
+        # Ensure exact symmetry after reconstruction (numerical round-off safeguard)
+        return (proj + proj.T) / 2.0
 
     elif isinstance(manifold, Sphere):
         # For Sphere: normalize to unit norm with zero-norm safeguard
@@ -146,8 +148,8 @@ class _MatrixCompletionOptState(NamedTuple):
         Previous right factor matrix.
     error_prev : Array
         Previous reconstruction error.
-    iteration : int
-        Current iteration number.
+    iteration : Array
+        Current iteration number (JAX scalar for JIT compatibility).
     converged : Array
         Convergence flag (JAX boolean).
     """
@@ -158,7 +160,7 @@ class _MatrixCompletionOptState(NamedTuple):
     U_prev: Array
     V_prev: Array
     error_prev: Array
-    iteration: int
+    iteration: Array
     converged: Array
 
 
@@ -518,7 +520,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             U_prev=U_init,
             V_prev=V_init,
             error_prev=initial_error,
-            iteration=0,
+            iteration=jnp.array(0, dtype=jnp.int32),
             converged=jnp.array(False),
         )
 
@@ -644,15 +646,15 @@ class _ManifoldPCAMeanState(NamedTuple):
         Current Riemannian mean estimate.
     mean_prev : Array
         Previous Riemannian mean estimate.
-    iteration : int
-        Current iteration number.
+    iteration : Array
+        Current iteration number (JAX scalar for JIT compatibility).
     converged : Array
         Convergence flag (JAX boolean).
     """
 
     mean: Array
     mean_prev: Array
-    iteration: int
+    iteration: Array
     converged: Array
 
 
@@ -1152,7 +1154,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         initial_state = _ManifoldPCAMeanState(
             mean=mean_init,
             mean_prev=mean_init,
-            iteration=0,
+            iteration=jnp.array(0, dtype=jnp.int32),
             converged=jnp.array(False),
         )
 
@@ -1326,15 +1328,15 @@ class _RobustCovarianceMedianState(NamedTuple):
         Current geometric median estimate.
     median_prev : Array
         Previous geometric median estimate.
-    iteration : int
-        Current iteration number.
+    iteration : Array
+        Current iteration number (JAX scalar for JIT compatibility).
     converged : Array
         Convergence flag (JAX boolean).
     """
 
     median: Array
     median_prev: Array
-    iteration: int
+    iteration: Array
     converged: Array
 
 
@@ -1699,7 +1701,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         initial_state = _RobustCovarianceMedianState(
             median=median_init,
             median_prev=median_init,
-            iteration=0,
+            iteration=jnp.array(0, dtype=jnp.int32),
             converged=jnp.array(False),
         )
 
@@ -1968,64 +1970,58 @@ class ManifoldConstrainedParameter:
                 # 2. Symmetrize in the log-domain
                 # 3. Push it back to the manifold using Dexp_{log X}
                 # Reference: "Optimization on manifolds: methods and applications" by Boumal.
-                def _dlog_log_euclidean(p: Array, tangent_vector: Array) -> Array:
+
+                # Compute eigendecomposition once (reused by both Dlog and Dexp)
+                eigvals, eigvecs = jnp.linalg.eigh(point)
+                eigvals = jnp.maximum(eigvals, NumericalConstants.HIGH_PRECISION_EPSILON)
+                log_eigvals = jnp.log(eigvals)
+
+                # Compute pairwise differences once
+                diff = eigvals[:, None] - eigvals[None, :]
+                log_diff = log_eigvals[:, None] - log_eigvals[None, :]
+
+                def _dlog_log_euclidean(tangent_vector: Array) -> Array:
                     """Compute Dlog_P[tangent_vector] using the Loewner matrix formula.
 
                     Uses the spectral formula for the differential of the matrix logarithm.
                     The coefficients are (log λ_i - log λ_j) / (λ_i - λ_j) with diagonal 1/λ_i.
                     """
-                    eigenvals, eigenvecs = jnp.linalg.eigh(p)
-                    eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
-                    log_eigenvals = jnp.log(eigenvals)
-
-                    # Compute pairwise differences for the Loewner formula
-                    diff = eigenvals[:, None] - eigenvals[None, :]
-                    log_diff = log_eigenvals[:, None] - log_eigenvals[None, :]
-
                     # Loewner ratio: φ(λ_i, λ_j) = (log λ_i - log λ_j) / (λ_i - λ_j)
                     # When λ_i ≈ λ_j, use L'Hôpital's rule: lim_{x→y} (log x - log y)/(x - y) = 1/x
                     phi = jnp.where(
                         jnp.abs(diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
                         log_diff / diff,
-                        1.0 / eigenvals[:, None],
+                        1.0 / eigvals[:, None],
                     )
 
                     # Transform tangent vector to eigenbasis, apply φ element-wise, transform back
-                    tangent_eig = eigenvecs.T @ tangent_vector @ eigenvecs
-                    return eigenvecs @ (phi * tangent_eig) @ eigenvecs.T
+                    tangent_eig = eigvecs.T @ tangent_vector @ eigvecs
+                    return eigvecs @ (phi * tangent_eig) @ eigvecs.T
 
-                def _dexp_log_euclidean(p: Array, tangent_vector: Array) -> Array:
+                def _dexp_log_euclidean(tangent_vector: Array) -> Array:
                     """Compute Dexp_{log(P)}[tangent_vector] exactly using the spectral formula.
 
                     Uses the closed-form differential of the matrix exponential for SPD matrices.
                     This is exact (no quadrature error) and more efficient than numerical integration.
                     """
-                    eigenvals, eigenvecs = jnp.linalg.eigh(p)
-                    eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
-                    log_eigenvals = jnp.log(eigenvals)
-
-                    # Compute pairwise differences for the spectral formula
-                    diff = eigenvals[:, None] - eigenvals[None, :]
-                    log_diff = log_eigenvals[:, None] - log_eigenvals[None, :]
-
                     # Spectral formula: φ(λ_i, λ_j) = (λ_i - λ_j) / (log λ_i - log λ_j)
                     # When λ_i ≈ λ_j, use L'Hôpital's rule: lim_{x→y} (x-y)/(log x - log y) = x
                     phi = jnp.where(
                         jnp.abs(diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
                         diff / log_diff,
-                        eigenvals[:, None],
+                        eigvals[:, None],
                     )
 
                     # Transform tangent vector to eigenbasis, apply φ element-wise, transform back
-                    tangent_eig = eigenvecs.T @ tangent_vector @ eigenvecs
-                    return eigenvecs @ (phi * tangent_eig) @ eigenvecs.T
+                    tangent_eig = eigvecs.T @ tangent_vector @ eigvecs
+                    return eigvecs @ (phi * tangent_eig) @ eigvecs.T
 
                 # Step 1: Pull the Euclidean gradient into the log-domain using Dlog
-                log_grad = _dlog_log_euclidean(point, euclidean_grad)
+                log_grad = _dlog_log_euclidean(euclidean_grad)
                 # Step 2: Symmetrize in the log-domain
                 log_grad = (log_grad + log_grad.T) / 2.0
                 # Step 3: Push back to the manifold using Dexp
-                return _dexp_log_euclidean(point, log_grad)
+                return _dexp_log_euclidean(log_grad)
 
         # Use proj() to project onto tangent space for other cases
         if hasattr(self.manifold, "proj"):
