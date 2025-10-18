@@ -1963,11 +1963,9 @@ class ManifoldConstrainedParameter:
                 sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
                 return point @ sym_grad @ point
             elif self.metric == "log_euclidean":
-                # For the Log-Euclidean metric, the Riemannian gradient is Dexp[Dexp[grad_E]].
-                # We define a helper for the Dexp operator and apply it twice.
+                # For the Log-Euclidean metric, pull the Euclidean gradient into the log-domain,
+                # project to the symmetric log-space tangent, then push it back onto the manifold.
                 # Reference: "Optimization on manifolds: methods and applications" by Boumal.
-                sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
-
                 def _dexp_log_euclidean(p: Array, tangent_vector: Array) -> Array:
                     """Computes Dexp_log(P)[tangent_vector] using numerical quadrature."""
                     # Use Gauss-Legendre quadrature with 3 points for balance between accuracy and efficiency
@@ -1989,9 +1987,11 @@ class ManifoldConstrainedParameter:
                     contributions = jax.vmap(_compute_contribution)(quad_points)
                     return jnp.sum(contributions * quad_weights[:, None, None], axis=0)
 
-                # The Riemannian gradient requires applying the Dexp operator twice.
-                dexp_grad = _dexp_log_euclidean(point, sym_grad)
-                return _dexp_log_euclidean(point, dexp_grad)
+                # Pull Euclidean gradient into the log domain, project to the symmetric
+                # log-space tangent, then push it back onto the manifold.
+                log_grad = _dexp_log_euclidean(point, euclidean_grad)
+                log_grad = (log_grad + log_grad.T) / 2.0
+                return _dexp_log_euclidean(point, log_grad)
 
         # Use proj() to project onto tangent space for other cases
         if hasattr(self.manifold, "proj"):
