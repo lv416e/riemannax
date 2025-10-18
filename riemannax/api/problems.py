@@ -843,7 +843,12 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         assert self.manifold is not None, "Manifold must be set"
 
         if isinstance(self.manifold, Sphere):
-            # Sphere(n) has points in R^(n+1), so ambient_dim = n+1
+            # Sphere(n) has ambient dimension n+1
+            expected = self.manifold.ambient_dimension
+            if ambient_dim != expected:
+                raise ValueError(
+                    f"For Sphere(n={self.manifold.dimension}), expected ambient_dim={expected}, got {ambient_dim}"
+                )
             return (ambient_dim,)
 
         elif isinstance(self.manifold, Stiefel):
