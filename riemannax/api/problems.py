@@ -173,7 +173,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
     a common and effective approach that optimizes in the Euclidean factor space.
 
     The objective function is:
-        minimize ||P_Ω(X - UV^T)||_F^2
+        minimize (1/|Ω|) * ||P_Ω(X - UV^T)||_F^2
     where Ω is the set of observed entries indicated by the mask.
 
     Parameters
@@ -475,9 +475,10 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             # Compute residual for gradient calculation
             residual = _compute_residual(state.U, state.V)
 
-            # Compute Euclidean gradients
-            grad_U = 2.0 * (residual @ state.V)  # Shape: (m, rank)
-            grad_V = 2.0 * (residual.T @ state.U)  # Shape: (n, rank)
+            # Compute Euclidean gradients (scaled by 1/n_observed for MSE objective)
+            n_observed = jnp.maximum(jnp.sum(mask), 1.0)
+            grad_U = (2.0 / n_observed) * (residual @ state.V)  # Shape: (m, rank)
+            grad_V = (2.0 / n_observed) * (residual.T @ state.U)  # Shape: (n, rank)
 
             # Compute gradient norms for convergence check
             grad_norm = jnp.sqrt(jnp.sum(grad_U**2) + jnp.sum(grad_V**2))
