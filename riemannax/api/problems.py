@@ -1963,49 +1963,35 @@ class ManifoldConstrainedParameter:
                 sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
                 return point @ sym_grad @ point
             elif self.metric == "log_euclidean":
-                # For the Log-Euclidean metric, we need to use the Fr\u00e9chet derivative of exp.
-                # The correct Riemannian gradient is: grad_P f = Dexp_S[G_S]
-                # where S = log(P), G_S is the gradient in log-domain.
-                #
-                # Implementation: Dexp_S[Z] = \u222b_0^1 P^{1-t} Z P^{t} dt
-                # For practical purposes, we approximate using a few quadrature points.
-                # Reference: Arsigny et al. (2006), "Log-Euclidean metrics"
-
-                # First symmetrize the Euclidean gradient (it's in the tangent space of SPD)
+                # For the Log-Euclidean metric, the Riemannian gradient is Dexp[Dexp[grad_E]].
+                # We define a helper for the Dexp operator and apply it twice.
+                # Reference: "Optimization on manifolds: methods and applications" by Boumal.
                 sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
 
-                # Compute the push-forward using numerical quadrature
-                # Use Gauss-Legendre quadrature with 3 points for balance between accuracy and efficiency
-                # Quadrature points and weights for [0,1]
-                quad_points = jnp.array([0.1127016653792583, 0.5, 0.8872983346207417])
-                quad_weights = jnp.array([0.2777777777777778, 0.4444444444444444, 0.2777777777777778])
+                def _dexp_log_euclidean(p: Array, tangent_vector: Array) -> Array:
+                    """Computes Dexp_log(P)[tangent_vector] using numerical quadrature."""
+                    # Use Gauss-Legendre quadrature with 3 points for balance between accuracy and efficiency
+                    quad_points = jnp.array([0.1127016653792583, 0.5, 0.8872983346207417])
+                    quad_weights = jnp.array([0.2777777777777778, 0.4444444444444444, 0.2777777777777778])
 
-                # Compute P^t for each quadrature point
-                # We use eigendecomposition: P = Q \u039b Q^T, then P^t = Q \u039b^t Q^T
-                eigenvals, eigenvecs = jnp.linalg.eigh(point)
-                eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
+                    # We use eigendecomposition: P = Q Λ Q^T, then P^t = Q Λ^t Q^T
+                    eigenvals, eigenvecs = jnp.linalg.eigh(p)
+                    eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
 
-                # Numerical integration of P^{1-t} G_S P^{t}
-                # Vectorize computation over quadrature points for JIT efficiency
-                def _compute_contribution(t: Array) -> Array:
-                    """Compute P^{1-t} G_S P^{t} for a single quadrature point."""
-                    # Compute P^{1-t}
-                    pow_1_minus_t = jnp.power(eigenvals, 1.0 - t)
-                    P_1_minus_t = eigenvecs @ jnp.diag(pow_1_minus_t) @ eigenvecs.T
+                    def _compute_contribution(t: Array) -> Array:
+                        """Compute P^{1-t} V P^{t} for a single quadrature point."""
+                        pow_1_minus_t = jnp.power(eigenvals, 1.0 - t)
+                        P_1_minus_t = eigenvecs @ jnp.diag(pow_1_minus_t) @ eigenvecs.T
+                        pow_t = jnp.power(eigenvals, t)
+                        P_t = eigenvecs @ jnp.diag(pow_t) @ eigenvecs.T
+                        return P_1_minus_t @ tangent_vector @ P_t
 
-                    # Compute P^{t}
-                    pow_t = jnp.power(eigenvals, t)
-                    P_t = eigenvecs @ jnp.diag(pow_t) @ eigenvecs.T
+                    contributions = jax.vmap(_compute_contribution)(quad_points)
+                    return jnp.sum(contributions * quad_weights[:, None, None], axis=0)
 
-                    return P_1_minus_t @ sym_grad @ P_t
-
-                # Vectorize over quadrature points
-                contributions = jax.vmap(_compute_contribution)(quad_points)
-
-                # Compute weighted sum
-                result = jnp.sum(contributions * quad_weights[:, None, None], axis=0)
-
-                return result
+                # The Riemannian gradient requires applying the Dexp operator twice.
+                dexp_grad = _dexp_log_euclidean(point, sym_grad)
+                return _dexp_log_euclidean(point, dexp_grad)
 
         # Use proj() to project onto tangent space for other cases
         if hasattr(self.manifold, "proj"):
