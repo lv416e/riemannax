@@ -1963,9 +1963,37 @@ class ManifoldConstrainedParameter:
                 sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
                 return point @ sym_grad @ point
             elif self.metric == "log_euclidean":
-                # For the Log-Euclidean metric, pull the Euclidean gradient into the log-domain,
-                # project to the symmetric log-space tangent, then push it back onto the manifold.
+                # For the Log-Euclidean metric, we need to:
+                # 1. Pull the Euclidean gradient into the log-domain using Dlog_X
+                # 2. Symmetrize in the log-domain
+                # 3. Push it back to the manifold using Dexp_{log X}
                 # Reference: "Optimization on manifolds: methods and applications" by Boumal.
+                def _dlog_log_euclidean(p: Array, tangent_vector: Array) -> Array:
+                    """Compute Dlog_P[tangent_vector] using the Loewner matrix formula.
+
+                    Uses the spectral formula for the differential of the matrix logarithm.
+                    The coefficients are (log λ_i - log λ_j) / (λ_i - λ_j) with diagonal 1/λ_i.
+                    """
+                    eigenvals, eigenvecs = jnp.linalg.eigh(p)
+                    eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
+                    log_eigenvals = jnp.log(eigenvals)
+
+                    # Compute pairwise differences for the Loewner formula
+                    diff = eigenvals[:, None] - eigenvals[None, :]
+                    log_diff = log_eigenvals[:, None] - log_eigenvals[None, :]
+
+                    # Loewner ratio: φ(λ_i, λ_j) = (log λ_i - log λ_j) / (λ_i - λ_j)
+                    # When λ_i ≈ λ_j, use L'Hôpital's rule: lim_{x→y} (log x - log y)/(x - y) = 1/x
+                    phi = jnp.where(
+                        jnp.abs(diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
+                        log_diff / diff,
+                        1.0 / eigenvals[:, None],
+                    )
+
+                    # Transform tangent vector to eigenbasis, apply φ element-wise, transform back
+                    tangent_eig = eigenvecs.T @ tangent_vector @ eigenvecs
+                    return eigenvecs @ (phi * tangent_eig) @ eigenvecs.T
+
                 def _dexp_log_euclidean(p: Array, tangent_vector: Array) -> Array:
                     """Compute Dexp_{log(P)}[tangent_vector] exactly using the spectral formula.
 
@@ -1992,10 +2020,11 @@ class ManifoldConstrainedParameter:
                     tangent_eig = eigenvecs.T @ tangent_vector @ eigenvecs
                     return eigenvecs @ (phi * tangent_eig) @ eigenvecs.T
 
-                # Pull Euclidean gradient into the log domain, project to the symmetric
-                # log-space tangent, then push it back onto the manifold.
-                log_grad = _dexp_log_euclidean(point, euclidean_grad)
+                # Step 1: Pull the Euclidean gradient into the log-domain using Dlog
+                log_grad = _dlog_log_euclidean(point, euclidean_grad)
+                # Step 2: Symmetrize in the log-domain
                 log_grad = (log_grad + log_grad.T) / 2.0
+                # Step 3: Push back to the manifold using Dexp
                 return _dexp_log_euclidean(point, log_grad)
 
         # Use proj() to project onto tangent space for other cases
