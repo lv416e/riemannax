@@ -193,9 +193,9 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
     Attributes:
     ----------
-    U_ : ndarray of shape (m, rank)
+    U_ : Array of shape (m, rank)
         Left factor of the low-rank decomposition after fitting.
-    V_ : ndarray of shape (n, rank)
+    V_ : Array of shape (n, rank)
         Right factor of the low-rank decomposition after fitting.
     n_iter_ : int
         Actual number of iterations performed during fitting.
@@ -693,14 +693,14 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
     Attributes:
     ----------
-    mean_ : ndarray of shape point_shape
+    mean_ : Array of shape point_shape
         The intrinsic mean on the manifold after fitting (vector for Sphere;
         matrix for Stiefel/SPD, e.g., (n, p) or (n, n)).
-    components_ : ndarray of shape (n_components, ambient_dim)
+    components_ : Array of shape (n_components, ambient_dim)
         Principal geodesic directions in the tangent space at the mean.
-    explained_variance_ : ndarray of shape (n_components,)
+    explained_variance_ : Array of shape (n_components,)
         Variance explained by each principal component, in descending order.
-    explained_variance_ratio_ : ndarray of shape (n_components,)
+    explained_variance_ratio_ : Array of shape (n_components,)
         Percentage of variance explained by each component.
 
     Examples:
@@ -1373,7 +1373,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
 
     Attributes:
     ----------
-    geometric_median_ : ndarray of shape (matrix_dim, matrix_dim)
+    geometric_median_ : Array of shape (matrix_dim, matrix_dim)
         The geometric median of SPD matrices after fitting.
     n_iter_ : int
         Actual number of iterations performed during fitting.
@@ -1856,7 +1856,7 @@ class ManifoldConstrainedParameter:
     ----------
     manifold : Manifold
         The Riemannian manifold for this parameter.
-    value : ndarray
+    value : Array
         Current parameter value on the manifold.
 
     Examples:
