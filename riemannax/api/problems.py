@@ -1967,25 +1967,30 @@ class ManifoldConstrainedParameter:
                 # project to the symmetric log-space tangent, then push it back onto the manifold.
                 # Reference: "Optimization on manifolds: methods and applications" by Boumal.
                 def _dexp_log_euclidean(p: Array, tangent_vector: Array) -> Array:
-                    """Computes Dexp_log(P)[tangent_vector] using numerical quadrature."""
-                    # Use Gauss-Legendre quadrature with 3 points for balance between accuracy and efficiency
-                    quad_points = jnp.array([0.1127016653792583, 0.5, 0.8872983346207417])
-                    quad_weights = jnp.array([0.2777777777777778, 0.4444444444444444, 0.2777777777777778])
+                    """Compute Dexp_{log(P)}[tangent_vector] exactly using the spectral formula.
 
-                    # We use eigendecomposition: P = Q Λ Q^T, then P^t = Q Λ^t Q^T
+                    Uses the closed-form differential of the matrix exponential for SPD matrices.
+                    This is exact (no quadrature error) and more efficient than numerical integration.
+                    """
                     eigenvals, eigenvecs = jnp.linalg.eigh(p)
                     eigenvals = jnp.maximum(eigenvals, NumericalConstants.HIGH_PRECISION_EPSILON)
+                    log_eigenvals = jnp.log(eigenvals)
 
-                    def _compute_contribution(t: Array) -> Array:
-                        """Compute P^{1-t} V P^{t} for a single quadrature point."""
-                        pow_1_minus_t = jnp.power(eigenvals, 1.0 - t)
-                        P_1_minus_t = eigenvecs @ jnp.diag(pow_1_minus_t) @ eigenvecs.T
-                        pow_t = jnp.power(eigenvals, t)
-                        P_t = eigenvecs @ jnp.diag(pow_t) @ eigenvecs.T
-                        return P_1_minus_t @ tangent_vector @ P_t
+                    # Compute pairwise differences for the spectral formula
+                    diff = eigenvals[:, None] - eigenvals[None, :]
+                    log_diff = log_eigenvals[:, None] - log_eigenvals[None, :]
 
-                    contributions = jax.vmap(_compute_contribution)(quad_points)
-                    return jnp.sum(contributions * quad_weights[:, None, None], axis=0)
+                    # Spectral formula: φ(λ_i, λ_j) = (λ_i - λ_j) / (log λ_i - log λ_j)
+                    # When λ_i ≈ λ_j, use L'Hôpital's rule: lim_{x→y} (x-y)/(log x - log y) = x
+                    phi = jnp.where(
+                        jnp.abs(diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
+                        diff / log_diff,
+                        eigenvals[:, None],
+                    )
+
+                    # Transform tangent vector to eigenbasis, apply φ element-wise, transform back
+                    tangent_eig = eigenvecs.T @ tangent_vector @ eigenvecs
+                    return eigenvecs @ (phi * tangent_eig) @ eigenvecs.T
 
                 # Pull Euclidean gradient into the log domain, project to the symmetric
                 # log-space tangent, then push it back onto the manifold.
