@@ -361,6 +361,10 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
         if X.shape != mask.shape:
             raise ValueError(f"mask must have the same shape as X. Got X.shape={X.shape}, mask.shape={mask.shape}")
 
+        # Enforce boolean mask
+        if mask.dtype != jnp.bool_:
+            raise ValueError(f"mask must be boolean (dtype=bool), got dtype={mask.dtype}")
+
         m, n = X.shape
         min_dim = min(m, n)
 
