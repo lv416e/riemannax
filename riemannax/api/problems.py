@@ -66,13 +66,9 @@ def _project_onto_manifold(manifold: Manifold, point: Array) -> Array:
     """
     # Manifold-specific projections (explicit implementations only)
     if isinstance(manifold, Stiefel):
-        # For Stiefel: use QR decomposition to get orthonormal columns
-        Q, R = jnp.linalg.qr(point)
-        # Ensure positive diagonal elements for uniqueness
-        signs = jnp.sign(jnp.diag(R))
-        signs = jnp.where(signs == 0, 1, signs)
-        # Scale columns directly; avoids forming diag and matmul
-        return Q * signs
+        # For Stiefel: use SVD-based polar decomposition (true projection)
+        U, _, Vt = jnp.linalg.svd(point, full_matrices=False)
+        return U @ Vt
 
     elif isinstance(manifold, SymmetricPositiveDefinite):
         # For SPD: symmetrize and correct eigenvalues
@@ -2068,7 +2064,9 @@ class ManifoldConstrainedParameter:
             and hasattr(self.manifold, "log_euclidean_exp")
         ):
             # riemannian_grad is already in log-domain for log_euclidean metric
-            return self.manifold.log_euclidean_exp(self._value, tangent_step)
+            updated = self.manifold.log_euclidean_exp(self._value, tangent_step)
+            self._value = updated
+            return updated
 
         # Use a retraction if available; otherwise fall back to exp or project
         updated = None
@@ -2087,4 +2085,5 @@ class ManifoldConstrainedParameter:
         if updated is None:
             updated = self.project(self._value + tangent_step)
 
+        self._value = updated
         return updated
