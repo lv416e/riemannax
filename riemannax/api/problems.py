@@ -292,6 +292,10 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
             raise ValueError(f"learning_rate must be positive, got {self.learning_rate}")
         if self.max_grad_norm is not None and self.max_grad_norm <= 0:
             raise ValueError(f"max_grad_norm must be positive, got {self.max_grad_norm}")
+        if self.max_iter < 0:
+            raise ValueError(f"max_iter must be non-negative, got {self.max_iter}")
+        if self.tolerance <= 0:
+            raise ValueError(f"tolerance must be positive, got {self.tolerance}")
 
     def set_params(self, **params: Any) -> "MatrixCompletion":
         """Set the parameters of this estimator.
@@ -787,6 +791,10 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
             raise ValueError(f"n_components must be positive, got {self.n_components}")
         if not (0 < self.mean_step_size <= 1):
             raise ValueError(f"mean_step_size must be in (0, 1], got {self.mean_step_size}")
+        if self.max_iter < 0:
+            raise ValueError(f"max_iter must be non-negative, got {self.max_iter}")
+        if self.tolerance <= 0:
+            raise ValueError(f"tolerance must be positive, got {self.tolerance}")
 
     def set_params(self, **params: Any) -> "ManifoldPCA":
         """Set the parameters of this estimator.
@@ -1456,6 +1464,10 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
         """
         if self.metric not in ["affine_invariant", "log_euclidean"]:
             raise ValueError(f"metric must be 'affine_invariant' or 'log_euclidean', got {self.metric}")
+        if self.max_iter < 0:
+            raise ValueError(f"max_iter must be non-negative, got {self.max_iter}")
+        if self.tolerance <= 0:
+            raise ValueError(f"tolerance must be positive, got {self.tolerance}")
 
     def set_params(self, **params: Any) -> "RobustCovarianceEstimation":
         """Set the parameters of this estimator.
@@ -1976,14 +1988,14 @@ class ManifoldConstrainedParameter:
                 sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
                 return point @ sym_grad @ point
             elif self.metric == "log_euclidean":
-                # For the Log-Euclidean metric, we need to:
-                # 1. Pull the Euclidean gradient into the log-domain using Dlog_X
-                # 2. Symmetrize in the log-domain
-                # 3. Return the log-domain gradient (not pushed back to manifold)
-                # The log-domain gradient will be used with log_euclidean_exp in update()
+                # For the Log-Euclidean metric, the Riemannian gradient G must satisfy:
+                # ⟨Dlog_X[G], Dlog_X[H]⟩ = ⟨E, H⟩ for all tangent H
+                # Solving this gives: Dlog_X[G] = Dexp_{log X}(E)
+                # We must push the ambient gradient E forward with Dexp, not Dlog.
+                # The result is a log-domain gradient used with log_euclidean_exp in update().
                 # Reference: "Optimization on manifolds: methods and applications" by Boumal.
 
-                # Compute eigendecomposition for Dlog
+                # Compute eigendecomposition for Dexp
                 eigvals, eigvecs = jnp.linalg.eigh(point)
                 eigvals = jnp.maximum(eigvals, NumericalConstants.HIGH_PRECISION_EPSILON)
                 log_eigvals = jnp.log(eigvals)
@@ -1992,17 +2004,17 @@ class ManifoldConstrainedParameter:
                 diff = eigvals[:, None] - eigvals[None, :]
                 log_diff = log_eigvals[:, None] - log_eigvals[None, :]
 
-                # Loewner ratio: φ(λ_i, λ_j) = (log λ_i - log λ_j) / (λ_i - λ_j)
-                # When λ_i ≈ λ_j, use L'Hôpital's rule: lim_{x→y} (log x - log y)/(x - y) = 1/x
-                phi = jnp.where(
-                    jnp.abs(diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
-                    log_diff / diff,
-                    1.0 / eigvals[:, None],
+                # Spectral coefficient for Dexp: ψ(λ_i, λ_j) = (λ_i - λ_j) / (log λ_i - log λ_j)
+                # When log λ_i ≈ log λ_j, use L'Hôpital's rule: lim_{log x→log y} (x - y)/(log x - log y) = x
+                psi = jnp.where(
+                    jnp.abs(log_diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
+                    diff / log_diff,
+                    eigvals[:, None],
                 )
 
-                # Transform tangent vector to eigenbasis, apply φ element-wise, transform back
+                # Transform ambient gradient to eigenbasis, apply ψ element-wise, transform back
                 tangent_eig = eigvecs.T @ euclidean_grad @ eigvecs
-                log_grad = eigvecs @ (phi * tangent_eig) @ eigvecs.T
+                log_grad = eigvecs @ (psi * tangent_eig) @ eigvecs.T
 
                 # Symmetrize in the log-domain
                 log_grad = (log_grad + log_grad.T) / 2.0
@@ -2064,9 +2076,7 @@ class ManifoldConstrainedParameter:
             and hasattr(self.manifold, "log_euclidean_exp")
         ):
             # riemannian_grad is already in log-domain for log_euclidean metric
-            updated = self.manifold.log_euclidean_exp(self._value, tangent_step)
-            self._value = updated
-            return updated
+            return self.manifold.log_euclidean_exp(self._value, tangent_step)
 
         # Use a retraction if available; otherwise fall back to exp or project
         updated = None
@@ -2085,5 +2095,4 @@ class ManifoldConstrainedParameter:
         if updated is None:
             updated = self.project(self._value + tangent_step)
 
-        self._value = updated
         return updated
