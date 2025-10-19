@@ -465,7 +465,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
         def _compute_error_from_residual(residual: Array) -> Array:
             """Compute reconstruction error from a residual."""
-            n_observed = jnp.maximum(jnp.sum(mask), 1)
+            n_observed = jnp.maximum(jnp.sum(mask), 1.0)
             return jnp.sum(residual**2) / n_observed
 
         def cond_fun(state: _MatrixCompletionOptState) -> Array:
@@ -636,7 +636,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
         reconstruction = self.U_ @ self.V_.T
         residual = (reconstruction - X) * mask
         # Mean over observed entries only
-        n_observed = jnp.maximum(jnp.sum(mask), 1)
+        n_observed = jnp.maximum(jnp.sum(mask), 1.0)
         error = float(jnp.sum(residual**2) / n_observed)
 
         return error
@@ -1647,7 +1647,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
             base_point = jnp.eye(X.shape[1])
             log_matrices = jax.vmap(manifold.log_euclidean_log, in_axes=(None, 0))(base_point, X)
             log_mean = jnp.mean(log_matrices, axis=0)
-            median_init = manifold.log_euclidean_exp(jnp.eye(log_mean.shape[0]), log_mean)
+            median_init = manifold.log_euclidean_exp(base_point, log_mean)
         except (RuntimeError, ValueError):
             warnings.warn(
                 "Failed to initialize with Log-Euclidean mean. Falling back to initializing with the first data point.",
@@ -1978,60 +1978,36 @@ class ManifoldConstrainedParameter:
                 # For the Log-Euclidean metric, we need to:
                 # 1. Pull the Euclidean gradient into the log-domain using Dlog_X
                 # 2. Symmetrize in the log-domain
-                # 3. Push it back to the manifold using Dexp_{log X}
+                # 3. Return the log-domain gradient (not pushed back to manifold)
+                # The log-domain gradient will be used with log_euclidean_exp in update()
                 # Reference: "Optimization on manifolds: methods and applications" by Boumal.
 
-                # Compute eigendecomposition once (reused by both Dlog and Dexp)
+                # Compute eigendecomposition for Dlog
                 eigvals, eigvecs = jnp.linalg.eigh(point)
                 eigvals = jnp.maximum(eigvals, NumericalConstants.HIGH_PRECISION_EPSILON)
                 log_eigvals = jnp.log(eigvals)
 
-                # Compute pairwise differences once
+                # Compute pairwise differences
                 diff = eigvals[:, None] - eigvals[None, :]
                 log_diff = log_eigvals[:, None] - log_eigvals[None, :]
 
-                def _dlog_log_euclidean(tangent_vector: Array) -> Array:
-                    """Compute Dlog_P[tangent_vector] using the Loewner matrix formula.
+                # Loewner ratio: φ(λ_i, λ_j) = (log λ_i - log λ_j) / (λ_i - λ_j)
+                # When λ_i ≈ λ_j, use L'Hôpital's rule: lim_{x→y} (log x - log y)/(x - y) = 1/x
+                phi = jnp.where(
+                    jnp.abs(diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
+                    log_diff / diff,
+                    1.0 / eigvals[:, None],
+                )
 
-                    Uses the spectral formula for the differential of the matrix logarithm.
-                    The coefficients are (log λ_i - log λ_j) / (λ_i - λ_j) with diagonal 1/λ_i.
-                    """
-                    # Loewner ratio: φ(λ_i, λ_j) = (log λ_i - log λ_j) / (λ_i - λ_j)
-                    # When λ_i ≈ λ_j, use L'Hôpital's rule: lim_{x→y} (log x - log y)/(x - y) = 1/x
-                    phi = jnp.where(
-                        jnp.abs(diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
-                        log_diff / diff,
-                        1.0 / eigvals[:, None],
-                    )
+                # Transform tangent vector to eigenbasis, apply φ element-wise, transform back
+                tangent_eig = eigvecs.T @ euclidean_grad @ eigvecs
+                log_grad = eigvecs @ (phi * tangent_eig) @ eigvecs.T
 
-                    # Transform tangent vector to eigenbasis, apply φ element-wise, transform back
-                    tangent_eig = eigvecs.T @ tangent_vector @ eigvecs
-                    return eigvecs @ (phi * tangent_eig) @ eigvecs.T
-
-                def _dexp_log_euclidean(tangent_vector: Array) -> Array:
-                    """Compute Dexp_{log(P)}[tangent_vector] exactly using the spectral formula.
-
-                    Uses the closed-form differential of the matrix exponential for SPD matrices.
-                    This is exact (no quadrature error) and more efficient than numerical integration.
-                    """
-                    # Spectral formula: φ(λ_i, λ_j) = (λ_i - λ_j) / (log λ_i - log λ_j)
-                    # When λ_i ≈ λ_j, use L'Hôpital's rule: lim_{x→y} (x-y)/(log x - log y) = x
-                    phi = jnp.where(
-                        jnp.abs(diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
-                        diff / log_diff,
-                        eigvals[:, None],
-                    )
-
-                    # Transform tangent vector to eigenbasis, apply φ element-wise, transform back
-                    tangent_eig = eigvecs.T @ tangent_vector @ eigvecs
-                    return eigvecs @ (phi * tangent_eig) @ eigvecs.T
-
-                # Step 1: Pull the Euclidean gradient into the log-domain using Dlog
-                log_grad = _dlog_log_euclidean(euclidean_grad)
-                # Step 2: Symmetrize in the log-domain
+                # Symmetrize in the log-domain
                 log_grad = (log_grad + log_grad.T) / 2.0
-                # Step 3: Push back to the manifold using Dexp
-                return _dexp_log_euclidean(log_grad)
+
+                # Return log-domain gradient (will be used with log_euclidean_exp)
+                return log_grad
 
         # Use proj() to project onto tangent space for other cases
         if hasattr(self.manifold, "proj"):
@@ -2076,6 +2052,15 @@ class ManifoldConstrainedParameter:
         # Compute tangent vector for update
         tangent_step = -learning_rate * riemannian_grad
 
+        # For log-Euclidean metric, use log_euclidean_exp directly with log-domain tangent
+        if (
+            isinstance(self.manifold, SymmetricPositiveDefinite)
+            and self.metric == "log_euclidean"
+            and hasattr(self.manifold, "log_euclidean_exp")
+        ):
+            # riemannian_grad is already in log-domain for log_euclidean metric
+            return self.manifold.log_euclidean_exp(self._value, tangent_step)
+
         # Use a retraction if available; otherwise fall back to exp or project
         updated = None
         if hasattr(self.manifold, "retr"):
@@ -2086,18 +2071,9 @@ class ManifoldConstrainedParameter:
                 updated = self.manifold.retr(self._value, tangent_step)
 
         if updated is None and hasattr(self.manifold, "exp"):
-            # Select the correct exponential map based on the metric for SPD manifolds
-            exp_fn = self.manifold.exp
-            if (
-                isinstance(self.manifold, SymmetricPositiveDefinite)
-                and self.metric == "log_euclidean"
-                and hasattr(self.manifold, "log_euclidean_exp")
-            ):
-                exp_fn = self.manifold.log_euclidean_exp
-
             # Try exponential map, with fallback if not implemented
             with contextlib.suppress(NotImplementedError):
-                updated = exp_fn(self._value, tangent_step)
+                updated = self.manifold.exp(self._value, tangent_step)
 
         if updated is None:
             updated = self.project(self._value + tangent_step)
