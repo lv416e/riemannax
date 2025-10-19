@@ -703,6 +703,8 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         Variance explained by each principal component, in descending order.
     explained_variance_ratio_ : Array of shape (n_components,)
         Percentage of variance explained by each component.
+    mean_n_iter_ : int
+        Actual number of iterations performed for computing the Riemannian mean.
 
     Examples:
     --------
@@ -754,6 +756,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         self.components_: Array | None = None
         self.explained_variance_: Array | None = None
         self.explained_variance_ratio_: Array | None = None
+        self.mean_n_iter_: int | None = None
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
         """Get parameters for this estimator.
@@ -820,6 +823,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         self.components_ = None
         self.explained_variance_ = None
         self.explained_variance_ratio_ = None
+        self.mean_n_iter_ = None
 
         return self
 
@@ -1003,12 +1007,12 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
                         )
 
         # Step 1: Compute intrinsic mean on the manifold (using tensor-shaped data)
-        mean = self._compute_riemannian_mean(X_reshaped)
-        self.mean_ = mean
+        self.mean_, self.mean_n_iter_ = self._compute_riemannian_mean(X_reshaped)
 
         # Step 2: Map data to tangent space at mean (vectorized)
         # Local variable for type narrowing
         manifold = self.manifold
+        mean = self.mean_
         tangent_vectors = jax.vmap(manifold.log, in_axes=(None, 0))(mean, X_reshaped)
 
         # Flatten tangent vectors for covariance computation
@@ -1085,7 +1089,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         )
         return True
 
-    def _compute_riemannian_mean(self, X: Array) -> Array:
+    def _compute_riemannian_mean(self, X: Array) -> tuple[Array, int]:
         """Compute the intrinsic/Riemannian mean on the manifold.
 
         Uses iterative gradient descent in the tangent space with a step size
@@ -1105,6 +1109,8 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
         mean : Array of shape point_shape
             The Riemannian mean on the manifold, in the same tensor format as
             individual data points.
+        n_iter : int
+            Number of iterations performed.
         """
         assert self.manifold is not None, "Manifold must be set before calling _compute_riemannian_mean"
 
@@ -1184,9 +1190,9 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
                 stacklevel=3,
             )
             # Rollback to the last valid state
-            return final_state.mean_prev
+            return final_state.mean_prev, int(jax.device_get(final_state.iteration)) - 1
 
-        return final_state.mean
+        return final_state.mean, int(jax.device_get(final_state.iteration))
 
     def transform(self, X: Array) -> Array:
         """Project data to the principal component subspace.
@@ -1964,14 +1970,13 @@ class ManifoldConstrainedParameter:
         riemannian_grad : Array
             Riemannian gradient (tangent vector).
         """
-        # Check if manifold has egrad2rgrad method
-        if hasattr(self.manifold, "egrad2rgrad"):
-            return self.manifold.egrad2rgrad(point, euclidean_grad)
-
-        # Special cases for SPD manifolds
+        # Special cases for SPD manifolds (handle before generic egrad2rgrad)
         if isinstance(self.manifold, SymmetricPositiveDefinite):
             if self.metric == "affine_invariant":
-                # Affine-invariant Riemannian gradient: X @ sym(G_e) @ X
+                # Use egrad2rgrad if available for affine-invariant metric
+                if hasattr(self.manifold, "egrad2rgrad"):
+                    return self.manifold.egrad2rgrad(point, euclidean_grad)
+                # Fallback: Affine-invariant Riemannian gradient: X @ sym(G_e) @ X
                 sym_grad = (euclidean_grad + euclidean_grad.T) / 2.0
                 return point @ sym_grad @ point
             elif self.metric == "log_euclidean":
@@ -2008,6 +2013,10 @@ class ManifoldConstrainedParameter:
 
                 # Return log-domain gradient (will be used with log_euclidean_exp)
                 return log_grad
+
+        # Check if manifold has egrad2rgrad method (for non-SPD manifolds)
+        if hasattr(self.manifold, "egrad2rgrad"):
+            return self.manifold.egrad2rgrad(point, euclidean_grad)
 
         # Use proj() to project onto tangent space for other cases
         if hasattr(self.manifold, "proj"):
