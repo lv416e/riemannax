@@ -82,8 +82,10 @@ def _project_onto_manifold(manifold: Manifold, point: Array) -> Array:
     elif isinstance(manifold, Sphere):
         # For Sphere: normalize to unit norm with zero-norm safeguard
         norm = jnp.linalg.norm(point)
+        # Use a safe norm to avoid division by zero, even though the result is discarded for small norms
+        safe_norm = jnp.maximum(norm, NumericalConstants.EPSILON)
         canonical = jnp.zeros_like(point).at[0].set(1.0)
-        return jnp.where(norm > NumericalConstants.EPSILON, point / norm, canonical)
+        return jnp.where(norm > NumericalConstants.EPSILON, point / safe_norm, canonical)
 
     # No projection method available
     raise NotImplementedError(
@@ -390,8 +392,10 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
 
         # Compute truncated SVD for initialization
         U_init, s_init, Vt_init = jnp.linalg.svd(X_filled, full_matrices=False)
-        U_init = U_init[:, : self.rank] * jnp.sqrt(s_init[: self.rank])
-        V_init = Vt_init[: self.rank, :].T * jnp.sqrt(s_init[: self.rank])
+        # Clip singular values to non-negative to handle floating-point inaccuracies
+        s_sqrt = jnp.sqrt(jnp.maximum(s_init[: self.rank], 0.0))
+        U_init = U_init[:, : self.rank] * s_sqrt
+        V_init = Vt_init[: self.rank, :].T * s_sqrt
 
         # Optimize using Euclidean gradient descent on the factor space
         U, V, n_iter, final_error = self._optimize(X, mask, U_init, V_init)
