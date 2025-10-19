@@ -125,10 +125,10 @@ def _validate_spd_batch(X: Array) -> None:
     # Check positive definiteness (vectorized)
     all_eigenvalues = jnp.linalg.eigvalsh(X)
     eps = NumericalConstants.MEDIUM_PRECISION_EPSILON
-    is_positive_definite_per_matrix = jnp.all(all_eigenvalues > eps, axis=1)
+    is_positive_definite_per_matrix = jnp.all(all_eigenvalues >= eps, axis=1)
     if not bool(jax.device_get(jnp.all(is_positive_definite_per_matrix))):
         failed_index = int(jax.device_get(jnp.argmin(is_positive_definite_per_matrix)))
-        raise ValueError(f"All matrices must be SPD. Matrix {failed_index} has non-positive eigenvalues.")
+        raise ValueError(f"All matrices must be SPD. Matrix {failed_index} has eigenvalues smaller than {eps}.")
 
 
 class _MatrixCompletionOptState(NamedTuple):
@@ -865,12 +865,12 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
 
         elif isinstance(self.manifold, SymmetricPositiveDefinite):
             # SPD(n) has points as (n, n) matrices
-            matrix_dim = math.isqrt(int(ambient_dim))
-            if matrix_dim * matrix_dim != ambient_dim:
+            n = self.manifold.n
+            if ambient_dim != n * n:
                 raise ValueError(
-                    f"For SymmetricPositiveDefinite, ambient_dim must be a perfect square, got {ambient_dim}"
+                    f"For SymmetricPositiveDefinite(n={n}), expected ambient_dim={n * n}, got {ambient_dim}"
                 )
-            return (matrix_dim, matrix_dim)
+            return (n, n)
 
         else:
             # For unknown manifolds, assume points are vectors (default behavior)
