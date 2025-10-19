@@ -126,7 +126,9 @@ def _validate_spd_batch(X: Array) -> None:
     is_positive_definite_per_matrix = jnp.all(all_eigenvalues >= eps, axis=1)
     if not bool(jax.device_get(jnp.all(is_positive_definite_per_matrix))):
         failed_index = int(jax.device_get(jnp.argmin(is_positive_definite_per_matrix)))
-        raise ValueError(f"All matrices must be SPD. Matrix {failed_index} has eigenvalues smaller than {eps}.")
+        raise ValueError(
+            f"All matrices must be SPD. Matrix {failed_index} is not positive definite (eigenvalues must be >= {eps})."
+        )
 
 
 class _MatrixCompletionOptState(NamedTuple):
