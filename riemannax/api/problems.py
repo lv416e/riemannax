@@ -2014,11 +2014,11 @@ class ManifoldConstrainedParameter:
                 log_diff = log_eigvals[:, None] - log_eigvals[None, :]
 
                 # Spectral coefficient for Dexp: ψ(λ_i, λ_j) = (λ_i - λ_j) / (log λ_i - log λ_j)
-                # When log λ_i ≈ log λ_j, use L'Hôpital's rule: lim_{log x→log y} (x - y)/(log x - log y) = x
+                # When log λ_i ≈ log λ_j, use symmetric fallback to ensure psi matrix symmetry
                 psi = jnp.where(
                     jnp.abs(log_diff) > NumericalConstants.HIGH_PRECISION_EPSILON,
                     diff / log_diff,
-                    eigvals[:, None],
+                    (eigvals[:, None] + eigvals[None, :]) / 2.0,
                 )
 
                 # Transform ambient gradient to eigenbasis, apply ψ element-wise, transform back
