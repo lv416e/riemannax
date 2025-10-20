@@ -1200,7 +1200,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
                 stacklevel=3,
             )
             # Rollback to the last valid state
-            return final_state.mean_prev, int(jax.device_get(final_state.iteration)) - 1
+            return final_state.mean_prev, max(0, int(jax.device_get(final_state.iteration)) - 1)
 
         return final_state.mean, int(jax.device_get(final_state.iteration))
 
