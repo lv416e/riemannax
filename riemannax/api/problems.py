@@ -867,7 +867,7 @@ class ManifoldPCA(BaseEstimator, TransformerMixin):
             expected = self.manifold.ambient_dimension
             if ambient_dim != expected:
                 raise ValueError(
-                    f"For Sphere(n={self.manifold.dimension}), expected ambient_dim={expected}, got {ambient_dim}"
+                    f"For Sphere, expected ambient_dim={expected}, got {ambient_dim}"
                 )
             return (ambient_dim,)
 
