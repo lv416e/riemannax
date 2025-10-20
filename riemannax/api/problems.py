@@ -550,7 +550,7 @@ class MatrixCompletion(BaseEstimator, TransformerMixin):
                 stacklevel=3,
             )
             # Rollback to the last valid state
-            return final_state.U_prev, final_state.V_prev, n_iter_int - 1, float(jax.device_get(final_state.error_prev))
+            return final_state.U_prev, final_state.V_prev, max(0, n_iter_int - 1), float(jax.device_get(final_state.error_prev))
 
         # Return final state if no issues
         return final_state.U, final_state.V, n_iter_int, float(jax.device_get(final_state.error))
