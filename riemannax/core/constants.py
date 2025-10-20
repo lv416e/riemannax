@@ -24,6 +24,18 @@ class NumericalConstants:
     HIGH_PRECISION_EPSILON: float = 1e-12
     """High precision epsilon for critical numerical operations."""
 
+    WEISZFELD_EPSILON: float = 1e-8
+    """Epsilon for Weiszfeld algorithm to prevent division by zero."""
+
+    MEDIUM_PRECISION_EPSILON: float = 1e-6
+    """Medium precision epsilon for manifold projections."""
+
+    SYMMETRY_TOLERANCE: float = 1e-5
+    """Tolerance for checking matrix symmetry."""
+
+    VALIDATION_TOLERANCE: float = 1e-6
+    """Tolerance for validating points on manifolds."""
+
 
 class PerformanceThresholds:
     """Performance thresholds for JIT compilation and optimization validation.
