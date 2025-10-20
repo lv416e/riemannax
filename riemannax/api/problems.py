@@ -1751,7 +1751,7 @@ class RobustCovarianceEstimation(BaseEstimator, TransformerMixin):
                 stacklevel=3,
             )
             # Rollback to the last valid state
-            return final_state.median_prev, int(jax.device_get(final_state.iteration)) - 1
+            return final_state.median_prev, max(0, int(jax.device_get(final_state.iteration)) - 1)
 
         return final_state.median, int(jax.device_get(final_state.iteration))
 
