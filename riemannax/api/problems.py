@@ -2082,7 +2082,9 @@ class ManifoldConstrainedParameter:
             and hasattr(self.manifold, "log_euclidean_exp")
         ):
             # riemannian_grad is already in log-domain for log_euclidean metric
-            return self.manifold.log_euclidean_exp(self._value, tangent_step)
+            updated = self.manifold.log_euclidean_exp(self._value, tangent_step)
+            self._value = updated
+            return updated
 
         # Use a retraction if available; otherwise fall back to exp or project
         updated = None
@@ -2101,4 +2103,5 @@ class ManifoldConstrainedParameter:
         if updated is None:
             updated = self.project(self._value + tangent_step)
 
+        self._value = updated
         return updated
