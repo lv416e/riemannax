@@ -53,11 +53,16 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 
 **CONSTITUTIONAL LAW**: The following quality checks are **mandatory** for each Todo and **must ALL pass** before proceeding to the next Todo. **NO EXCEPTIONS ALLOWED**.
 
+#### Package Management
+This project uses **uv** for fast, reliable Python package and environment management. All commands below must be prefixed with `uv run` to ensure correct environment isolation and dependency resolution.
+
 #### Mandatory Quality Checks (All Must Pass)
-1. `mypy --config-file=pyproject.toml` - Complete type error resolution
-2. `pre-commit run --all-files` - Complete style/quality issue resolution
-3. `ruff check . --fix --unsafe-fixes` - Complete lint issue resolution
-4. `pytest` - Complete test failure resolution
+1. `uv run mypy --config-file=pyproject.toml` - Complete type error resolution
+2. `uv run pre-commit run --all-files` - Complete style/quality issue resolution
+3. `uv run ruff check . --fix --unsafe-fixes` - Complete lint issue resolution
+4. `uv run pytest` - Complete test failure resolution
+
+**Note**: Always use `uv run` prefix to execute commands in the project's virtual environment.
 
 #### Information Quality Requirement
 - **MANDATORY**: Use `context7` for precise, research-based implementations
